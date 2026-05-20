@@ -1,0 +1,15 @@
+{
+  "mcp_servers": {
+    "memova": {
+      "url": "https://api.memova.ai/mcp",
+      "oauth_resource": "https://api.memova.ai/mcp",
+      "scopes": [
+        "notes.read",
+        "actions.read",
+        "actions.write",
+        "automation.read",
+        "automation.write"
+      ]
+    }
+  }
+}

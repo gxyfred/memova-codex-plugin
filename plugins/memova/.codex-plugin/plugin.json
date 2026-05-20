@@ -1,0 +1,42 @@
+{
+  "name": "memova",
+  "version": "0.1.0",
+  "description": "Run Memova meeting-note workflows from Codex.",
+  "author": {
+    "name": "Memova",
+    "url": "https://memova.ai"
+  },
+  "homepage": "https://memova.ai",
+  "repository": "https://github.com/gxyfred/memova-codex-plugin",
+  "license": "UNLICENSED",
+  "keywords": [
+    "memova",
+    "meeting-notes",
+    "mcp",
+    "workflow",
+    "productivity"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Memova",
+    "shortDescription": "Turn final meeting notes into Codex workflows.",
+    "longDescription": "Connect Codex to Memova through OAuth MCP, then use Memova starter prompts and bundled workflow skills to review recent final notes, organize engineering actions, request approval when needed, execute safe tasks, and write progress back to Memova.",
+    "developerName": "Memova",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write",
+      "Workflow"
+    ],
+    "websiteURL": "https://memova.ai",
+    "defaultPrompt": [
+      "Run latest final note workflow.",
+      "Review latest Memova note and prepare engineering tasks.",
+      "Continue pending Memova automation tasks."
+    ],
+    "brandColor": "#3366FF",
+    "composerIcon": "./assets/icon.svg",
+    "logo": "./assets/logo.svg"
+  }
+}

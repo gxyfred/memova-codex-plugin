@@ -1,0 +1,20 @@
+{
+  "name": "memova-codex-plugin",
+  "interface": {
+    "displayName": "Memova Codex Plugins"
+  },
+  "plugins": [
+    {
+      "name": "memova",
+      "source": {
+        "source": "local",
+        "path": "./plugins/memova"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
