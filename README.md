@@ -129,6 +129,15 @@ For a new iCloud vault, the usual Mac target path is:
 ~/Library/Mobile Documents/com~apple~CloudDocs/Memova Vault
 ```
 
+If the user has an old Obsidian or Markdown vault, the default recommendation is still to create a
+separate `Memova Vault` and use the old vault only as a lightly inspected reference. If the user
+explicitly chooses to add Memova to an existing vault, Codex creates the full Memova file tree inside
+a dedicated child folder, not directly in the old vault root:
+
+```text
+~/Library/Mobile Documents/com~apple~CloudDocs/Existing Obsidian Vault/Memova
+```
+
 After Codex creates the vault, the iOS app should ask the user to select the same folder through Files and verify `_memova/manifest.json`. Do not rely on the Mac absolute path inside iOS; the manifest identifies the vault.
 
 ## File Tree Created By Setup

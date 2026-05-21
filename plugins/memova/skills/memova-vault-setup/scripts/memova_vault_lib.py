@@ -365,6 +365,60 @@ def extract_project_names(setup: dict[str, Any]) -> list[str]:
     return clean[:12]
 
 
+def extract_source_vault_paths(setup: dict[str, Any]) -> list[Path]:
+    hints = setup.get("source_path_hints") or {}
+    raw_paths: list[str] = []
+    path_keys = {
+        "mac_existing_vault_path",
+        "mac_path",
+        "existing_vault_path",
+        "old_vault_path",
+        "source_path",
+        "vault_path",
+        "path",
+    }
+    list_keys = {"candidate_paths", "existing_vault_paths", "paths"}
+
+    def visit(value: Any, *, key: str | None = None) -> None:
+        if isinstance(value, str) and key in path_keys:
+            raw_paths.append(value)
+        elif isinstance(value, list) and key in list_keys:
+            raw_paths.extend(item for item in value if isinstance(item, str))
+        elif isinstance(value, dict):
+            for child_key, child_value in value.items():
+                visit(child_value, key=child_key)
+
+    visit(hints)
+
+    paths: list[Path] = []
+    seen: set[str] = set()
+    for raw_path in raw_paths:
+        expanded = resolved(expand_path(raw_path))
+        key = str(expanded)
+        if key not in seen:
+            seen.add(key)
+            paths.append(expanded)
+    return paths
+
+
+def path_inside(parent: Path, child: Path) -> bool:
+    parent_resolved = resolved(parent)
+    child_resolved = resolved(child)
+    return child_resolved == parent_resolved or parent_resolved in child_resolved.parents
+
+
+def suggested_memova_subdir(setup: dict[str, Any], existing_vault_path: Path) -> Path:
+    hints = setup.get("target_path_hints") or {}
+    name = None
+    if isinstance(hints, dict):
+        for key in ("memova_folder_name", "desired_memova_folder_name", "desired_vault_name", "vault_name"):
+            value = hints.get(key)
+            if isinstance(value, str) and value.strip():
+                name = value
+                break
+    return resolved(existing_vault_path / safe_component(name or "Memova"))
+
+
 def manifest_id(setup: dict[str, Any]) -> str:
     setup_id = setup.get("setup_session_id")
     if isinstance(setup_id, str) and setup_id:
@@ -763,6 +817,26 @@ def create_plan(
             errors.append(message)
     if setup_mode == "create_new_vault" and nonempty and not allow_existing_nonempty:
         errors.append("Target root already exists and is not empty.")
+    source_vault_paths = extract_source_vault_paths(setup)
+    suggested_existing_vault_target = None
+    if setup_mode == "add_memova_folder_to_existing_vault" and source_vault_paths:
+        target_resolved = resolved(target_root)
+        containing_sources = [source for source in source_vault_paths if path_inside(source, target_resolved)]
+        if not containing_sources:
+            errors.append(
+                "For add_memova_folder_to_existing_vault, target root must be a dedicated Memova "
+                "subdirectory inside the supplied existing vault path."
+            )
+            suggested_existing_vault_target = str(suggested_memova_subdir(setup, source_vault_paths[0]))
+        else:
+            exact_sources = [source for source in containing_sources if resolved(source) == target_resolved]
+            if exact_sources:
+                suggested_existing_vault_target = str(suggested_memova_subdir(setup, exact_sources[0]))
+                errors.append(
+                    "For add_memova_folder_to_existing_vault, target root cannot be the existing "
+                    f"vault root itself. Use a dedicated Memova subdirectory such as "
+                    f"{suggested_existing_vault_target}."
+                )
 
     dirs = build_dirs(setup)
     files = build_file_specs(setup)
@@ -803,6 +877,8 @@ def create_plan(
         "target_nonempty": nonempty,
         "manifest_id": manifest_id(setup),
         "project_names": extract_project_names(setup),
+        "source_vault_paths": [str(path) for path in source_vault_paths],
+        "suggested_existing_vault_target": suggested_existing_vault_target,
         "warnings": warnings,
         "errors": errors,
         "operations": operations,

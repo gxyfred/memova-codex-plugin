@@ -26,8 +26,11 @@ because a prompt mentions Obsidian, iCloud, or notes.
 - Default to iCloud Drive on Mac for V1. Google Drive and OneDrive are deferred.
 - Never write outside the user-approved target directory.
 - Do not overwrite existing user files by default. Create missing files and record skipped files.
-- For existing vaults, preserve the user's structure and add Memova mapping/metadata instead of
-  renaming or moving old files.
+- Default to creating a separate `Memova Vault`. If the setup mode is
+  `add_memova_folder_to_existing_vault`, preserve the user's existing vault root and create the
+  full Memova file tree inside a dedicated subdirectory such as `<existing vault>/Memova`.
+- For existing vault references, preserve the user's structure and add Memova mapping/metadata
+  instead of renaming or moving old files.
 - Ask for explicit user approval before creating files, writing into an existing vault, or using a
   non-iCloud target for an iCloud setup.
 - Never store secrets, OAuth tokens, raw credentials, or full private note contents in progress
@@ -60,6 +63,12 @@ When the user asks to set up their Memova knowledge base:
 
    Keep inspection light; do not recursively read the full vault unless the user asks.
 8. Write the MCP `setup_package` object to a temporary JSON file under `/tmp` and run a dry plan:
+
+   - For `create_new_vault` or `connect_existing_vault`, prefer a standalone target such as
+     `<iCloud>/Memova Vault`.
+   - For `add_memova_folder_to_existing_vault`, the target root must be a dedicated child folder
+     inside the existing vault, such as `<existing vault>/Memova`. Do not write the Memova roots
+     directly into the existing vault root.
 
    ```bash
    python3 scripts/create_memova_vault.py plan \
