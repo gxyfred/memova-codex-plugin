@@ -6,6 +6,7 @@ This plugin bundles:
 
 - the Memova OAuth MCP server at `https://api.memova.ai/mcp`,
 - the `memova-workflow` skill for one-click final-note workflows,
+- the `memova-vault-setup` skill for iCloud-first Memova knowledge-base setup,
 - Memova starter prompts and plugin presentation metadata.
 
 ## Should This Repo Be Public?
@@ -84,12 +85,42 @@ In Codex, type `@memova` and choose a starter prompt, or ask:
 You can also select one of the plugin starter prompts:
 
 ```text
+Setup my Memova knowledge base.
 Run latest final note workflow.
 Review latest Memova note and prepare engineering tasks.
 Continue pending Memova automation tasks.
 ```
 
 The workflow reviews recent Memova final notes, organizes engineering actions, asks before approval-required work, executes safe tasks when the current workspace is appropriate, and writes progress/results back to Memova.
+
+## Set Up A Memova Knowledge Base
+
+The knowledge-base setup flow is designed for users who already completed the Memova iOS setup step and marked setup ready for Codex.
+
+In Codex, run:
+
+```text
+@memova Setup my Memova knowledge base.
+```
+
+Codex will:
+
+1. Pull the ready setup package from Memova through MCP.
+2. Discover likely iCloud Drive and existing vault locations on the Mac.
+3. Inspect an existing vault lightly if the setup package or user provides a path.
+4. Build a dry-run file operation plan.
+5. Ask before writing files.
+6. Create the Memova LLM Wiki vault files only inside the approved target folder.
+7. Validate `_memova/manifest.json` and required semantic roots.
+8. Report success or failure back to Memova through MCP.
+
+For a new iCloud vault, the usual Mac target path is:
+
+```text
+~/Library/Mobile Documents/com~apple~CloudDocs/Memova Vault
+```
+
+After Codex creates the vault, the iOS app should ask the user to select the same folder through Files and verify `_memova/manifest.json`. Do not rely on the Mac absolute path inside iOS; the manifest identifies the vault.
 
 ## What The Workflow Does
 
@@ -153,6 +184,14 @@ Validate JSON files:
 python3 -m json.tool .agents/plugins/marketplace.json >/dev/null
 python3 -m json.tool plugins/memova/.codex-plugin/plugin.json >/dev/null
 python3 -m json.tool plugins/memova/.mcp.json >/dev/null
+```
+
+Validate skill metadata and helper scripts:
+
+```bash
+ruby -e 'require "yaml"; YAML.load_file("plugins/memova/skills/memova-workflow/agents/openai.yaml"); YAML.load_file("plugins/memova/skills/memova-vault-setup/agents/openai.yaml"); puts "yaml ok"'
+python3 -m py_compile plugins/memova/skills/memova-vault-setup/scripts/*.py
+python3 plugins/memova/skills/memova-vault-setup/scripts/create_memova_vault.py discover
 ```
 
 Inspect the marketplace locally:
