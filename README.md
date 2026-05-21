@@ -131,6 +131,57 @@ For a new iCloud vault, the usual Mac target path is:
 
 After Codex creates the vault, the iOS app should ask the user to select the same folder through Files and verify `_memova/manifest.json`. Do not rely on the Mac absolute path inside iOS; the manifest identifies the vault.
 
+## File Tree Created By Setup
+
+The actual file-tree implementation lives in:
+
+```text
+plugins/memova/skills/memova-vault-setup/scripts/memova_vault_lib.py
+```
+
+For a new vault, Codex creates the Memova LLM Wiki roots:
+
+```text
+README.md
+AGENTS.md
+sources/meetings
+sources/captures
+sources/imports
+sources/attachments
+inbox/review/pending_actions.md
+inbox/review/pending_memories.md
+inbox/review/conflicts.md
+wiki/projects
+wiki/people
+wiki/organizations
+wiki/topics
+wiki/decisions
+wiki/claims
+wiki/processes
+wiki/outputs
+schemas/*.schema.md
+projects/
+daily/
+outputs/articles
+outputs/reports
+outputs/decks
+outputs/product_specs
+archive/
+_memova/manifest.json
+_memova/vault_mapping.json
+_memova/links.json
+_memova/sync_state.json
+_memova/wiki_index.json
+_memova/source_index.json
+_memova/local_first_plan.md
+_memova/compression/
+```
+
+If `user_preferences.project_names` is present in the setup package, Codex also creates starter
+project pages under `projects/Project - <Name>/`, including `_project.md`, `_context/L1`,
+`_context/L2`, `_context/L3`, `actions.md`, `decisions.md`, `meetings.md`, `outputs/`, and
+`resources/`.
+
 ## What The Workflow Does
 
 When triggered, the bundled `memova-workflow` skill tells Codex to:

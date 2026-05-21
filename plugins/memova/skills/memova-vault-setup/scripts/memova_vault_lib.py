@@ -39,6 +39,7 @@ BASE_DIRS = [
     "wiki/decisions",
     "wiki/claims",
     "wiki/processes",
+    "wiki/outputs",
     "schemas",
     "projects",
     "daily",
@@ -60,6 +61,21 @@ REQUIRED_MACHINE_FILES = [
 ]
 
 SCHEMA_FILES = {
+    "schemas/page.schema.md": """# Page Schema
+
+Required fields:
+- `type`
+- `title`
+- `status`
+- `sources`
+- `updated_at`
+
+Rules:
+- Every long-term page must have a type.
+- Important claims must link back to sources.
+- Mark inferred content as inferred.
+- Do not silently overwrite conflicting facts.
+""",
     "schemas/source.schema.md": """# Source Page Schema
 
 Required fields:
@@ -143,6 +159,32 @@ Rules:
 - Store only useful, confirmed, non-sensitive context.
 - Prefer project-relevant facts over personal trivia.
 """,
+    "schemas/organization.schema.md": """# Organization Page Schema
+
+Required fields:
+- `type: organization`
+- `name`
+- `relationship`
+- `sources`
+
+Rules:
+- Store confirmed work-relevant context only.
+- Link organization facts to source meetings or documents.
+- Keep speculative relationship mapping out of confirmed sections.
+""",
+    "schemas/topic.schema.md": """# Topic Page Schema
+
+Required fields:
+- `type: topic`
+- `title`
+- `summary`
+- `sources`
+
+Rules:
+- Use topic pages for reusable knowledge, not one-off meeting notes.
+- Separate stable facts from open questions.
+- Link important conclusions back to sources.
+""",
     "schemas/decision.schema.md": """# Decision Page Schema
 
 Required fields:
@@ -167,6 +209,34 @@ Required fields:
 Rules:
 - Claims must be traceable.
 - Lower confidence when sources conflict or are incomplete.
+""",
+    "schemas/process.schema.md": """# Process Page Schema
+
+Required fields:
+- `type: process`
+- `title`
+- `steps`
+- `owner`
+- `sources`
+
+Rules:
+- Use process pages for reusable workflows.
+- Keep steps actionable and versioned when they change.
+- Cite the meeting, document, or decision that established the process.
+""",
+    "schemas/output.schema.md": """# Output Page Schema
+
+Required fields:
+- `type: output`
+- `title`
+- `status`
+- `owner`
+- `sources`
+
+Rules:
+- Use output pages for finished or planned artifacts.
+- Link to the actual artifact location when available.
+- Track source decisions that shaped the output.
 """,
 }
 
@@ -409,6 +479,45 @@ confirmed long-term memory.
 
 Low-friction holding area for captures, review queues, pending actions, pending memory candidates,
 and conflicts that need user confirmation.
+""",
+        ),
+        FileSpec(
+            "inbox/review/pending_actions.md",
+            """# Pending Actions
+
+Unconfirmed action candidates waiting for user review.
+
+Rules:
+
+- No confirmed action without evidence.
+- External writes require explicit user confirmation.
+- Move confirmed project work into the relevant `projects/*/actions.md`.
+""",
+        ),
+        FileSpec(
+            "inbox/review/pending_memories.md",
+            """# Pending Memories
+
+Unconfirmed memory candidates waiting for user review.
+
+Rules:
+
+- No long-term memory without source evidence.
+- Mark sensitive content before writing to long-term pages.
+- Move confirmed knowledge into `wiki/` or `projects/` with source links.
+""",
+        ),
+        FileSpec(
+            "inbox/review/conflicts.md",
+            """# Conflicts
+
+Evidence conflicts and sync conflicts that need user or agent review.
+
+Rules:
+
+- Preserve both sides of a factual conflict until resolved.
+- Do not silently overwrite user-authored content.
+- Record resolution source and timestamp when a conflict is resolved.
 """,
         ),
         FileSpec(

@@ -1,6 +1,6 @@
 {
   "name": "memova",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Run Memova workflows and set up user-owned knowledge bases from Codex.",
   "author": {
     "name": "Memova",
