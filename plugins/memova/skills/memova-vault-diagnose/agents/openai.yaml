@@ -1,0 +1,7 @@
+interface:
+  display_name: "Memova Vault Diagnose"
+  short_description: "Validate or repair a Memova vault/input root."
+  default_prompt: "Diagnose my Memova vault."
+
+policy:
+  allow_implicit_invocation: false

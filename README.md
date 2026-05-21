@@ -7,6 +7,7 @@ This plugin bundles:
 - the Memova OAuth MCP server at `https://api.memova.ai/mcp`,
 - the `memova-workflow` skill for one-click final-note workflows,
 - the `memova-vault-setup` skill for iCloud-first Memova knowledge-base setup,
+- the `memova-vault-diagnose` skill for validating and repairing a Memova vault/input root,
 - Memova starter prompts and plugin presentation metadata.
 
 ## Should This Repo Be Public?
@@ -86,6 +87,7 @@ You can also select one of the plugin starter prompts:
 
 ```text
 Setup my Memova knowledge base.
+Diagnose my Memova vault.
 Run latest final note workflow.
 Review latest Memova note and prepare engineering tasks.
 Continue pending Memova automation tasks.
@@ -199,6 +201,28 @@ For an existing vault, Codex creates only the approved Memova input root, usuall
 Memova V1 writes raw meeting packets only under the Memova input root. It does not classify
 meetings into projects, update wiki pages, or reorganize an existing knowledge base.
 
+## Diagnose Or Repair A Memova Vault
+
+If setup completed but the iOS app cannot verify the folder, or meeting-to-vault sync cannot write,
+run:
+
+```text
+@memova Diagnose my Memova vault.
+```
+
+Codex will ask for the Mac path if needed, then use deterministic helper scripts to inspect and
+validate the folder. The diagnosis checks required Memova manifests, machine state files, input-root
+relative paths, and lightweight raw-input folder candidates. If files are missing, Codex can show a
+repair plan, but it must ask before writing anything.
+
+The underlying script can be run directly during development:
+
+```bash
+python3 plugins/memova/skills/memova-vault-setup/scripts/diagnose_memova_vault.py \
+  --path "/path/to/Memova Vault or input root" \
+  --repair-plan
+```
+
 ## What The Workflow Does
 
 When triggered, the bundled `memova-workflow` skill tells Codex to:
@@ -270,9 +294,10 @@ python3 -m json.tool plugins/memova/.mcp.json >/dev/null
 Validate skill metadata and helper scripts:
 
 ```bash
-ruby -e 'require "yaml"; YAML.load_file("plugins/memova/skills/memova-workflow/agents/openai.yaml"); YAML.load_file("plugins/memova/skills/memova-vault-setup/agents/openai.yaml"); puts "yaml ok"'
+ruby -e 'require "yaml"; YAML.load_file("plugins/memova/skills/memova-workflow/agents/openai.yaml"); YAML.load_file("plugins/memova/skills/memova-vault-setup/agents/openai.yaml"); YAML.load_file("plugins/memova/skills/memova-vault-diagnose/agents/openai.yaml"); puts "yaml ok"'
 python3 -m py_compile plugins/memova/skills/memova-vault-setup/scripts/*.py
 python3 plugins/memova/skills/memova-vault-setup/scripts/create_memova_vault.py discover
+python3 plugins/memova/skills/memova-vault-setup/scripts/setup_fixture_harness.py --json
 python3 plugins/memova/scripts/version_check.py --force
 python3 plugins/memova/scripts/kb_setup_reminder.py
 ```
