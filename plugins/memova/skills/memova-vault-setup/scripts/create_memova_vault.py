@@ -15,7 +15,7 @@ from memova_vault_lib import (
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Plan or create a Memova LLM Wiki vault.")
+    parser = argparse.ArgumentParser(description="Plan or create a Memova inbox-first vault/input root.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     discover_parser = subparsers.add_parser("discover", help="Print detected iCloud roots.")

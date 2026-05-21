@@ -1,6 +1,6 @@
 ---
 name: memova-vault-setup
-description: Use when the user explicitly invokes Memova to set up, create, inspect, or connect a user-owned Memova knowledge base / LLM Wiki vault from Codex, especially after an iOS setup session has been marked ready for Codex.
+description: Use when the user explicitly invokes Memova to set up, create, inspect, or connect a user-owned Memova raw-input root from Codex, especially after an iOS setup session has been marked ready for Codex.
 ---
 
 # Memova Vault Setup
@@ -11,8 +11,8 @@ because a prompt mentions Obsidian, iCloud, or notes.
 
 ## Operating Rules
 
-- Treat the Memova MCP setup package as the source of truth for setup mode, storage target,
-  preferences, and path hints.
+- Treat the Memova MCP setup package as the source of truth for setup mode, storage target, and
+  path hints. Preferences are not collected in inbox-first V1.
 - Before starting setup, run the low-frequency plugin version check from the plugin root:
 
   ```bash
@@ -26,11 +26,12 @@ because a prompt mentions Obsidian, iCloud, or notes.
 - Default to iCloud Drive on Mac for V1. Google Drive and OneDrive are deferred.
 - Never write outside the user-approved target directory.
 - Do not overwrite existing user files by default. Create missing files and record skipped files.
-- Default to creating a separate `Memova Vault`. If the setup mode is
-  `add_memova_folder_to_existing_vault`, preserve the user's existing vault root and create the
-  full Memova file tree inside a dedicated subdirectory such as `<existing vault>/Memova`.
-- For existing vault references, preserve the user's structure and add Memova mapping/metadata
-  instead of renaming or moving old files.
+- For `create_new_vault`, create a new Memova vault with an empty LLM Wiki skeleton and a writable
+  Memova input root at `inbox/memova/`.
+- For `connect_existing_vault`, preserve the user's existing vault root and create only a scoped
+  Memova input root inside the user-confirmed raw-input folder, such as
+  `<existing vault>/00_Inbox/Memova`. Do not create Memova `wiki/`, `projects/`, `daily/`, or other
+  top-level roots inside an existing vault.
 - Ask for explicit user approval before creating files, writing into an existing vault, or using a
   non-iCloud target for an iCloud setup.
 - Never store secrets, OAuth tokens, raw credentials, or full private note contents in progress
@@ -64,11 +65,11 @@ When the user asks to set up their Memova knowledge base:
    Keep inspection light; do not recursively read the full vault unless the user asks.
 8. Write the MCP `setup_package` object to a temporary JSON file under `/tmp` and run a dry plan:
 
-   - For `create_new_vault` or `connect_existing_vault`, prefer a standalone target such as
+   - For `create_new_vault`, the target root is the new vault root, usually
      `<iCloud>/Memova Vault`.
-   - For `add_memova_folder_to_existing_vault`, the target root must be a dedicated child folder
-     inside the existing vault, such as `<existing vault>/Memova`. Do not write the Memova roots
-     directly into the existing vault root.
+   - For `connect_existing_vault`, the target root is the final Memova input-root folder, usually a
+     child of the user's existing raw-input folder such as `<existing vault>/00_Inbox/Memova`.
+     Never target the existing vault root itself.
 
    ```bash
    python3 scripts/create_memova_vault.py plan \
@@ -76,8 +77,8 @@ When the user asks to set up their Memova knowledge base:
      --target-root "<approved-target-path>"
    ```
 
-9. Summarize the plan: target path, setup mode, non-iCloud warning if any, directories to create,
-   files to create, files to skip, and project starter pages.
+9. Summarize the plan: target path, setup mode, target kind, non-iCloud warning if any,
+   directories to create, files to create, files to skip, and the Memova input-root relative path.
 10. Ask for approval. Only after approval, run:
 
    ```bash
@@ -95,14 +96,15 @@ When the user asks to set up their Memova knowledge base:
     ```
 
 12. Call `complete_knowledge_base_setup` with a small result summary:
-    `manifest_id`, `target_path_summary`, `created_file_count`, `created_dir_count`,
-    `skipped_file_count`, and `validation_status`.
+    `manifest_id`, `vault_manifest_id`, `input_root_manifest_id`,
+    `memova_input_root_relative_path`, `selected_by`, `target_path_summary`,
+    `created_file_count`, `created_dir_count`, `skipped_file_count`, and `validation_status`.
 13. Mark this Mac as setup-complete for future non-setup workflow reminders:
 
     ```bash
     python3 plugins/memova/scripts/kb_setup_reminder.py \
       --mark-complete \
-      --vault-path "<approved-target-path>"
+    --vault-path "<approved-target-path>"
     ```
 
 14. If setup cannot proceed, call `fail_knowledge_base_setup` with a clear failure code such as
@@ -115,8 +117,8 @@ When the user asks to set up their Memova knowledge base:
   `~/Library/Mobile Documents/com~apple~CloudDocs`
 - A good default new-vault target is:
   `~/Library/Mobile Documents/com~apple~CloudDocs/Memova Vault`
-- Do not assume iOS and Mac expose the same absolute path. The shared identity is
-  `_memova/manifest.json`, not the path string.
+- Do not assume iOS and Mac expose the same absolute path. The shared identity is the Memova input
+  root manifest, not the path string.
 - If the user provides a path manually, expand `~`, inspect it, and show the resolved path before
   writing.
 
@@ -127,7 +129,9 @@ End with:
 - setup session id,
 - target path summary,
 - manifest id,
+- input root manifest id,
+- Memova input-root relative path,
 - created/skipped counts,
 - validation result,
-- what the iOS app should do next: authorize the same folder through Files and verify
-  `_memova/manifest.json`.
+- what the iOS app should do next: authorize the same vault/input-root folder through Files and
+  verify the Memova input-root `_memova/manifest.json`.

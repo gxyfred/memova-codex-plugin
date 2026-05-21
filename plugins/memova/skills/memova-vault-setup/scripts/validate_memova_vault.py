@@ -7,7 +7,7 @@ from memova_vault_lib import expand_path, validate_vault, write_json
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Validate a Memova LLM Wiki vault skeleton.")
+    parser = argparse.ArgumentParser(description="Validate a Memova inbox-first vault/input root.")
     parser.add_argument("--path", required=True)
     args = parser.parse_args()
 

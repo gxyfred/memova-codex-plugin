@@ -116,12 +116,15 @@ Codex will:
 
 1. Pull the ready setup package from Memova through MCP.
 2. Discover likely iCloud Drive and existing vault locations on the Mac.
-3. Inspect an existing vault lightly if the setup package or user provides a path.
+3. Inspect an existing vault lightly if the setup package or user provides a path, then suggest the
+   best raw-input folder such as `Inbox`, `00_Inbox`, `Sources`, or `Resources`.
 4. Build a dry-run file operation plan.
 5. Ask before writing files.
-6. Create the Memova LLM Wiki vault files only inside the approved target folder.
-7. Validate `_memova/manifest.json` and required semantic roots.
-8. Report success or failure back to Memova through MCP.
+6. Create either a new empty Memova vault skeleton with `inbox/memova/`, or only a scoped Memova
+   input root inside the approved existing vault folder.
+7. Validate the Memova input-root manifest and required metadata files.
+8. Report success or failure back to Memova through MCP, including
+   `memova_input_root_relative_path`.
 
 For a new iCloud vault, the usual Mac target path is:
 
@@ -129,16 +132,17 @@ For a new iCloud vault, the usual Mac target path is:
 ~/Library/Mobile Documents/com~apple~CloudDocs/Memova Vault
 ```
 
-If the user has an old Obsidian or Markdown vault, the default recommendation is still to create a
-separate `Memova Vault` and use the old vault only as a lightly inspected reference. If the user
-explicitly chooses to add Memova to an existing vault, Codex creates the full Memova file tree inside
-a dedicated child folder, not directly in the old vault root:
+If the user connects an old Obsidian or Markdown vault, Codex preserves the user's structure. It
+lightly scans for the best raw-input folder and creates only a scoped Memova input root after user
+approval, for example:
 
 ```text
-~/Library/Mobile Documents/com~apple~CloudDocs/Existing Obsidian Vault/Memova
+~/Library/Mobile Documents/com~apple~CloudDocs/Existing Obsidian Vault/00_Inbox/Memova
 ```
 
-After Codex creates the vault, the iOS app should ask the user to select the same folder through Files and verify `_memova/manifest.json`. Do not rely on the Mac absolute path inside iOS; the manifest identifies the vault.
+After Codex creates the vault/input root, the iOS app should ask the user to select the same folder
+through Files and verify the Memova input-root `_memova/manifest.json`. Do not rely on the Mac
+absolute path inside iOS; the manifest identifies the binding.
 
 ## File Tree Created By Setup
 
@@ -148,48 +152,52 @@ The actual file-tree implementation lives in:
 plugins/memova/skills/memova-vault-setup/scripts/memova_vault_lib.py
 ```
 
-For a new vault, Codex creates the Memova LLM Wiki roots:
+For a new vault, Codex creates an empty Memova vault skeleton and the Memova input root:
 
 ```text
 README.md
 AGENTS.md
-sources/meetings
-sources/captures
-sources/imports
-sources/attachments
-inbox/review/pending_actions.md
-inbox/review/pending_memories.md
-inbox/review/conflicts.md
-wiki/projects
-wiki/people
-wiki/organizations
-wiki/topics
-wiki/decisions
-wiki/claims
-wiki/processes
-wiki/outputs
-schemas/*.schema.md
+inbox/
+inbox/memova/
+inbox/memova/README.md
+inbox/memova/AGENTS.md
+inbox/memova/schemas/*.schema.md
+inbox/memova/meetings/
+inbox/memova/imports/
+inbox/memova/attachments/
+inbox/memova/_memova/manifest.json
+inbox/memova/_memova/input_root.json
+inbox/memova/_memova/sync_state.json
+inbox/memova/_memova/source_index.json
+sources/
+wiki/
 projects/
 daily/
-outputs/articles
-outputs/reports
-outputs/decks
-outputs/product_specs
+outputs/
 archive/
 _memova/manifest.json
 _memova/vault_mapping.json
-_memova/links.json
 _memova/sync_state.json
-_memova/wiki_index.json
-_memova/source_index.json
-_memova/local_first_plan.md
-_memova/compression/
 ```
 
-If `user_preferences.project_names` is present in the setup package, Codex also creates starter
-project pages under `projects/Project - <Name>/`, including `_project.md`, `_context/L1`,
-`_context/L2`, `_context/L3`, `actions.md`, `decisions.md`, `meetings.md`, `outputs/`, and
-`resources/`.
+For an existing vault, Codex creates only the approved Memova input root, usually something like:
+
+```text
+00_Inbox/Memova/
+00_Inbox/Memova/README.md
+00_Inbox/Memova/AGENTS.md
+00_Inbox/Memova/schemas/*.schema.md
+00_Inbox/Memova/meetings/
+00_Inbox/Memova/imports/
+00_Inbox/Memova/attachments/
+00_Inbox/Memova/_memova/manifest.json
+00_Inbox/Memova/_memova/input_root.json
+00_Inbox/Memova/_memova/sync_state.json
+00_Inbox/Memova/_memova/source_index.json
+```
+
+Memova V1 writes raw meeting packets only under the Memova input root. It does not classify
+meetings into projects, update wiki pages, or reorganize an existing knowledge base.
 
 ## What The Workflow Does
 

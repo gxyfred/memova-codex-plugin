@@ -1,7 +1,7 @@
 {
   "name": "memova",
-  "version": "0.2.4",
-  "description": "Run Memova workflows and set up user-owned knowledge bases from Codex.",
+  "version": "0.3.0",
+  "description": "Run Memova workflows and set up user-owned raw-input roots from Codex.",
   "author": {
     "name": "Memova",
     "url": "https://memova.ai"
@@ -23,7 +23,7 @@
   "interface": {
     "displayName": "Memova",
     "shortDescription": "Run Memova workflows and vault setup.",
-    "longDescription": "Connect Codex to Memova through OAuth MCP, then use Memova starter prompts and bundled skills to review final notes, organize engineering actions, set up an iCloud-first user-owned LLM Wiki vault, request approval when needed, execute safe tasks, and write progress back to Memova.",
+    "longDescription": "Connect Codex to Memova through OAuth MCP, then use Memova starter prompts and bundled skills to review final notes, organize engineering actions, set up an iCloud-first user-owned Memova raw-input root, request approval when needed, execute safe tasks, and write progress back to Memova.",
     "developerName": "Memova",
     "category": "Productivity",
     "capabilities": [

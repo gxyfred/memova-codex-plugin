@@ -8,236 +8,72 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-TEMPLATE_VERSION = "memova_llm_wiki_v1"
+TEMPLATE_VERSION = "memova_inbox_v1"
 SETUP_SCHEMA_VERSION = "knowledge_base_setup_v1"
+INPUT_ROOT_RELATIVE_PATH = "inbox/memova"
+INPUT_ROOT_FOLDER_NAME = "Memova"
+ALLOWED_SETUP_MODES = {"create_new_vault", "connect_existing_vault"}
 
-SEMANTIC_ROOTS = [
+NEW_VAULT_DIRS = [
+    "inbox/memova/schemas",
+    "inbox/memova/meetings",
+    "inbox/memova/imports",
+    "inbox/memova/attachments",
+    "inbox/memova/_memova",
+    "sources",
+    "wiki",
+    "projects",
+    "daily",
+    "outputs",
+    "archive",
+    "schemas",
+    "_memova",
+]
+
+INPUT_ROOT_DIRS = [
+    "schemas",
+    "meetings",
+    "imports",
+    "attachments",
+    "_memova",
+]
+
+NEW_VAULT_REQUIRED_ROOTS = [
     "README.md",
     "AGENTS.md",
-    "sources/",
     "inbox/",
+    "inbox/memova/",
+    "sources/",
     "wiki/",
-    "schemas/",
     "projects/",
     "daily/",
     "outputs/",
     "archive/",
+    "schemas/",
     "_memova/",
 ]
 
-BASE_DIRS = [
-    "sources/meetings",
-    "sources/captures",
-    "sources/imports",
-    "sources/attachments",
-    "inbox/review",
-    "inbox/captures",
-    "wiki/people",
-    "wiki/organizations",
-    "wiki/projects",
-    "wiki/topics",
-    "wiki/decisions",
-    "wiki/claims",
-    "wiki/processes",
-    "wiki/outputs",
-    "schemas",
-    "projects",
-    "daily",
-    "outputs/articles",
-    "outputs/reports",
-    "outputs/decks",
-    "outputs/product_specs",
-    "archive",
-    "_memova/compression/project_summaries",
-    "_memova/compression/session_summaries",
-    "_memova/compression/following_context",
-]
-
-REQUIRED_MACHINE_FILES = [
+INPUT_ROOT_REQUIRED_FILES = [
+    "README.md",
+    "AGENTS.md",
     "_memova/manifest.json",
-    "_memova/vault_mapping.json",
+    "_memova/input_root.json",
     "_memova/sync_state.json",
-    "_memova/local_first_plan.md",
+    "_memova/source_index.json",
 ]
 
-SCHEMA_FILES = {
-    "schemas/page.schema.md": """# Page Schema
-
-Required fields:
-- `type`
-- `title`
-- `status`
-- `sources`
-- `updated_at`
-
-Rules:
-- Every long-term page must have a type.
-- Important claims must link back to sources.
-- Mark inferred content as inferred.
-- Do not silently overwrite conflicting facts.
-""",
-    "schemas/source.schema.md": """# Source Page Schema
-
-Required fields:
-- `type: source`
-- `source_id`
-- `source_kind`
-- `created_at`
-- `evidence_path`
-
-Rules:
-- Sources are evidence. Do not rewrite source content to make it cleaner.
-- Link compiled wiki claims back to source pages or source ids.
-""",
-    "schemas/wiki-page.schema.md": """# Wiki Page Schema
-
-Required fields:
-- `type`
-- `title`
-- `status`
-- `sources`
-- `last_reviewed_at`
-
-Rules:
-- Do not add long-term memory without a source.
-- Mark inferred content as inferred.
-- Preserve conflicting evidence instead of silently overwriting it.
-""",
-    "schemas/project.schema.md": """# Project Page Schema
-
-Required fields:
-- `type: project`
-- `status`
-- `goal`
-- `people`
-- `open_actions`
-- `decisions`
-- `risks`
-- `sources`
-
-Rules:
-- Keep project summaries compressed and execution-oriented.
-- Use `_context/L2_project_summary.md` as the default agent context.
-""",
-    "schemas/action.schema.md": """# Action Page Schema
-
-Required fields:
-- `type: action`
-- `status`
-- `owner`
-- `evidence`
-- `created_from`
-
-Rules:
-- No action without evidence.
-- External writes require explicit user confirmation.
-""",
-    "schemas/meeting.schema.md": """# Meeting Page Schema
-
-Required fields:
-- `type: meeting`
-- `meeting_id`
-- `date`
-- `source_files`
-- `brief`
-- `suggested_actions`
-- `memory_candidates`
-
-Rules:
-- Meeting pages are source-adjacent summaries, not unrestricted long-term memory.
-- Keep raw transcript and raw inputs under `sources/`.
-""",
-    "schemas/person.schema.md": """# Person Page Schema
-
-Required fields:
-- `type: person`
-- `name`
-- `relationship`
-- `sources`
-
-Rules:
-- Store only useful, confirmed, non-sensitive context.
-- Prefer project-relevant facts over personal trivia.
-""",
-    "schemas/organization.schema.md": """# Organization Page Schema
-
-Required fields:
-- `type: organization`
-- `name`
-- `relationship`
-- `sources`
-
-Rules:
-- Store confirmed work-relevant context only.
-- Link organization facts to source meetings or documents.
-- Keep speculative relationship mapping out of confirmed sections.
-""",
-    "schemas/topic.schema.md": """# Topic Page Schema
-
-Required fields:
-- `type: topic`
-- `title`
-- `summary`
-- `sources`
-
-Rules:
-- Use topic pages for reusable knowledge, not one-off meeting notes.
-- Separate stable facts from open questions.
-- Link important conclusions back to sources.
-""",
-    "schemas/decision.schema.md": """# Decision Page Schema
-
-Required fields:
-- `type: decision`
-- `decision`
-- `status`
-- `made_at`
-- `sources`
-
-Rules:
-- Record alternatives and reversals when evidence exists.
-- Do not present tentative discussion as a confirmed decision.
-""",
-    "schemas/claim.schema.md": """# Claim Page Schema
-
-Required fields:
-- `type: claim`
-- `claim`
-- `confidence`
-- `sources`
-
-Rules:
-- Claims must be traceable.
-- Lower confidence when sources conflict or are incomplete.
-""",
-    "schemas/process.schema.md": """# Process Page Schema
-
-Required fields:
-- `type: process`
-- `title`
-- `steps`
-- `owner`
-- `sources`
-
-Rules:
-- Use process pages for reusable workflows.
-- Keep steps actionable and versioned when they change.
-- Cite the meeting, document, or decision that established the process.
-""",
-    "schemas/output.schema.md": """# Output Page Schema
-
-Required fields:
-- `type: output`
-- `title`
-- `status`
-- `owner`
-- `sources`
-
-Rules:
-- Use output pages for finished or planned artifacts.
-- Link to the actual artifact location when available.
-- Track source decisions that shaped the output.
-""",
+RAW_INPUT_PARENT_SCORES = {
+    "00_inbox": 100,
+    "inbox": 95,
+    "sources": 90,
+    "source": 88,
+    "resources": 85,
+    "resource": 83,
+    "captures": 80,
+    "capture": 78,
+    "fleeting notes": 75,
+    "imports": 70,
+    "import": 68,
 }
 
 
@@ -335,34 +171,55 @@ def safe_component(value: str) -> str:
     return value[:80].strip(" ._-") or "Untitled"
 
 
-def extract_project_names(setup: dict[str, Any]) -> list[str]:
-    preferences = setup.get("user_preferences") or {}
-    names: list[str] = []
-    for key in ("project_names", "projects", "active_projects"):
-        value = preferences.get(key)
-        if isinstance(value, str):
-            names.append(value)
-        elif isinstance(value, list):
-            for item in value:
-                if isinstance(item, str):
-                    names.append(item)
-                elif isinstance(item, dict):
-                    name = item.get("name") or item.get("title") or item.get("project_name")
-                    if isinstance(name, str):
-                        names.append(name)
-    primary = preferences.get("primary_project_name")
-    if isinstance(primary, str):
-        names.insert(0, primary)
+def setup_mode(setup: dict[str, Any]) -> str:
+    return str(setup.get("setup_mode") or "create_new_vault")
 
-    clean: list[str] = []
-    seen: set[str] = set()
-    for name in names:
-        component = safe_component(name)
-        key = component.casefold()
-        if key not in seen:
-            seen.add(key)
-            clean.append(component)
-    return clean[:12]
+
+def is_existing_vault_setup(setup: dict[str, Any]) -> bool:
+    return setup_mode(setup) == "connect_existing_vault"
+
+
+def manifest_id(setup: dict[str, Any]) -> str:
+    setup_id = setup.get("setup_session_id")
+    if isinstance(setup_id, str) and setup_id:
+        return f"memova-vault-{setup_id}"
+    return "memova-vault-local"
+
+
+def input_root_manifest_id(setup: dict[str, Any]) -> str:
+    setup_id = setup.get("setup_session_id")
+    if isinstance(setup_id, str) and setup_id:
+        return f"memova-input-root-{setup_id}"
+    return "memova-input-root-local"
+
+
+def detect_language() -> str:
+    locale = " ".join(
+        value
+        for value in (
+            os.environ.get("LC_ALL"),
+            os.environ.get("LC_MESSAGES"),
+            os.environ.get("LANG"),
+        )
+        if value
+    ).lower()
+    if locale.startswith("zh") or ".zh" in locale or "_zh" in locale:
+        return "zh"
+    return "en"
+
+
+def input_root_folder_name(setup: dict[str, Any]) -> str:
+    hints = setup.get("target_path_hints") or {}
+    if isinstance(hints, dict):
+        for key in (
+            "desired_input_folder_name",
+            "memova_folder_name",
+            "desired_memova_folder_name",
+        ):
+            value = hints.get(key)
+            if isinstance(value, str) and value.strip():
+                return safe_component(value)
+    return INPUT_ROOT_FOLDER_NAME
 
 
 def extract_source_vault_paths(setup: dict[str, Any]) -> list[Path]:
@@ -407,225 +264,156 @@ def path_inside(parent: Path, child: Path) -> bool:
     return child_resolved == parent_resolved or parent_resolved in child_resolved.parents
 
 
-def suggested_memova_subdir(setup: dict[str, Any], existing_vault_path: Path) -> Path:
-    hints = setup.get("target_path_hints") or {}
-    name = None
-    if isinstance(hints, dict):
-        for key in ("memova_folder_name", "desired_memova_folder_name", "desired_vault_name", "vault_name"):
-            value = hints.get(key)
-            if isinstance(value, str) and value.strip():
-                name = value
-                break
-    return resolved(existing_vault_path / safe_component(name or "Memova"))
+def raw_input_candidates(root: Path, *, max_depth: int = 2, max_entries: int = 300) -> list[dict[str, Any]]:
+    root = expand_path(str(root))
+    candidates: list[dict[str, Any]] = []
+    if not root.exists():
+        return candidates
+    seen = 0
+    for current_root, dirnames, _filenames in os.walk(root):
+        current = Path(current_root)
+        relative = current.relative_to(root)
+        depth = 0 if str(relative) == "." else len(relative.parts)
+        if depth >= max_depth:
+            dirnames[:] = []
+        for dirname in sorted(dirnames):
+            seen += 1
+            if seen > max_entries:
+                return sorted(candidates, key=lambda item: item["score"], reverse=True)
+            normalized = dirname.strip().lower().replace("-", "_").replace(" ", "_")
+            spaced = normalized.replace("_", " ")
+            score = RAW_INPUT_PARENT_SCORES.get(normalized) or RAW_INPUT_PARENT_SCORES.get(spaced)
+            if score:
+                rel = str((relative / dirname) if str(relative) != "." else Path(dirname))
+                candidates.append(
+                    {
+                        "path": str(resolved(root / rel)),
+                        "relative_path": rel,
+                        "score": score - depth,
+                        "reason": f"Directory name looks like a raw-input area: {dirname}",
+                    },
+                )
+    return sorted(candidates, key=lambda item: item["score"], reverse=True)
 
 
-def manifest_id(setup: dict[str, Any]) -> str:
-    setup_id = setup.get("setup_session_id")
-    if isinstance(setup_id, str) and setup_id:
-        return f"memova-vault-{setup_id}"
-    return "memova-vault-local"
+def suggested_existing_input_target(setup: dict[str, Any], existing_vault_path: Path) -> Path:
+    candidates = raw_input_candidates(existing_vault_path)
+    folder_name = input_root_folder_name(setup)
+    if candidates:
+        return resolved(Path(candidates[0]["path"]) / folder_name)
+    return resolved(existing_vault_path / folder_name)
 
 
-def build_vault_mapping() -> dict[str, str]:
+def memova_input_root_relative_path(setup: dict[str, Any], target_root: Path) -> str:
+    if not is_existing_vault_setup(setup):
+        return INPUT_ROOT_RELATIVE_PATH
+    target = resolved(target_root)
+    for source in extract_source_vault_paths(setup):
+        source_resolved = resolved(source)
+        if target == source_resolved:
+            return "."
+        if source_resolved in target.parents:
+            return str(target.relative_to(source_resolved))
+    return "."
+
+
+def root_manifest(setup: dict[str, Any], *, now: str) -> dict[str, Any]:
     return {
-        "readme": "README.md",
-        "agent_rules": "AGENTS.md",
-        "sources": "sources",
-        "inbox": "inbox",
-        "wiki": "wiki",
-        "schemas": "schemas",
-        "projects": "projects",
-        "daily": "daily",
-        "outputs": "outputs",
-        "archive": "archive",
-        "_memova": "_memova",
-    }
-
-
-def build_file_specs(setup: dict[str, Any], *, now: str | None = None) -> list[FileSpec]:
-    now = now or utc_now_iso()
-    setup_mode = setup.get("setup_mode") or "create_new_vault"
-    storage_target = setup.get("storage_target") or "icloud_drive"
-    template_version = setup.get("vault_template_version") or TEMPLATE_VERSION
-    preferences = setup.get("user_preferences") or {}
-    confirmation_rules = (
-        setup.get("vault_contract", {}).get("confirmation_rules")
-        if isinstance(setup.get("vault_contract"), dict)
-        else None
-    ) or [
-        "No memory without source.",
-        "No action without evidence.",
-        "No external write without confirmation.",
-    ]
-
-    manifest = {
         "schema_version": "memova_vault_manifest_v1",
         "manifest_id": manifest_id(setup),
         "created_at": now,
         "updated_at": now,
         "setup_session_id": setup.get("setup_session_id"),
         "workspace_id": setup.get("workspace_id"),
-        "vault_template_version": template_version,
+        "vault_template_version": setup.get("vault_template_version") or TEMPLATE_VERSION,
         "setup_package_schema_version": setup.get("schema_version") or SETUP_SCHEMA_VERSION,
-        "setup_mode": setup_mode,
-        "storage_target": storage_target,
-        "semantic_roots": SEMANTIC_ROOTS,
-        "confirmation_rules": confirmation_rules,
-        "default_context_mode": "L2_compressed_project_memory",
+        "setup_mode": setup_mode(setup),
+        "storage_target": setup.get("storage_target") or "icloud_drive",
+        "memova_input_root_relative_path": INPUT_ROOT_RELATIVE_PATH,
+        "ownership_scope": "raw_input_layer_only",
     }
 
-    specs = [
-        FileSpec(
-            "README.md",
-            f"""# Memova Vault
 
-This is a user-owned Memova knowledge base.
+def input_root_manifest(
+    setup: dict[str, Any],
+    *,
+    now: str,
+    relative_path: str,
+) -> dict[str, Any]:
+    return {
+        "schema_version": "memova_input_root_manifest_v1",
+        "manifest_id": input_root_manifest_id(setup),
+        "vault_manifest_id": manifest_id(setup),
+        "created_at": now,
+        "updated_at": now,
+        "setup_session_id": setup.get("setup_session_id"),
+        "workspace_id": setup.get("workspace_id"),
+        "vault_template_version": setup.get("vault_template_version") or TEMPLATE_VERSION,
+        "setup_package_schema_version": setup.get("schema_version") or SETUP_SCHEMA_VERSION,
+        "setup_mode": setup_mode(setup),
+        "storage_target": setup.get("storage_target") or "icloud_drive",
+        "memova_input_root_relative_path": relative_path,
+        "ownership_scope": "raw_input_layer_only",
+        "audio_files_written_by_default": False,
+    }
 
-Memova captures meeting inputs, compiles evidence-backed briefs, proposes actions and memory
-candidates, and syncs confirmed knowledge here as Markdown.
 
-Core rules:
-
-- No memory without source.
-- No action without evidence.
-- No external write without confirmation.
-
-Primary roots:
-
-- `sources/` stores raw evidence and imported material.
-- `wiki/` stores confirmed long-term compiled knowledge.
-- `projects/` stores project continuity and agent execution context.
-- `_memova/` stores machine-readable manifest, mappings, indexes, and sync state.
-
-Created by Memova setup on {now}.
-""",
-        ),
-        FileSpec(
-            "AGENTS.md",
-            """# Agent Rules
-
-These rules apply to Codex and other agents working inside this Memova Vault.
-
-- Prefer Markdown files and filesystem-native links.
-- Keep raw evidence in `sources/`; keep compiled knowledge in `wiki/`.
-- Do not create long-term memory without source evidence.
-- Do not create confirmed actions without evidence.
-- Do not perform external writes without explicit user confirmation.
-- Preserve user-authored files. Do not rename, relocate, or overwrite existing content unless the
-  user explicitly approves that exact operation.
-- Use `projects/*/_context/L2_project_summary.md` as default project context.
-- Use `projects/*/_context/L3_following_context.md` only when the user enables deep following.
-- Update `_memova/sync_state.json` through Memova-controlled sync operations, not by hand.
-""",
-        ),
-        FileSpec(
-            "sources/README.md",
-            """# Sources
-
-Raw evidence lives here: meeting source files, transcripts, captures, imports, attachments, and
-source references. Agents may summarize sources, but should not rewrite them as if they were
-confirmed long-term memory.
-""",
-        ),
-        FileSpec(
-            "inbox/README.md",
-            """# Inbox
-
-Low-friction holding area for captures, review queues, pending actions, pending memory candidates,
-and conflicts that need user confirmation.
-""",
-        ),
-        FileSpec(
-            "inbox/review/pending_actions.md",
-            """# Pending Actions
-
-Unconfirmed action candidates waiting for user review.
-
-Rules:
-
-- No confirmed action without evidence.
-- External writes require explicit user confirmation.
-- Move confirmed project work into the relevant `projects/*/actions.md`.
-""",
-        ),
-        FileSpec(
-            "inbox/review/pending_memories.md",
-            """# Pending Memories
-
-Unconfirmed memory candidates waiting for user review.
-
-Rules:
-
-- No long-term memory without source evidence.
-- Mark sensitive content before writing to long-term pages.
-- Move confirmed knowledge into `wiki/` or `projects/` with source links.
-""",
-        ),
-        FileSpec(
-            "inbox/review/conflicts.md",
-            """# Conflicts
-
-Evidence conflicts and sync conflicts that need user or agent review.
-
-Rules:
-
-- Preserve both sides of a factual conflict until resolved.
-- Do not silently overwrite user-authored content.
-- Record resolution source and timestamp when a conflict is resolved.
-""",
-        ),
-        FileSpec(
-            "wiki/README.md",
-            """# Wiki
-
-Confirmed, source-linked, compiled knowledge. Every important claim should point back to evidence
-in `sources/` or a Memova source id.
-""",
-        ),
-        FileSpec(
-            "projects/README.md",
-            """# Projects
-
-Project-level continuity for goals, decisions, open actions, risks, resources, and agent execution
-context.
-""",
-        ),
-        FileSpec(
-            "daily/README.md",
-            """# Daily
-
-Optional daily planning and review notes.
-""",
-        ),
-        FileSpec(
-            "outputs/README.md",
-            """# Outputs
-
-Finished artifacts such as articles, reports, decks, product specs, and reusable deliverables.
-""",
-        ),
-        FileSpec(
-            "archive/README.md",
-            """# Archive
-
-Inactive but retained material. Archive content should not pollute active context by default.
-""",
-        ),
+def input_root_file_specs(
+    setup: dict[str, Any],
+    *,
+    now: str,
+    relative_path: str,
+    prefix: str = "",
+) -> list[FileSpec]:
+    language = detect_language()
+    zh = language == "zh"
+    readme = (
+        "# Memova 原始数据输入区\n\n"
+        "这里保存 Memova 写入的会议原始数据和稳定处理结果。Memova V1 不负责整理你的 wiki、"
+        "projects 或长期记忆；你可以让自己的工作流或 agent 从这里提取、压缩和分类。\n\n"
+        "默认不保存音频文件，但会保存最终转写和 audio manifest。\n"
+        if zh
+        else "# Memova Raw Input Root\n\n"
+        "This folder stores raw meeting data and stable processing outputs written by Memova. "
+        "Memova V1 does not organize your wiki, projects, or long-term memory; your own workflows "
+        "or agents can extract, compress, and classify from here.\n\n"
+        "Audio files are not saved by default, but final transcripts and audio manifests are saved.\n"
+    )
+    agents = (
+        "# Agent Rules\n\n"
+        "- This folder is the Memova raw-input layer.\n"
+        "- Do not treat files here as curated long-term knowledge.\n"
+        "- Do not rewrite original transcripts, OCR text, attachments, or metadata.\n"
+        "- Use these files as source material for user-approved extraction, compression, "
+        "classification, wiki updates, and project updates.\n"
+    )
+    schemas = {
+        "schemas/meeting_packet.schema.md": "# Meeting Packet Schema\n\nRequired files: metadata.json, transcript.md, final_note.md, hashes.json.\n",
+        "schemas/transcript.schema.md": "# Transcript Schema\n\nFinal transcript files should be stable source outputs, not realtime drafts.\n",
+        "schemas/note.schema.md": "# Note Schema\n\nFinal note and raw user note files belong to the same meeting packet.\n",
+        "schemas/ocr.schema.md": "# OCR Schema\n\nStore OCR text, page text, source image references, and page metadata.\n",
+        "schemas/attachment.schema.md": "# Attachment Schema\n\nStore attachment files and attachment metadata when available.\n",
+    }
+    files = [
+        FileSpec("README.md", readme),
+        FileSpec("AGENTS.md", agents),
         FileSpec(
             "_memova/manifest.json",
-            json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
+            json.dumps(input_root_manifest(setup, now=now, relative_path=relative_path), indent=2, ensure_ascii=False)
+            + "\n",
             machine=True,
         ),
         FileSpec(
-            "_memova/vault_mapping.json",
+            "_memova/input_root.json",
             json.dumps(
                 {
-                    "schema_version": "memova_vault_mapping_v1",
+                    "schema_version": "memova_input_root_v1",
                     "updated_at": now,
-                    "setup_mode": setup_mode,
-                    "semantic_roots": build_vault_mapping(),
-                    "existing_structure_preserved": setup_mode
-                    in {"connect_existing_vault", "add_memova_folder_to_existing_vault"},
+                    "relative_path": relative_path,
+                    "meeting_packet_root": "meetings",
+                    "imports_root": "imports",
+                    "attachments_root": "attachments",
+                    "writes_audio_files_by_default": False,
                 },
                 indent=2,
                 ensure_ascii=False,
@@ -634,8 +422,106 @@ Inactive but retained material. Archive content should not pollute active contex
             machine=True,
         ),
         FileSpec(
-            "_memova/links.json",
-            json.dumps({"schema_version": "memova_links_v1", "updated_at": now, "links": []}, indent=2)
+            "_memova/sync_state.json",
+            json.dumps(
+                {
+                    "schema_version": "memova_input_sync_state_v1",
+                    "updated_at": now,
+                    "last_successful_sync_at": None,
+                    "meeting_packets": {},
+                    "conflicts": [],
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+            + "\n",
+            machine=True,
+        ),
+        FileSpec(
+            "_memova/source_index.json",
+            json.dumps(
+                {
+                    "schema_version": "memova_input_source_index_v1",
+                    "updated_at": now,
+                    "meetings": [],
+                    "imports": [],
+                    "attachments": [],
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+            + "\n",
+            machine=True,
+        ),
+    ]
+    files.extend(FileSpec(path, content) for path, content in schemas.items())
+    if prefix:
+        return [FileSpec(f"{prefix}/{spec.path}", spec.content, spec.machine) for spec in files]
+    return files
+
+
+def root_file_specs(setup: dict[str, Any], *, now: str) -> list[FileSpec]:
+    return [
+        FileSpec(
+            "README.md",
+            f"""# Memova Vault
+
+This is a user-owned Memova knowledge base.
+
+Memova V1 writes complete meeting raw-input packets only under `inbox/memova/`.
+Other roots such as `sources/`, `wiki/`, `projects/`, `daily/`, and `outputs/` are empty surfaces
+for the user or future agent workflows.
+
+Created by Memova setup on {now}.
+""",
+        ),
+        FileSpec(
+            "AGENTS.md",
+            """# Agent Rules
+
+- Treat `inbox/memova/` as the Memova raw-input layer.
+- Do not treat Memova input packets as curated long-term knowledge.
+- Do not reorganize user-authored folders without explicit user approval.
+- Use Memova input packets as source material for user-approved extraction and classification.
+""",
+        ),
+        FileSpec(
+            "inbox/README.md",
+            "# Inbox\n\nLow-friction input area. Memova writes raw meeting packets under `memova/`.\n",
+        ),
+        FileSpec("sources/README.md", "# Sources\n\nReserved for user or future agent workflows.\n"),
+        FileSpec("wiki/README.md", "# Wiki\n\nReserved for curated long-term knowledge.\n"),
+        FileSpec("projects/README.md", "# Projects\n\nReserved for project organization.\n"),
+        FileSpec("daily/README.md", "# Daily\n\nReserved for daily notes.\n"),
+        FileSpec("outputs/README.md", "# Outputs\n\nReserved for finished artifacts.\n"),
+        FileSpec("archive/README.md", "# Archive\n\nReserved for inactive material.\n"),
+        FileSpec(
+            "_memova/manifest.json",
+            json.dumps(root_manifest(setup, now=now), indent=2, ensure_ascii=False) + "\n",
+            machine=True,
+        ),
+        FileSpec(
+            "_memova/vault_mapping.json",
+            json.dumps(
+                {
+                    "schema_version": "memova_vault_mapping_v1",
+                    "updated_at": now,
+                    "memova_input_root": INPUT_ROOT_RELATIVE_PATH,
+                    "semantic_roots": {
+                        "inbox": "inbox",
+                        "memova_input_root": INPUT_ROOT_RELATIVE_PATH,
+                        "sources": "sources",
+                        "wiki": "wiki",
+                        "projects": "projects",
+                        "daily": "daily",
+                        "outputs": "outputs",
+                        "archive": "archive",
+                        "_memova": "_memova",
+                    },
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
             + "\n",
             machine=True,
         ),
@@ -643,153 +529,37 @@ Inactive but retained material. Archive content should not pollute active contex
             "_memova/sync_state.json",
             json.dumps(
                 {
-                    "schema_version": "memova_sync_state_v1",
+                    "schema_version": "memova_vault_sync_state_v1",
                     "updated_at": now,
-                    "provider": storage_target,
                     "last_successful_sync_at": None,
-                    "cursors": {},
                     "conflicts": [],
                 },
                 indent=2,
+                ensure_ascii=False,
             )
             + "\n",
-            machine=True,
-        ),
-        FileSpec(
-            "_memova/wiki_index.json",
-            json.dumps({"schema_version": "memova_wiki_index_v1", "updated_at": now, "pages": []}, indent=2)
-            + "\n",
-            machine=True,
-        ),
-        FileSpec(
-            "_memova/source_index.json",
-            json.dumps(
-                {"schema_version": "memova_source_index_v1", "updated_at": now, "sources": []},
-                indent=2,
-            )
-            + "\n",
-            machine=True,
-        ),
-        FileSpec(
-            "_memova/local_first_plan.md",
-            f"""# Local-First Plan
-
-Created: {now}
-
-Current phase:
-
-- Memova backend remains the operational source of truth for capture, processing, OAuth/MCP,
-  actions, approvals, and sync state.
-- This vault is the user-owned knowledge layer for confirmed, portable, agent-readable context.
-
-Step-down path:
-
-- Move confirmed personal knowledge into local Markdown first.
-- Keep raw meeting evidence source-linked.
-- Gradually replace cloud-backed display data with vault-backed reads when iOS sync is ready.
-""",
             machine=True,
         ),
     ]
 
-    for path, content in SCHEMA_FILES.items():
-        specs.append(FileSpec(path, content))
-
-    specs.extend(build_project_specs(extract_project_names(setup), now=now))
-
-    if preferences:
-        specs.append(
-            FileSpec(
-                "_memova/setup_preferences.json",
-                json.dumps(
-                    {
-                        "schema_version": "memova_setup_preferences_v1",
-                        "updated_at": now,
-                        "preferences": preferences,
-                    },
-                    indent=2,
-                    ensure_ascii=False,
-                )
-                + "\n",
-                machine=True,
-            ),
-        )
-
-    return specs
-
-
-def build_project_specs(project_names: list[str], *, now: str) -> list[FileSpec]:
-    specs: list[FileSpec] = []
-    for name in project_names:
-        base = f"projects/Project - {name}"
-        specs.extend(
-            [
-                FileSpec(
-                    f"{base}/_project.md",
-                    f"""# Project - {name}
-
-type: project
-status: active
-created_at: {now}
-
-## Goal
-
-_Unconfirmed. Add the project goal after source-backed setup or user confirmation._
-
-## People
-
-- _Unconfirmed._
-
-## Open Actions
-
-- _None confirmed yet._
-
-## Decisions
-
-- _None confirmed yet._
-
-## Risks
-
-- _None confirmed yet._
-
-## Sources
-
-- _No sources linked yet._
-""",
-                ),
-                FileSpec(
-                    f"{base}/_context/L1_no_shared_memory.md",
-                    "# L1 No Shared Memory\n\nUse only the current meeting/session evidence.\n",
-                ),
-                FileSpec(
-                    f"{base}/_context/L2_project_summary.md",
-                    "# L2 Project Summary\n\nDefault compressed project context. Keep this concise.\n",
-                ),
-                FileSpec(
-                    f"{base}/_context/L3_following_context.md",
-                    "# L3 Following Context\n\nDeep following context. Use only after explicit user opt-in.\n",
-                ),
-                FileSpec(f"{base}/actions.md", "# Actions\n\n"),
-                FileSpec(f"{base}/decisions.md", "# Decisions\n\n"),
-                FileSpec(f"{base}/meetings.md", "# Meetings\n\n"),
-            ],
-        )
-    return specs
-
 
 def build_dirs(setup: dict[str, Any]) -> list[str]:
-    dirs = list(BASE_DIRS)
-    for name in extract_project_names(setup):
-        base = f"projects/Project - {name}"
-        dirs.extend(
-            [
-                base,
-                f"{base}/_context",
-                f"{base}/outputs",
-                f"{base}/resources",
-            ],
-        )
-    return dirs
+    if is_existing_vault_setup(setup):
+        return list(INPUT_ROOT_DIRS)
+    return list(NEW_VAULT_DIRS)
+
+
+def build_file_specs(setup: dict[str, Any], *, target_root: Path, now: str | None = None) -> list[FileSpec]:
+    now = now or utc_now_iso()
+    relative_path = memova_input_root_relative_path(setup, target_root)
+    if is_existing_vault_setup(setup):
+        return input_root_file_specs(setup, now=now, relative_path=relative_path)
+    return root_file_specs(setup, now=now) + input_root_file_specs(
+        setup,
+        now=now,
+        relative_path=INPUT_ROOT_RELATIVE_PATH,
+        prefix=INPUT_ROOT_RELATIVE_PATH,
+    )
 
 
 def create_plan(
@@ -801,45 +571,53 @@ def create_plan(
     overwrite_machine_files: bool = False,
 ) -> dict[str, Any]:
     target_root = expand_path(str(target_root))
-    setup_mode = setup.get("setup_mode") or "create_new_vault"
+    mode = setup_mode(setup)
     storage_target = setup.get("storage_target") or "icloud_drive"
     exists = target_root.exists()
     nonempty = exists and any(target_root.iterdir())
     under_icloud = path_under_icloud(target_root)
     warnings: list[str] = []
     errors: list[str] = []
+    source_vault_paths = extract_source_vault_paths(setup)
+    suggested_existing_vault_target = None
 
+    if mode not in ALLOWED_SETUP_MODES:
+        errors.append(
+            "Unsupported setup_mode. Use create_new_vault or connect_existing_vault.",
+        )
     if storage_target == "icloud_drive" and not under_icloud:
         message = "Target path is not under a detected iCloud Drive root."
         if allow_non_icloud:
             warnings.append(message)
         else:
             errors.append(message)
-    if setup_mode == "create_new_vault" and nonempty and not allow_existing_nonempty:
+    if mode == "create_new_vault" and nonempty and not allow_existing_nonempty:
         errors.append("Target root already exists and is not empty.")
-    source_vault_paths = extract_source_vault_paths(setup)
-    suggested_existing_vault_target = None
-    if setup_mode == "add_memova_folder_to_existing_vault" and source_vault_paths:
+    if mode == "connect_existing_vault" and source_vault_paths:
         target_resolved = resolved(target_root)
         containing_sources = [source for source in source_vault_paths if path_inside(source, target_resolved)]
         if not containing_sources:
-            errors.append(
-                "For add_memova_folder_to_existing_vault, target root must be a dedicated Memova "
-                "subdirectory inside the supplied existing vault path."
+            suggested_existing_vault_target = str(
+                suggested_existing_input_target(setup, source_vault_paths[0]),
             )
-            suggested_existing_vault_target = str(suggested_memova_subdir(setup, source_vault_paths[0]))
+            errors.append(
+                "For connect_existing_vault, target root must be a Memova input-root child folder "
+                "inside the supplied existing vault path."
+            )
         else:
             exact_sources = [source for source in containing_sources if resolved(source) == target_resolved]
             if exact_sources:
-                suggested_existing_vault_target = str(suggested_memova_subdir(setup, exact_sources[0]))
+                suggested_existing_vault_target = str(
+                    suggested_existing_input_target(setup, exact_sources[0]),
+                )
                 errors.append(
-                    "For add_memova_folder_to_existing_vault, target root cannot be the existing "
-                    f"vault root itself. Use a dedicated Memova subdirectory such as "
+                    "For connect_existing_vault, target root cannot be the existing vault root "
+                    f"itself. Use a Memova input-root child folder such as "
                     f"{suggested_existing_vault_target}."
                 )
 
     dirs = build_dirs(setup)
-    files = build_file_specs(setup)
+    files = build_file_specs(setup, target_root=target_root)
     operations: list[dict[str, Any]] = []
     for directory in dirs:
         path = safe_join(target_root, directory)
@@ -867,16 +645,20 @@ def create_plan(
             },
         )
 
+    relative_path = memova_input_root_relative_path(setup, target_root)
     return {
         "schema_version": "memova_vault_operation_plan_v1",
         "target_root": str(resolved(target_root)),
-        "setup_mode": setup_mode,
+        "setup_mode": mode,
         "storage_target": storage_target,
+        "vault_template_version": setup.get("vault_template_version") or TEMPLATE_VERSION,
+        "target_kind": "memova_input_root" if mode == "connect_existing_vault" else "memova_vault",
         "under_detected_icloud_root": under_icloud,
         "target_exists": exists,
         "target_nonempty": nonempty,
-        "manifest_id": manifest_id(setup),
-        "project_names": extract_project_names(setup),
+        "vault_manifest_id": manifest_id(setup),
+        "input_root_manifest_id": input_root_manifest_id(setup),
+        "memova_input_root_relative_path": relative_path,
         "source_vault_paths": [str(path) for path in source_vault_paths],
         "suggested_existing_vault_target": suggested_existing_vault_target,
         "warnings": warnings,
@@ -916,7 +698,9 @@ def apply_plan(plan: dict[str, Any], setup: dict[str, Any], *, overwrite_machine
             "target_root": plan.get("target_root"),
         }
     target_root = Path(plan["target_root"])
-    specs_by_path = {spec.path: spec for spec in build_file_specs(setup)}
+    specs_by_path = {
+        spec.path: spec for spec in build_file_specs(setup, target_root=target_root)
+    }
     created_dirs: list[str] = []
     created_files: list[str] = []
     skipped_files: list[str] = []
@@ -945,7 +729,12 @@ def apply_plan(plan: dict[str, Any], setup: dict[str, Any], *, overwrite_machine
     return {
         "status": "ok",
         "target_root": str(target_root),
-        "manifest_id": plan["manifest_id"],
+        "vault_manifest_id": plan["vault_manifest_id"],
+        "manifest_id": plan["vault_manifest_id"],
+        "input_root_manifest_id": plan["input_root_manifest_id"],
+        "memova_input_root_relative_path": plan["memova_input_root_relative_path"],
+        "selected_by": "codex_suggested_user_confirmed",
+        "target_path_summary": plan["target_root"],
         "created_dir_count": len(created_dirs),
         "created_file_count": len(created_files),
         "skipped_file_count": len(skipped_files),
@@ -959,18 +748,31 @@ def apply_plan(plan: dict[str, Any], setup: dict[str, Any], *, overwrite_machine
 
 def validate_vault(path: Path) -> dict[str, Any]:
     root = expand_path(str(path))
+    is_new_vault = safe_join(root, f"{INPUT_ROOT_RELATIVE_PATH}/_memova/manifest.json").is_file()
     missing_roots: list[str] = []
-    for root_path in SEMANTIC_ROOTS:
-        target = safe_join(root, root_path.rstrip("/"))
-        if not target.exists():
-            missing_roots.append(root_path)
-
     missing_machine_files: list[str] = []
-    for relative_path in REQUIRED_MACHINE_FILES:
-        if not safe_join(root, relative_path).is_file():
-            missing_machine_files.append(relative_path)
+    input_root = safe_join(root, INPUT_ROOT_RELATIVE_PATH) if is_new_vault else root
 
-    manifest_path = safe_join(root, "_memova/manifest.json")
+    if is_new_vault:
+        for root_path in NEW_VAULT_REQUIRED_ROOTS:
+            target = safe_join(root, root_path.rstrip("/"))
+            if not target.exists():
+                missing_roots.append(root_path)
+        for relative_path in (
+            "_memova/manifest.json",
+            "_memova/vault_mapping.json",
+            "_memova/sync_state.json",
+        ):
+            if not safe_join(root, relative_path).is_file():
+                missing_machine_files.append(relative_path)
+
+    for relative_path in INPUT_ROOT_REQUIRED_FILES:
+        if not safe_join(input_root, relative_path).is_file():
+            missing_machine_files.append(
+                f"{INPUT_ROOT_RELATIVE_PATH}/{relative_path}" if is_new_vault else relative_path,
+            )
+
+    manifest_path = safe_join(input_root, "_memova/manifest.json")
     manifest: dict[str, Any] | None = None
     manifest_error: str | None = None
     if manifest_path.exists():
@@ -987,11 +789,32 @@ def validate_vault(path: Path) -> dict[str, Any]:
         "schema_version": "memova_vault_validation_v1",
         "status": status,
         "path": str(resolved(root)),
+        "target_kind": "memova_vault" if is_new_vault else "memova_input_root",
+        "memova_input_root_path": str(resolved(input_root)),
+        "memova_input_root_relative_path": INPUT_ROOT_RELATIVE_PATH
+        if is_new_vault
+        else manifest.get("memova_input_root_relative_path", ".")
+        if manifest
+        else ".",
         "missing_roots": missing_roots,
         "missing_machine_files": missing_machine_files,
+        "vault_manifest_id": manifest_id_from_root(root) if is_new_vault else None,
+        "input_root_manifest_id": manifest.get("manifest_id") if manifest else None,
         "manifest_id": manifest.get("manifest_id") if manifest else None,
         "manifest_error": manifest_error,
     }
+
+
+def manifest_id_from_root(root: Path) -> str | None:
+    manifest_path = safe_join(root, "_memova/manifest.json")
+    if not manifest_path.exists():
+        return None
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+    value = manifest.get("manifest_id")
+    return value if isinstance(value, str) else None
 
 
 def inspect_tree(path: Path, *, max_depth: int = 3, max_entries: int = 500) -> dict[str, Any]:
@@ -1003,6 +826,7 @@ def inspect_tree(path: Path, *, max_depth: int = 3, max_entries: int = 500) -> d
             "status": "not_found",
             "path": str(root_resolved),
             "entries": entries,
+            "raw_input_candidates": [],
         }
     for current_root, dirnames, filenames in os.walk(root):
         current = Path(current_root)
@@ -1025,18 +849,17 @@ def inspect_tree(path: Path, *, max_depth: int = 3, max_entries: int = 500) -> d
         if len(entries) >= max_entries:
             break
 
-    semantic_presence = {
-        root_path: safe_join(root, root_path.rstrip("/")).exists() for root_path in SEMANTIC_ROOTS
-    }
     manifest_path = safe_join(root, "_memova/manifest.json")
+    input_manifest_path = safe_join(root, f"{INPUT_ROOT_RELATIVE_PATH}/_memova/manifest.json")
     obsidian_path = root / ".obsidian"
     return {
         "status": "ok",
         "path": str(root_resolved),
         "entry_count": len(entries),
         "truncated": len(entries) >= max_entries,
-        "has_memova_manifest": manifest_path.exists(),
+        "has_memova_vault_manifest": manifest_path.exists(),
+        "has_memova_input_root_manifest": input_manifest_path.exists(),
         "has_obsidian_config": obsidian_path.exists(),
-        "semantic_presence": semantic_presence,
+        "raw_input_candidates": raw_input_candidates(root, max_depth=2),
         "entries": entries,
     }
