@@ -130,6 +130,8 @@ def fetch_latest_version(latest_manifest_url: str) -> str:
         latest_manifest_url,
         headers={
             "Accept": "application/json",
+            "Cache-Control": "no-cache",
+            "Pragma": "no-cache",
             "User-Agent": "memova-codex-plugin-version-check/1.0",
         },
     )
