@@ -80,7 +80,15 @@ When the user asks to set up their Memova knowledge base:
 11. Call `complete_knowledge_base_setup` with a small result summary:
     `manifest_id`, `target_path_summary`, `created_file_count`, `created_dir_count`,
     `skipped_file_count`, and `validation_status`.
-12. If setup cannot proceed, call `fail_knowledge_base_setup` with a clear failure code such as
+12. Mark this Mac as setup-complete for future non-setup workflow reminders:
+
+    ```bash
+    python3 plugins/memova/scripts/kb_setup_reminder.py \
+      --mark-complete \
+      --vault-path "<approved-target-path>"
+    ```
+
+13. If setup cannot proceed, call `fail_knowledge_base_setup` with a clear failure code such as
     `setup.path_not_found`, `setup.user_declined`, `setup.validation_failed`, or
     `setup.write_failed`.
 

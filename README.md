@@ -93,6 +93,11 @@ Continue pending Memova automation tasks.
 
 The workflow reviews recent Memova final notes, organizes engineering actions, asks before approval-required work, executes safe tasks when the current workspace is appropriate, and writes progress/results back to Memova.
 
+On the first non-setup Memova workflow, the plugin checks whether a Memova knowledge-base vault is
+already present on the Mac. If not, it shows one setup reminder, records that reminder locally under
+`~/.cache/memova-codex-plugin/`, and does not repeat it on later workflows. Users can still start
+setup explicitly with `@memova Setup my Memova knowledge base.`
+
 ## Set Up A Memova Knowledge Base
 
 The knowledge-base setup flow is designed for users who already completed the Memova iOS setup step and marked setup ready for Codex.
@@ -192,6 +197,7 @@ Validate skill metadata and helper scripts:
 ruby -e 'require "yaml"; YAML.load_file("plugins/memova/skills/memova-workflow/agents/openai.yaml"); YAML.load_file("plugins/memova/skills/memova-vault-setup/agents/openai.yaml"); puts "yaml ok"'
 python3 -m py_compile plugins/memova/skills/memova-vault-setup/scripts/*.py
 python3 plugins/memova/skills/memova-vault-setup/scripts/create_memova_vault.py discover
+python3 plugins/memova/scripts/kb_setup_reminder.py
 ```
 
 Inspect the marketplace locally:
