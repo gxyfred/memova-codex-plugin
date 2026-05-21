@@ -98,6 +98,10 @@ already present on the Mac. If not, it shows one setup reminder, records that re
 `~/.cache/memova-codex-plugin/`, and does not repeat it on later workflows. Users can still start
 setup explicitly with `@memova Setup my Memova knowledge base.`
 
+The plugin also checks for newer Memova plugin releases at most once per day. If a newer version is
+available, it reminds the user to upgrade, then repeats that reminder at most once every 7 days for
+the same latest version.
+
 ## Set Up A Memova Knowledge Base
 
 The knowledge-base setup flow is designed for users who already completed the Memova iOS setup step and marked setup ready for Codex.
@@ -152,6 +156,10 @@ codex plugin marketplace upgrade memova-codex-plugin
 
 Then restart Codex or start a new thread if the plugin UI does not refresh.
 
+Installed third-party plugins should not be treated as automatically updated. Memova workflows
+include a low-frequency version check and may show this upgrade command when the installed plugin is
+behind.
+
 ## Troubleshooting
 
 If `codex plugin marketplace add gxyfred/memova-codex-plugin` fails:
@@ -197,6 +205,7 @@ Validate skill metadata and helper scripts:
 ruby -e 'require "yaml"; YAML.load_file("plugins/memova/skills/memova-workflow/agents/openai.yaml"); YAML.load_file("plugins/memova/skills/memova-vault-setup/agents/openai.yaml"); puts "yaml ok"'
 python3 -m py_compile plugins/memova/skills/memova-vault-setup/scripts/*.py
 python3 plugins/memova/skills/memova-vault-setup/scripts/create_memova_vault.py discover
+python3 plugins/memova/scripts/version_check.py --force
 python3 plugins/memova/scripts/kb_setup_reminder.py
 ```
 

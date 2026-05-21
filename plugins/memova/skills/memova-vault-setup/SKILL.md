@@ -13,6 +13,13 @@ because a prompt mentions Obsidian, iCloud, or notes.
 
 - Treat the Memova MCP setup package as the source of truth for setup mode, storage target,
   preferences, and path hints.
+- Before starting setup, run the low-frequency plugin version check from the plugin root:
+
+  ```bash
+  python3 plugins/memova/scripts/version_check.py
+  ```
+
+  If it returns `should_remind: true`, show its message and continue the requested setup workflow.
 - Use the helper scripts in this skill for path discovery, vault inspection, file creation, and
   validation instead of hand-writing large file trees. Resolve `scripts/...` paths relative to this
   skill directory.
@@ -30,13 +37,14 @@ because a prompt mentions Obsidian, iCloud, or notes.
 
 When the user asks to set up their Memova knowledge base:
 
-1. Confirm Memova MCP tools are available and authenticated. If not, tell the user to connect the
+1. Run the plugin version check described above.
+2. Confirm Memova MCP tools are available and authenticated. If not, tell the user to connect the
    Memova MCP server through OAuth and stop.
-2. Call `list_pending_knowledge_base_setups`. If there is exactly one ready/running setup, use it.
+3. Call `list_pending_knowledge_base_setups`. If there is exactly one ready/running setup, use it.
    If there are multiple, summarize them and ask which one to run.
-3. Call `get_knowledge_base_setup_context` for the selected `setup_session_id`.
-4. Call `append_knowledge_base_setup_progress` with a concise message that setup has started.
-5. Run:
+4. Call `get_knowledge_base_setup_context` for the selected `setup_session_id`.
+5. Call `append_knowledge_base_setup_progress` with a concise message that setup has started.
+6. Run:
 
    ```bash
    python3 scripts/find_vault_locations.py
@@ -44,14 +52,14 @@ When the user asks to set up their Memova knowledge base:
 
    Use the output plus the setup package path hints to identify likely iCloud / existing vault
    locations. If the path is still unclear, ask the user for the Mac path.
-6. If the user supplied an old vault path, run:
+7. If the user supplied an old vault path, run:
 
    ```bash
    python3 scripts/inspect_vault.py --path "<old-vault-path>"
    ```
 
    Keep inspection light; do not recursively read the full vault unless the user asks.
-7. Write the MCP `setup_package` object to a temporary JSON file under `/tmp` and run a dry plan:
+8. Write the MCP `setup_package` object to a temporary JSON file under `/tmp` and run a dry plan:
 
    ```bash
    python3 scripts/create_memova_vault.py plan \
@@ -59,9 +67,9 @@ When the user asks to set up their Memova knowledge base:
      --target-root "<approved-target-path>"
    ```
 
-8. Summarize the plan: target path, setup mode, non-iCloud warning if any, directories to create,
+9. Summarize the plan: target path, setup mode, non-iCloud warning if any, directories to create,
    files to create, files to skip, and project starter pages.
-9. Ask for approval. Only after approval, run:
+10. Ask for approval. Only after approval, run:
 
    ```bash
    python3 scripts/create_memova_vault.py create \
@@ -70,17 +78,17 @@ When the user asks to set up their Memova knowledge base:
      --confirm-create
    ```
 
-10. Validate the result:
+11. Validate the result:
 
     ```bash
     python3 scripts/validate_memova_vault.py \
       --path "<approved-target-path>"
     ```
 
-11. Call `complete_knowledge_base_setup` with a small result summary:
+12. Call `complete_knowledge_base_setup` with a small result summary:
     `manifest_id`, `target_path_summary`, `created_file_count`, `created_dir_count`,
     `skipped_file_count`, and `validation_status`.
-12. Mark this Mac as setup-complete for future non-setup workflow reminders:
+13. Mark this Mac as setup-complete for future non-setup workflow reminders:
 
     ```bash
     python3 plugins/memova/scripts/kb_setup_reminder.py \
@@ -88,7 +96,7 @@ When the user asks to set up their Memova knowledge base:
       --vault-path "<approved-target-path>"
     ```
 
-13. If setup cannot proceed, call `fail_knowledge_base_setup` with a clear failure code such as
+14. If setup cannot proceed, call `fail_knowledge_base_setup` with a clear failure code such as
     `setup.path_not_found`, `setup.user_declined`, `setup.validation_failed`, or
     `setup.write_failed`.
 
