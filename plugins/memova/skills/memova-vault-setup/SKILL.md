@@ -98,7 +98,8 @@ When the user asks to set up their Memova knowledge base:
 12. Call `complete_knowledge_base_setup` with a small result summary:
     `manifest_id`, `vault_manifest_id`, `input_root_manifest_id`,
     `memova_input_root_relative_path`, `selected_by`, `target_path_summary`,
-    `created_file_count`, `created_dir_count`, `skipped_file_count`, and `validation_status`.
+    `ios_folder_binding_hints`, `created_file_count`, `created_dir_count`,
+    `skipped_file_count`, and `validation_status`.
 13. Mark this Mac as setup-complete for future non-setup workflow reminders:
 
     ```bash
@@ -119,6 +120,9 @@ When the user asks to set up their Memova knowledge base:
   `~/Library/Mobile Documents/com~apple~CloudDocs/Memova Vault`
 - Do not assume iOS and Mac expose the same absolute path. The shared identity is the Memova input
   root manifest, not the path string.
+- Include `ios_folder_binding_hints` from the helper result when completing setup. iOS uses these
+  hints to ask the user for one Files folder authorization, then automatically resolve likely
+  manifest paths relative to the authorized folder.
 - If the user provides a path manually, expand `~`, inspect it, and show the resolved path before
   writing.
 
@@ -131,6 +135,7 @@ End with:
 - manifest id,
 - input root manifest id,
 - Memova input-root relative path,
+- iOS authorization hint summary, especially the iCloud relative input-root path when available,
 - created/skipped counts,
 - validation result,
 - what the iOS app should do next: authorize the same vault/input-root folder through Files and

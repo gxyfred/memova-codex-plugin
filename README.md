@@ -143,8 +143,20 @@ approval, for example:
 ```
 
 After Codex creates the vault/input root, the iOS app should ask the user to select the same folder
-through Files and verify the Memova input-root `_memova/manifest.json`. Do not rely on the Mac
-absolute path inside iOS; the manifest identifies the binding.
+or an ancestor folder through Files. The setup result includes `ios_folder_binding_hints`, so iOS
+can use iCloud-relative manifest paths and the expected input-root manifest id to find the right
+folder after authorization. Do not rely on the Mac absolute path inside iOS; the manifest identifies
+the binding.
+
+Example new-vault hints:
+
+```json
+{
+  "icloud_relative_input_root_path": "Memova Vault/inbox/memova",
+  "input_root_manifest_relative_path": "Memova Vault/inbox/memova/_memova/manifest.json",
+  "expected_input_root_manifest_id": "memova-input-root-..."
+}
+```
 
 ## File Tree Created By Setup
 

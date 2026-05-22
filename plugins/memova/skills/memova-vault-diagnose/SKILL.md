@@ -69,6 +69,9 @@ When the user is trying to connect the iOS app to the folder:
   input root folder, for example `00_Inbox/Memova`.
 - Compare `input_root_manifest_id`, `vault_template_version`, and
   `memova_input_root_relative_path` with the setup result returned to Memova.
+- If `ios_folder_binding_hints` is available from the backend binding, iOS should use its
+  `candidate_manifest_paths` against the user-authorized folder before falling back to a shallow
+  local search.
 
 ## Meeting Sync Troubleshooting
 

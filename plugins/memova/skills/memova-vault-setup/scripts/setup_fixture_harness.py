@@ -115,12 +115,17 @@ def case_create_new_vault(root: Path) -> HarnessCaseResult:
                 "New vault setup should use inbox/memova as the Memova input root.",
             )
         )
+    _assert_ios_binding_hints(result, issues, expected_target_kind="memova_vault")
     return HarnessCaseResult(
         case_id="create_new_vault",
         status="ok" if not _has_error(issues) else "fail",
         target_root=str(target),
         issues=issues,
-        details={"plan_summary": plan["summary"], "validation": validation},
+        details={
+            "plan_summary": plan["summary"],
+            "validation": validation,
+            "ios_folder_binding_hints": result.get("ios_folder_binding_hints"),
+        },
     )
 
 
@@ -148,6 +153,7 @@ def case_connect_existing_inbox(root: Path) -> HarnessCaseResult:
                 {"target": str(target)},
             )
         )
+    _assert_ios_binding_hints(result, issues, expected_target_kind="memova_input_root")
     _assert_existing_root_preserved(existing, before_children, issues)
     return HarnessCaseResult(
         case_id="connect_existing_inbox",
@@ -157,6 +163,7 @@ def case_connect_existing_inbox(root: Path) -> HarnessCaseResult:
         details={
             "raw_input_candidates": inspection["raw_input_candidates"],
             "validation": validation,
+            "ios_folder_binding_hints": result.get("ios_folder_binding_hints"),
         },
     )
 
@@ -194,13 +201,18 @@ def case_connect_existing_sources(root: Path) -> HarnessCaseResult:
                 {"candidates": candidates},
             )
         )
+    _assert_ios_binding_hints(result, issues, expected_target_kind="memova_input_root")
     _assert_existing_root_preserved(existing, before_children, issues)
     return HarnessCaseResult(
         case_id="connect_existing_sources",
         status="ok" if not _has_error(issues) else "fail",
         target_root=str(target),
         issues=issues,
-        details={"raw_input_candidates": candidates, "validation": validation},
+        details={
+            "raw_input_candidates": candidates,
+            "validation": validation,
+            "ios_folder_binding_hints": result.get("ios_folder_binding_hints"),
+        },
     )
 
 
@@ -315,6 +327,59 @@ def _assert_existing_root_preserved(
                 "existing_vault_top_level_modified",
                 "Connect-existing setup must not create Memova top-level roots.",
                 {"created_roots": created},
+            )
+        )
+
+
+def _assert_ios_binding_hints(
+    result: dict[str, Any],
+    issues: list[HarnessIssue],
+    *,
+    expected_target_kind: str,
+) -> None:
+    hints = result.get("ios_folder_binding_hints")
+    if not isinstance(hints, dict):
+        issues.append(
+            HarnessIssue(
+                "error",
+                "missing_ios_binding_hints",
+                "Setup result should include iOS folder binding hints.",
+            )
+        )
+        return
+    if hints.get("schema_version") != "memova_ios_folder_binding_hints_v1":
+        issues.append(
+            HarnessIssue(
+                "error",
+                "wrong_ios_binding_hint_schema",
+                "iOS folder binding hints should use the expected schema version.",
+                {"hints": hints},
+            )
+        )
+    if hints.get("target_kind") != expected_target_kind:
+        issues.append(
+            HarnessIssue(
+                "error",
+                "wrong_ios_binding_hint_target_kind",
+                "iOS folder binding hints should preserve the setup target kind.",
+                {"expected": expected_target_kind, "actual": hints.get("target_kind")},
+            )
+        )
+    if not hints.get("expected_input_root_manifest_id"):
+        issues.append(
+            HarnessIssue(
+                "error",
+                "missing_ios_expected_manifest_id",
+                "iOS folder binding hints should include the expected input-root manifest id.",
+            )
+        )
+    candidates = hints.get("candidate_manifest_paths")
+    if not isinstance(candidates, list) or not candidates:
+        issues.append(
+            HarnessIssue(
+                "error",
+                "missing_ios_candidate_manifest_paths",
+                "iOS folder binding hints should include candidate manifest paths.",
             )
         )
 

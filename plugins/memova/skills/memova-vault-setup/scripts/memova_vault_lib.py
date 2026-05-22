@@ -163,6 +163,26 @@ def path_under_icloud(path: Path) -> bool:
     return False
 
 
+def relative_to_icloud(path: Path) -> str | None:
+    target = resolved(path)
+    for candidate in detect_icloud_roots():
+        if not candidate.get("exists"):
+            continue
+        root = Path(candidate["path"])
+        if target == root:
+            return ""
+        if root in target.parents:
+            return target.relative_to(root).as_posix()
+    return None
+
+
+def join_relative(*parts: str | None) -> str | None:
+    cleaned = [str(part).replace("\\", "/").strip("/") for part in parts if str(part or "").strip("/")]
+    if not cleaned:
+        return None
+    return str(Path(cleaned[0], *cleaned[1:])).replace("\\", "/")
+
+
 def safe_component(value: str) -> str:
     value = value.strip()
     value = re.sub(r"[/:\\]+", "-", value)
@@ -646,13 +666,15 @@ def create_plan(
         )
 
     relative_path = memova_input_root_relative_path(setup, target_root)
-    return {
+    target_kind = "memova_input_root" if mode == "connect_existing_vault" else "memova_vault"
+    plan_target_root = str(resolved(target_root))
+    plan = {
         "schema_version": "memova_vault_operation_plan_v1",
-        "target_root": str(resolved(target_root)),
+        "target_root": plan_target_root,
         "setup_mode": mode,
         "storage_target": storage_target,
         "vault_template_version": setup.get("vault_template_version") or TEMPLATE_VERSION,
-        "target_kind": "memova_input_root" if mode == "connect_existing_vault" else "memova_vault",
+        "target_kind": target_kind,
         "under_detected_icloud_root": under_icloud,
         "target_exists": exists,
         "target_nonempty": nonempty,
@@ -666,7 +688,86 @@ def create_plan(
         "operations": operations,
         "summary": summarize_operations(operations),
     }
+    plan["ios_folder_binding_hints"] = ios_folder_binding_hints(plan)
+    return plan
 
+
+def ios_folder_binding_hints(plan: dict[str, Any]) -> dict[str, Any]:
+    target_root = Path(plan["target_root"])
+    target_kind = plan.get("target_kind")
+    input_root_relative_path = str(plan.get("memova_input_root_relative_path") or ".")
+    if target_kind == "memova_vault":
+        vault_root = target_root
+        input_root = safe_join(vault_root, input_root_relative_path)
+    else:
+        input_root = target_root
+        vault_root = source_vault_root_for_target(plan, target_root)
+
+    icloud_relative_vault_path = relative_to_icloud(vault_root) if vault_root is not None else None
+    icloud_relative_input_root_path = relative_to_icloud(input_root)
+    input_root_manifest_relative_path = (
+        join_relative(icloud_relative_input_root_path, "_memova/manifest.json")
+        if icloud_relative_input_root_path is not None
+        else None
+    )
+    vault_relative_manifest_path = (
+        join_relative(input_root_relative_path, "_memova/manifest.json")
+        if input_root_relative_path != "."
+        else "_memova/manifest.json"
+    )
+    candidates = [
+        {
+            "kind": "selected_folder_is_input_root",
+            "manifest_relative_path": "_memova/manifest.json",
+        },
+    ]
+    if target_kind == "memova_vault":
+        candidates.append(
+            {
+                "kind": "selected_folder_is_new_vault_root",
+                "manifest_relative_path": join_relative(
+                    input_root_relative_path,
+                    "_memova/manifest.json",
+                ),
+            }
+        )
+    elif input_root_relative_path != ".":
+        candidates.append(
+            {
+                "kind": "selected_folder_is_existing_vault_root",
+                "manifest_relative_path": vault_relative_manifest_path,
+            }
+        )
+    if input_root_manifest_relative_path:
+        candidates.append(
+            {
+                "kind": "selected_folder_is_icloud_drive_root",
+                "manifest_relative_path": input_root_manifest_relative_path,
+            }
+        )
+    return {
+        "schema_version": "memova_ios_folder_binding_hints_v1",
+        "storage_target": plan.get("storage_target") or "icloud_drive",
+        "target_kind": target_kind,
+        "authorization_strategy": "user_selects_ancestor_then_app_resolves_relative_manifest",
+        "icloud_relative_vault_path": icloud_relative_vault_path,
+        "icloud_relative_input_root_path": icloud_relative_input_root_path,
+        "memova_input_root_relative_path": input_root_relative_path,
+        "input_root_manifest_relative_path": input_root_manifest_relative_path,
+        "vault_relative_input_root_manifest_path": vault_relative_manifest_path,
+        "expected_vault_manifest_id": plan.get("vault_manifest_id"),
+        "expected_input_root_manifest_id": plan.get("input_root_manifest_id"),
+        "candidate_manifest_paths": candidates,
+    }
+
+
+def source_vault_root_for_target(plan: dict[str, Any], target_root: Path) -> Path | None:
+    target = resolved(target_root)
+    for raw_path in plan.get("source_vault_paths") or []:
+        source = resolved(expand_path(str(raw_path)))
+        if target == source or source in target.parents:
+            return source
+    return None
 
 def summarize_operations(operations: list[dict[str, Any]]) -> dict[str, int]:
     summary = {
@@ -733,6 +834,7 @@ def apply_plan(plan: dict[str, Any], setup: dict[str, Any], *, overwrite_machine
         "manifest_id": plan["vault_manifest_id"],
         "input_root_manifest_id": plan["input_root_manifest_id"],
         "memova_input_root_relative_path": plan["memova_input_root_relative_path"],
+        "ios_folder_binding_hints": plan.get("ios_folder_binding_hints", {}),
         "selected_by": "codex_suggested_user_confirmed",
         "target_path_summary": plan["target_root"],
         "created_dir_count": len(created_dirs),
