@@ -32,6 +32,14 @@ because a prompt mentions Obsidian, iCloud, or notes.
   Memova input root inside the user-confirmed raw-input folder, such as
   `<existing vault>/00_Inbox/Memova`. Do not create Memova `wiki/`, `projects/`, `daily/`, or other
   top-level roots inside an existing vault.
+- The setup output must be self-describing. The helper creates non-empty `README.md`, `AGENTS.md`,
+  and `schemas/*.schema.md` files that explain the Memova raw-input contract, future meeting packet
+  shape, evidence rules, and agent update rules. Do not replace these with empty placeholders.
+- These setup docs and schemas are Memova-managed setup files. Existing files are skipped by
+  default; overwrite them only with explicit user approval and `--overwrite-machine-files`, for
+  example when repairing docs created by an older plugin version.
+- Setup should create the `meetings/` root but must not pre-create concrete meeting packet folders;
+  iOS writes those later after each meeting.
 - Ask for explicit user approval before creating files, writing into an existing vault, or using a
   non-iCloud target for an iCloud setup.
 - Never store secrets, OAuth tokens, raw credentials, or full private note contents in progress
@@ -78,7 +86,8 @@ When the user asks to set up their Memova knowledge base:
    ```
 
 9. Summarize the plan: target path, setup mode, target kind, non-iCloud warning if any,
-   directories to create, files to create, files to skip, and the Memova input-root relative path.
+   directories to create, files to create, files to skip, the self-describing setup docs/schemas to
+   create, and the Memova input-root relative path.
 10. Ask for approval. Only after approval, run:
 
    ```bash
@@ -95,12 +104,14 @@ When the user asks to set up their Memova knowledge base:
       --path "<approved-target-path>"
     ```
 
-12. Call `complete_knowledge_base_setup` with a small result summary:
+12. Confirm validation reports no missing required documentation, schema, manifest, or sync-state
+    files.
+13. Call `complete_knowledge_base_setup` with a small result summary:
     `manifest_id`, `vault_manifest_id`, `input_root_manifest_id`,
     `memova_input_root_relative_path`, `selected_by`, `target_path_summary`,
     `ios_folder_binding_hints`, `created_file_count`, `created_dir_count`,
     `skipped_file_count`, and `validation_status`.
-13. Mark this Mac as setup-complete for future non-setup workflow reminders:
+14. Mark this Mac as setup-complete for future non-setup workflow reminders:
 
     ```bash
     python3 plugins/memova/scripts/kb_setup_reminder.py \
@@ -108,7 +119,7 @@ When the user asks to set up their Memova knowledge base:
     --vault-path "<approved-target-path>"
     ```
 
-14. If setup cannot proceed, call `fail_knowledge_base_setup` with a clear failure code such as
+15. If setup cannot proceed, call `fail_knowledge_base_setup` with a clear failure code such as
     `setup.path_not_found`, `setup.user_declined`, `setup.validation_failed`, or
     `setup.write_failed`.
 

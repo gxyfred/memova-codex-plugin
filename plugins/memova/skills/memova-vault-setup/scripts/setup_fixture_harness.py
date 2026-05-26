@@ -70,6 +70,7 @@ def run_harness(output_root: Path | None = None, *, keep_artifacts: bool = False
         case_connect_existing_sources(output_root),
         case_existing_vault_root_guard(output_root),
         case_repair_missing_machine_file(output_root),
+        case_repair_thin_setup_doc(output_root),
     ]
     issue_count = sum(len([issue for issue in result.issues if issue.severity == "error"]) for result in results)
     report = {
@@ -116,6 +117,9 @@ def case_create_new_vault(root: Path) -> HarnessCaseResult:
             )
         )
     _assert_ios_binding_hints(result, issues, expected_target_kind="memova_vault")
+    _assert_new_vault_docs(target, issues)
+    _assert_input_root_docs(target / "inbox" / "memova", issues)
+    _assert_no_meeting_packets_created(target / "inbox" / "memova", issues)
     return HarnessCaseResult(
         case_id="create_new_vault",
         status="ok" if not _has_error(issues) else "fail",
@@ -155,6 +159,8 @@ def case_connect_existing_inbox(root: Path) -> HarnessCaseResult:
         )
     _assert_ios_binding_hints(result, issues, expected_target_kind="memova_input_root")
     _assert_existing_root_preserved(existing, before_children, issues)
+    _assert_input_root_docs(target, issues)
+    _assert_no_meeting_packets_created(target, issues)
     return HarnessCaseResult(
         case_id="connect_existing_inbox",
         status="ok" if not _has_error(issues) else "fail",
@@ -203,6 +209,8 @@ def case_connect_existing_sources(root: Path) -> HarnessCaseResult:
         )
     _assert_ios_binding_hints(result, issues, expected_target_kind="memova_input_root")
     _assert_existing_root_preserved(existing, before_children, issues)
+    _assert_input_root_docs(target, issues)
+    _assert_no_meeting_packets_created(target, issues)
     return HarnessCaseResult(
         case_id="connect_existing_sources",
         status="ok" if not _has_error(issues) else "fail",
@@ -301,6 +309,56 @@ def case_repair_missing_machine_file(root: Path) -> HarnessCaseResult:
     )
 
 
+def case_repair_thin_setup_doc(root: Path) -> HarnessCaseResult:
+    target = root / "thin-doc-vault"
+    setup = setup_package(mode="create_new_vault", session_id="thin-doc")
+    initial_plan = create_plan(
+        target_root=target,
+        setup=setup,
+        allow_non_icloud=True,
+        allow_existing_nonempty=True,
+    )
+    apply_plan(initial_plan, setup)
+    thin_doc = target / "inbox" / "memova" / "README.md"
+    thin_doc.write_text("placeholder\n", encoding="utf-8")
+    broken = validate_vault(target)
+    repair_plan = create_plan(
+        target_root=target,
+        setup=setup,
+        allow_non_icloud=True,
+        allow_existing_nonempty=True,
+        overwrite_machine_files=True,
+    )
+    result = apply_plan(repair_plan, setup, overwrite_machine_files=True)
+    validation = validate_vault(target)
+    issues = _issues_for_ok_plan(repair_plan, result, validation)
+    if not broken.get("invalid_required_files"):
+        issues.append(
+            HarnessIssue(
+                "error",
+                "thin_doc_not_detected",
+                "Validation should fail when a required setup document is too thin.",
+                {"broken_validation": broken},
+            )
+        )
+    if "inbox/memova/README.md" not in result.get("overwritten_files", []):
+        issues.append(
+            HarnessIssue(
+                "error",
+                "thin_doc_not_overwritten",
+                "Repair with overwrite_machine_files should replace Memova-managed setup docs.",
+                {"result": result},
+            )
+        )
+    return HarnessCaseResult(
+        case_id="repair_thin_setup_doc",
+        status="ok" if not _has_error(issues) else "fail",
+        target_root=str(target),
+        issues=issues,
+        details={"broken_validation": broken, "validation": validation},
+    )
+
+
 def _seed_existing_vault(path: Path, directories: list[str]) -> None:
     path.mkdir(parents=True, exist_ok=True)
     (path / ".obsidian").mkdir(parents=True, exist_ok=True)
@@ -327,6 +385,127 @@ def _assert_existing_root_preserved(
                 "existing_vault_top_level_modified",
                 "Connect-existing setup must not create Memova top-level roots.",
                 {"created_roots": created},
+            )
+        )
+
+
+def _assert_new_vault_docs(root: Path, issues: list[HarnessIssue]) -> None:
+    required = {
+        "README.md": ["Memova Vault", "inbox/memova", "V1 Scope"],
+        "AGENTS.md": ["No memory without source", "No external write without confirmation"],
+        "inbox/README.md": ["Inbox", "inbox/memova"],
+        "sources/README.md": ["Sources", "Memova V1"],
+        "wiki/README.md": ["Wiki", "curated long-term knowledge"],
+        "projects/README.md": ["Projects", "project-specific"],
+        "daily/README.md": ["Daily", "daily notes"],
+        "outputs/README.md": ["Outputs", "finished artifacts"],
+        "archive/README.md": ["Archive", "inactive material"],
+        "schemas/README.md": ["Schemas", "inbox/memova/schemas"],
+    }
+    for relative_path, keywords in required.items():
+        _assert_doc_contains(root, relative_path, keywords, issues, min_chars=120)
+
+
+def _assert_input_root_docs(root: Path, issues: list[HarnessIssue]) -> None:
+    required = {
+        "README.md": [
+            "Memova Raw Input Root",
+            "meetings/YYYY/MM",
+            "manifest.json",
+            "media/audio_manifest.json",
+        ],
+        "AGENTS.md": [
+            "Agent Rules",
+            "No memory without source",
+            "No action without evidence",
+            "Reading Order",
+        ],
+        "schemas/meeting_packet.schema.md": [
+            "Meeting Packet Schema",
+            "transcript.md",
+            "final_note.json",
+            "hashes.json",
+        ],
+        "schemas/transcript.schema.md": [
+            "Transcript Schema",
+            "transcript.md",
+            "transcript.json",
+            "stable post-meeting transcript",
+        ],
+        "schemas/note.schema.md": [
+            "Note Schema",
+            "raw_user_note",
+            "final_note",
+            "Grounding Rules",
+        ],
+        "schemas/ocr.schema.md": [
+            "OCR Schema",
+            "ocr/imports.json",
+            "pages.json",
+            "files/page-001.png",
+        ],
+        "schemas/attachment.schema.md": [
+            "Attachment And Image Schema",
+            "attachments.json",
+            "images.json",
+            "analysis_images",
+        ],
+    }
+    for relative_path, keywords in required.items():
+        _assert_doc_contains(root, relative_path, keywords, issues, min_chars=240)
+
+
+def _assert_doc_contains(
+    root: Path,
+    relative_path: str,
+    keywords: list[str],
+    issues: list[HarnessIssue],
+    *,
+    min_chars: int,
+) -> None:
+    path = root / relative_path
+    if not path.is_file():
+        issues.append(
+            HarnessIssue(
+                "error",
+                "missing_setup_doc",
+                "Setup should create required human/agent documentation.",
+                {"path": str(path), "relative_path": relative_path},
+            )
+        )
+        return
+    text = path.read_text(encoding="utf-8")
+    if len(text.strip()) < min_chars:
+        issues.append(
+            HarnessIssue(
+                "error",
+                "thin_setup_doc",
+                "Setup documentation should contain useful non-empty guidance, not placeholders.",
+                {"relative_path": relative_path, "char_count": len(text.strip())},
+            )
+        )
+    missing = [keyword for keyword in keywords if keyword not in text]
+    if missing:
+        issues.append(
+            HarnessIssue(
+                "error",
+                "setup_doc_missing_keywords",
+                "Setup documentation is missing expected contract language.",
+                {"relative_path": relative_path, "missing_keywords": missing},
+            )
+        )
+
+
+def _assert_no_meeting_packets_created(root: Path, issues: list[HarnessIssue]) -> None:
+    meetings = root / "meetings"
+    packet_dirs = [path for path in meetings.rglob("*") if path.is_dir()] if meetings.exists() else []
+    if packet_dirs:
+        issues.append(
+            HarnessIssue(
+                "error",
+                "meeting_packets_created_during_setup",
+                "Vault setup should create the meetings root but not pre-create concrete meeting packets.",
+                {"packet_dirs": [str(path.relative_to(meetings)) for path in packet_dirs[:20]]},
             )
         )
 

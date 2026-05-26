@@ -124,8 +124,11 @@ Codex will:
 5. Ask before writing files.
 6. Create either a new empty Memova vault skeleton with `inbox/memova/`, or only a scoped Memova
    input root inside the approved existing vault folder.
-7. Validate the Memova input-root manifest and required metadata files.
-8. Report success or failure back to Memova through MCP, including
+7. Write non-empty README, AGENTS, schema, manifest, and sync-state files that explain the raw-input
+   contract for humans, iOS, and agents.
+8. Validate the Memova input-root manifest, setup documentation, schema files, and required metadata
+   files.
+9. Report success or failure back to Memova through MCP, including
    `memova_input_root_relative_path`.
 
 For a new iCloud vault, the usual Mac target path is:
@@ -169,49 +172,79 @@ plugins/memova/skills/memova-vault-setup/scripts/memova_vault_lib.py
 For a new vault, Codex creates an empty Memova vault skeleton and the Memova input root:
 
 ```text
-README.md
-AGENTS.md
-inbox/
-inbox/memova/
-inbox/memova/README.md
-inbox/memova/AGENTS.md
-inbox/memova/schemas/*.schema.md
-inbox/memova/meetings/
-inbox/memova/imports/
-inbox/memova/attachments/
-inbox/memova/_memova/manifest.json
-inbox/memova/_memova/input_root.json
-inbox/memova/_memova/sync_state.json
-inbox/memova/_memova/source_index.json
-sources/
-wiki/
-projects/
-daily/
-outputs/
-archive/
-_memova/manifest.json
-_memova/vault_mapping.json
-_memova/sync_state.json
+Memova Vault/
+  README.md
+  AGENTS.md
+  inbox/
+    README.md
+    memova/
+      README.md
+      AGENTS.md
+      schemas/
+        meeting_packet.schema.md
+        transcript.schema.md
+        note.schema.md
+        ocr.schema.md
+        attachment.schema.md
+      meetings/
+      imports/
+      attachments/
+      _memova/
+        manifest.json
+        input_root.json
+        sync_state.json
+        source_index.json
+  sources/
+    README.md
+  wiki/
+    README.md
+  projects/
+    README.md
+  daily/
+    README.md
+  outputs/
+    README.md
+  archive/
+    README.md
+  schemas/
+    README.md
+  _memova/
+    manifest.json
+    vault_mapping.json
+    sync_state.json
 ```
 
 For an existing vault, Codex creates only the approved Memova input root, usually something like:
 
 ```text
-00_Inbox/Memova/
-00_Inbox/Memova/README.md
-00_Inbox/Memova/AGENTS.md
-00_Inbox/Memova/schemas/*.schema.md
-00_Inbox/Memova/meetings/
-00_Inbox/Memova/imports/
-00_Inbox/Memova/attachments/
-00_Inbox/Memova/_memova/manifest.json
-00_Inbox/Memova/_memova/input_root.json
-00_Inbox/Memova/_memova/sync_state.json
-00_Inbox/Memova/_memova/source_index.json
+Existing User Vault/
+  00_Inbox/
+    Memova/
+      README.md
+      AGENTS.md
+      schemas/
+        meeting_packet.schema.md
+        transcript.schema.md
+        note.schema.md
+        ocr.schema.md
+        attachment.schema.md
+      meetings/
+      imports/
+      attachments/
+      _memova/
+        manifest.json
+        input_root.json
+        sync_state.json
+        source_index.json
 ```
 
 Memova V1 writes raw meeting packets only under the Memova input root. It does not classify
 meetings into projects, update wiki pages, or reorganize an existing knowledge base.
+
+Setup does not pre-create concrete meeting packet folders. After meetings end, the iOS app writes
+packets under `meetings/YYYY/MM/YYYY-MM-DD-<slug>-<meeting_id>/` using the backend sync package.
+The setup README, AGENTS, and schema files describe that future packet shape, including transcript,
+final note, raw user note, OCR, attachments, images, media manifest, and hash files.
 
 ## Diagnose Or Repair A Memova Vault
 
@@ -223,9 +256,12 @@ run:
 ```
 
 Codex will ask for the Mac path if needed, then use deterministic helper scripts to inspect and
-validate the folder. The diagnosis checks required Memova manifests, machine state files, input-root
-relative paths, and lightweight raw-input folder candidates. If files are missing, Codex can show a
-repair plan, but it must ask before writing anything.
+validate the folder. The diagnosis checks required Memova README/AGENTS/schema files, manifests,
+machine state files, input-root relative paths, and lightweight raw-input folder candidates. If
+files are missing, Codex can show a repair plan, but it must ask before writing anything.
+If older setup docs exist but are empty or too thin, Codex can repair them only after explicit user
+approval with `--overwrite-machine-files`; raw meeting packet files are still not overwritten by
+that repair mode.
 
 The underlying script can be run directly during development:
 

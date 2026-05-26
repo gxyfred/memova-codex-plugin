@@ -42,25 +42,96 @@ NEW_VAULT_REQUIRED_ROOTS = [
     "README.md",
     "AGENTS.md",
     "inbox/",
+    "inbox/README.md",
     "inbox/memova/",
     "sources/",
+    "sources/README.md",
     "wiki/",
+    "wiki/README.md",
     "projects/",
+    "projects/README.md",
     "daily/",
+    "daily/README.md",
     "outputs/",
+    "outputs/README.md",
     "archive/",
+    "archive/README.md",
     "schemas/",
+    "schemas/README.md",
     "_memova/",
 ]
 
 INPUT_ROOT_REQUIRED_FILES = [
     "README.md",
     "AGENTS.md",
+    "schemas/meeting_packet.schema.md",
+    "schemas/transcript.schema.md",
+    "schemas/note.schema.md",
+    "schemas/ocr.schema.md",
+    "schemas/attachment.schema.md",
     "_memova/manifest.json",
     "_memova/input_root.json",
     "_memova/sync_state.json",
     "_memova/source_index.json",
 ]
+
+NEW_VAULT_DOC_CHECKS = {
+    "README.md": ["Memova Vault", "inbox/memova", "V1 Scope"],
+    "AGENTS.md": ["No memory without source", "No external write without confirmation"],
+    "inbox/README.md": ["Inbox", "inbox/memova"],
+    "sources/README.md": ["Sources", "Memova V1"],
+    "wiki/README.md": ["Wiki", "curated long-term knowledge"],
+    "projects/README.md": ["Projects", "project-specific"],
+    "daily/README.md": ["Daily", "daily notes"],
+    "outputs/README.md": ["Outputs", "finished artifacts"],
+    "archive/README.md": ["Archive", "inactive material"],
+    "schemas/README.md": ["Schemas", "inbox/memova/schemas"],
+}
+
+INPUT_ROOT_DOC_CHECKS = {
+    "README.md": [
+        "Memova Raw Input Root",
+        "meetings/YYYY/MM",
+        "manifest.json",
+        "media/audio_manifest.json",
+    ],
+    "AGENTS.md": [
+        "Agent Rules",
+        "No memory without source",
+        "No action without evidence",
+        "Reading Order",
+    ],
+    "schemas/meeting_packet.schema.md": [
+        "Meeting Packet Schema",
+        "transcript.md",
+        "final_note.json",
+        "hashes.json",
+    ],
+    "schemas/transcript.schema.md": [
+        "Transcript Schema",
+        "transcript.md",
+        "transcript.json",
+        "stable post-meeting transcript",
+    ],
+    "schemas/note.schema.md": [
+        "Note Schema",
+        "raw_user_note",
+        "final_note",
+        "Grounding Rules",
+    ],
+    "schemas/ocr.schema.md": [
+        "OCR Schema",
+        "ocr/imports.json",
+        "pages.json",
+        "files/page-001.png",
+    ],
+    "schemas/attachment.schema.md": [
+        "Attachment And Image Schema",
+        "attachments.json",
+        "images.json",
+        "analysis_images",
+    ],
+}
 
 RAW_INPUT_PARENT_SCORES = {
     "00_inbox": 100,
@@ -82,6 +153,10 @@ class FileSpec:
     path: str
     content: str
     machine: bool = False
+
+
+def markdown(text: str) -> str:
+    return text.strip() + "\n"
 
 
 def utc_now_iso() -> str:
@@ -385,38 +460,9 @@ def input_root_file_specs(
     relative_path: str,
     prefix: str = "",
 ) -> list[FileSpec]:
-    language = detect_language()
-    zh = language == "zh"
-    readme = (
-        "# Memova 原始数据输入区\n\n"
-        "这里保存 Memova 写入的会议原始数据和稳定处理结果。Memova V1 不负责整理你的 wiki、"
-        "projects 或长期记忆；你可以让自己的工作流或 agent 从这里提取、压缩和分类。\n\n"
-        "默认不保存音频文件，但会保存最终转写和 audio manifest。\n"
-        if zh
-        else "# Memova Raw Input Root\n\n"
-        "This folder stores raw meeting data and stable processing outputs written by Memova. "
-        "Memova V1 does not organize your wiki, projects, or long-term memory; your own workflows "
-        "or agents can extract, compress, and classify from here.\n\n"
-        "Audio files are not saved by default, but final transcripts and audio manifests are saved.\n"
-    )
-    agents = (
-        "# Agent Rules\n\n"
-        "- This folder is the Memova raw-input layer.\n"
-        "- Do not treat files here as curated long-term knowledge.\n"
-        "- Do not rewrite original transcripts, OCR text, attachments, or metadata.\n"
-        "- Use these files as source material for user-approved extraction, compression, "
-        "classification, wiki updates, and project updates.\n"
-    )
-    schemas = {
-        "schemas/meeting_packet.schema.md": "# Meeting Packet Schema\n\nRequired files: metadata.json, transcript.md, final_note.md, hashes.json.\n",
-        "schemas/transcript.schema.md": "# Transcript Schema\n\nFinal transcript files should be stable source outputs, not realtime drafts.\n",
-        "schemas/note.schema.md": "# Note Schema\n\nFinal note and raw user note files belong to the same meeting packet.\n",
-        "schemas/ocr.schema.md": "# OCR Schema\n\nStore OCR text, page text, source image references, and page metadata.\n",
-        "schemas/attachment.schema.md": "# Attachment Schema\n\nStore attachment files and attachment metadata when available.\n",
-    }
     files = [
-        FileSpec("README.md", readme),
-        FileSpec("AGENTS.md", agents),
+        FileSpec("README.md", input_root_readme(relative_path=relative_path), machine=True),
+        FileSpec("AGENTS.md", input_root_agents(relative_path=relative_path), machine=True),
         FileSpec(
             "_memova/manifest.json",
             json.dumps(input_root_manifest(setup, now=now, relative_path=relative_path), indent=2, ensure_ascii=False)
@@ -474,47 +520,450 @@ def input_root_file_specs(
             machine=True,
         ),
     ]
-    files.extend(FileSpec(path, content) for path, content in schemas.items())
+    files.extend(FileSpec(path, content, machine=True) for path, content in input_root_schema_specs().items())
     if prefix:
         return [FileSpec(f"{prefix}/{spec.path}", spec.content, spec.machine) for spec in files]
     return files
+
+
+def input_root_readme(*, relative_path: str) -> str:
+    return markdown(
+        f"""# Memova Raw Input Root
+
+This folder is the Memova-owned raw input layer for a user-owned knowledge base.
+Its relative path is `{relative_path}`.
+
+Memova V1 writes source material here so the user's own LLM wiki, Obsidian workflow, Codex workflow,
+Claude Code workflow, or future Memova compiler can decide how to extract, compress, classify, and
+move knowledge into downstream folders. Memova does not treat this folder as curated memory.
+
+## What Memova Writes
+
+Meeting packets are written under `meetings/YYYY/MM/YYYY-MM-DD-<slug>-<meeting_id>/`.
+Each packet is append-or-replace source material for one meeting. A packet can contain:
+
+```text
+README.md
+manifest.json
+metadata.json
+transcript.md
+transcript.json
+final_note.md
+final_note.json
+raw_user_note.md
+raw_user_note.json
+ocr/
+  imports.json
+  <ocr_import_id>/
+    manifest.json
+    text.md
+    pages.json
+    pages/
+      page-001.md
+    files/
+      page-001.png
+attachments/
+  attachments.json
+  <attachment_id>.<ext>
+images/
+  images.json
+  <analysis_image_id>.<ext>
+media/
+  audio_manifest.json
+hashes.json
+```
+
+The canonical image folder is `images/`. Older V0 packets may contain `analysis_images/`; treat
+that as the same raw analysis-image source area and do not rewrite it unless a migration is
+explicitly requested.
+
+The canonical OCR page binary folder is `ocr/<ocr_import_id>/files/`, with optional page markdown
+under `ocr/<ocr_import_id>/pages/`. Older V0 packets may place page binaries directly under
+`ocr/<ocr_import_id>/pages/`; readers should tolerate both shapes.
+
+## What Memova Does Not Write
+
+- Memova does not organize `wiki/`, `projects/`, `daily/`, or other downstream knowledge folders in
+  V1.
+- Memova does not save audio files by default. It writes `media/audio_manifest.json` so apps and
+  agents can understand audio provenance and retention without expecting the audio file to exist.
+- Memova does not turn meeting content into long-term memory without a later user-confirmed
+  extraction workflow.
+
+## How Agents Should Use This Folder
+
+Use this folder as evidence, not as truth after interpretation. When an agent creates wiki pages,
+project updates, action lists, or summaries from these packets, it should cite the packet path and
+the specific source file it used. Keep raw source files stable so future compilers can re-run from
+the same evidence.
+
+See `AGENTS.md` for operating rules and `schemas/*.schema.md` for the file contracts.
+"""
+    )
+
+
+def input_root_agents(*, relative_path: str) -> str:
+    return markdown(
+        f"""# Agent Rules For Memova Raw Input
+
+Scope: this file applies to the Memova raw input root at `{relative_path}` and every meeting packet
+inside it.
+
+## Core Rules
+
+- Treat this folder as source evidence, not curated long-term knowledge.
+- Do not rewrite `transcript.*`, `raw_user_note.*`, OCR text, attachment files, image files,
+  `metadata.json`, `manifest.json`, or `hashes.json` unless the user explicitly asks for a repair or
+  migration.
+- Do not delete packets or source files just because a downstream wiki/project page has been
+  generated.
+- No memory without source. Any long-term memory derived from this folder must cite a packet path and
+  source file.
+- No action without evidence. Action candidates derived from this folder must cite transcript,
+  final-note, raw-note, OCR, attachment, or image evidence.
+- No external write without confirmation. Email, calendar, repo, docs, Slack, Linear, or other
+  external changes need user approval unless a separate approved automation explicitly says
+  otherwise.
+
+## Reading Order
+
+1. Read `manifest.json` first to understand roles, write modes, and asset availability.
+2. Read `metadata.json` for meeting identity, title, time range, status, note ids, and processing
+   metadata.
+3. Read `transcript.md` or `transcript.json` for source speech.
+4. Read `raw_user_note.*`, OCR files, attachments, and images as user-provided context.
+5. Read `final_note.*` as a Memova-compiled view that still needs source citation for durable
+   knowledge.
+6. Check `hashes.json` before assuming local files are unchanged.
+
+## Updating Derived Knowledge
+
+When creating or updating downstream wiki/project/daily files:
+
+- preserve the original packet files;
+- include source links such as
+  `inbox/memova/meetings/2026/05/2026-05-21-example-meeting-<meeting_id>/transcript.md`;
+- distinguish confirmed meeting facts from model inference;
+- keep uncertain OCR, ASR corrections, and failed imports marked as uncertain;
+- prefer small append/update patches over reorganizing a user's whole vault.
+
+## Conflict Handling
+
+If a packet has both legacy and canonical shapes, read both and preserve both. If two files disagree,
+prefer user-entered raw notes over reviewed OCR, reviewed OCR over high-confidence automatic OCR,
+automatic OCR over final transcript, final transcript over realtime ASR drafts, and all source
+evidence over model inference.
+"""
+    )
+
+
+def input_root_schema_specs() -> dict[str, str]:
+    return {
+        "schemas/meeting_packet.schema.md": meeting_packet_schema(),
+        "schemas/transcript.schema.md": transcript_schema(),
+        "schemas/note.schema.md": note_schema(),
+        "schemas/ocr.schema.md": ocr_schema(),
+        "schemas/attachment.schema.md": attachment_schema(),
+    }
+
+
+def meeting_packet_schema() -> str:
+    return markdown(
+        """# Meeting Packet Schema
+
+This schema describes one Memova meeting packet under:
+
+```text
+meetings/YYYY/MM/YYYY-MM-DD-<slug>-<meeting_id>/
+```
+
+The packet is raw input plus stable Memova processing output. It is designed to be copied into a
+user-owned file system and later consumed by LLM wiki compilers, local apps, and agents.
+
+## Required Packet Files
+
+- `README.md`: human-readable packet overview.
+- `manifest.json`: machine index of every generated file and downloadable asset. Agents should read
+  this first.
+- `metadata.json`: meeting, note, transcript, processing, and source metadata.
+- `transcript.md`: human-readable final transcript. This is not realtime draft text.
+- `transcript.json`: structured transcript with machine-readable timing/speaker metadata when
+  available.
+- `final_note.md`: Memova compiled final note in Markdown.
+- `final_note.json`: structured final note for apps and agents.
+- `raw_user_note.md`: user-entered notes and source notes in Markdown.
+- `raw_user_note.json`: structured raw-user-note data.
+- `hashes.json`: checksums for packet integrity and sync comparison.
+
+## Conditional Packet Folders
+
+- `ocr/`: OCR imports from handwritten notes, screenshots, documents, or other image-derived text.
+  When OCR exists, include an index such as `ocr/imports.json` plus one folder per import.
+- `attachments/`: non-image attachments plus `attachments.json`.
+- `images/`: analysis images plus `images.json`. Older packets may use `analysis_images/`.
+- `media/`: audio provenance, usually `audio_manifest.json`; audio files are not saved by default.
+
+## Write Mode
+
+iOS should write packet files from the backend sync package using the write mode in
+`manifest.json`. V0 normally uses replace semantics for generated packet files. Agents should not
+hand-edit packet source files unless repairing a broken sync with user approval.
+
+## Evidence Rules
+
+Downstream pages may quote or summarize this packet only with source attribution. A durable claim,
+memory, action, decision, or project update should cite one or more packet files and preserve the
+meeting id or packet path.
+"""
+    )
+
+
+def transcript_schema() -> str:
+    return markdown(
+        """# Transcript Schema
+
+`transcript.md` and `transcript.json` store the stable post-meeting transcript. Realtime captions or
+draft ASR text should not be treated as final transcript evidence unless explicitly labeled.
+
+## `transcript.md`
+
+Markdown is for human and LLM reading. It should preserve speaker labels and temporal order when
+available. It may include section headings for readability, but it should not add facts that were
+not present in the speech or reviewed transcript source.
+
+## `transcript.json`
+
+JSON is for deterministic app and agent access. Recommended fields include:
+
+- meeting id and transcript id;
+- language and provider metadata;
+- utterance or segment list;
+- speaker label or speaker id when available;
+- start and end offsets when available;
+- calibrated or corrected transcript text;
+- confidence, provenance, and processing metadata when available.
+
+## Update Rules
+
+If a transcript is regenerated, replace both Markdown and JSON together and update `manifest.json`
+and `hashes.json`. Do not mix final transcript text with inferred summary content.
+"""
+    )
+
+
+def note_schema() -> str:
+    return markdown(
+        """# Note Schema
+
+This schema covers `final_note.*` and `raw_user_note.*` inside a meeting packet.
+
+## `raw_user_note.md` and `raw_user_note.json`
+
+Raw user notes are user-authored or user-captured source material. They may include typed notes,
+quick thoughts, imported text, or reviewed OCR-derived notes. Treat them as source evidence and do
+not rewrite them into polished prose inside the packet.
+
+## `final_note.md` and `final_note.json`
+
+Final notes are Memova-compiled outputs derived from transcript, raw notes, OCR, attachments, and
+other packet evidence. They are useful for reading and search, but they are still derived content.
+Downstream durable memory should cite both the final note and the original source files when
+possible.
+
+## Grounding Rules
+
+- Ordinary final-note sections should compress evidence rather than invent external facts.
+- Raw-note response sections may include interpretation, but should distinguish meeting-grounded
+  content from external expansion.
+- Action-like text in a final note is not automatically a confirmed action. Confirmed actions need
+  explicit user confirmation in the product workflow or a later approved agent workflow.
+"""
+    )
+
+
+def ocr_schema() -> str:
+    return markdown(
+        """# OCR Schema
+
+OCR data records text extracted from images, handwritten notes, screenshots, or scanned pages.
+
+Recommended structure:
+
+```text
+ocr/
+  imports.json
+  <ocr_import_id>/
+    manifest.json
+    text.md
+    pages.json
+    pages/
+      page-001.md
+    files/
+      page-001.png
+```
+
+## Files
+
+- `ocr/imports.json`: packet-level OCR import index. Include success and failure states so the app
+  can show import status without scanning every folder.
+- `<ocr_import_id>/manifest.json`: import-level metadata, source ids, status, processing timestamps,
+  and failure information when relevant.
+- `<ocr_import_id>/text.md`: reviewed or calibrated OCR text for human and LLM reading.
+- `<ocr_import_id>/pages.json`: structured page metadata, raw OCR output, uncertain spans, page
+  numbers, and asset references.
+- `<ocr_import_id>/pages/page-001.md`: optional page-level text for LLM-friendly reading.
+- `<ocr_import_id>/files/page-001.png`: source image or page binary when saved.
+
+Older V0 packets may store page binaries under `pages/page-001.png` without a separate `files/`
+folder. Readers should tolerate this shape. New writers should prefer the structure above.
+
+## Authority And Uncertainty
+
+Reviewed OCR is stronger evidence than automatic OCR. Automatic OCR uncertain spans, failed pages,
+and model-inferred corrections must remain visible in JSON metadata and should not be promoted to
+confirmed facts without user review.
+"""
+    )
+
+
+def attachment_schema() -> str:
+    return markdown(
+        """# Attachment And Image Schema
+
+This schema covers generic attachments and analysis images stored inside a meeting packet.
+
+## Attachments
+
+```text
+attachments/
+  attachments.json
+  <attachment_id>.<ext>
+```
+
+`attachments.json` should list each attachment id, filename, extension, content type, byte size,
+checksum when available, source API path or provenance, and relative file path. If there are no
+attachments, keep `attachments.json` with an empty list so apps do not need to guess.
+
+## Images
+
+```text
+images/
+  images.json
+  <analysis_image_id>.<ext>
+```
+
+`images.json` should list analysis images that are useful as source evidence. Older packets may use
+`analysis_images/`; readers should treat it as a legacy alias for `images/`.
+
+## Agent Rules
+
+Agents may summarize attachments and images only after checking the metadata and source files. If a
+binary asset is unavailable, expired, or not downloaded, say that explicitly rather than inventing
+visual evidence.
+"""
+    )
 
 
 def root_file_specs(setup: dict[str, Any], *, now: str) -> list[FileSpec]:
     return [
         FileSpec(
             "README.md",
-            f"""# Memova Vault
-
-This is a user-owned Memova knowledge base.
-
-Memova V1 writes complete meeting raw-input packets only under `inbox/memova/`.
-Other roots such as `sources/`, `wiki/`, `projects/`, `daily/`, and `outputs/` are empty surfaces
-for the user or future agent workflows.
-
-Created by Memova setup on {now}.
-""",
+            root_readme(now=now),
+            machine=True,
         ),
         FileSpec(
             "AGENTS.md",
-            """# Agent Rules
-
-- Treat `inbox/memova/` as the Memova raw-input layer.
-- Do not treat Memova input packets as curated long-term knowledge.
-- Do not reorganize user-authored folders without explicit user approval.
-- Use Memova input packets as source material for user-approved extraction and classification.
-""",
+            root_agents(),
+            machine=True,
         ),
         FileSpec(
             "inbox/README.md",
-            "# Inbox\n\nLow-friction input area. Memova writes raw meeting packets under `memova/`.\n",
+            root_folder_readme(
+                title="Inbox",
+                body=(
+                    "Low-friction input area. Memova writes its raw meeting packets under "
+                    "`inbox/memova/`. Other inbox files can belong to the user or other tools."
+                ),
+            ),
+            machine=True,
         ),
-        FileSpec("sources/README.md", "# Sources\n\nReserved for user or future agent workflows.\n"),
-        FileSpec("wiki/README.md", "# Wiki\n\nReserved for curated long-term knowledge.\n"),
-        FileSpec("projects/README.md", "# Projects\n\nReserved for project organization.\n"),
-        FileSpec("daily/README.md", "# Daily\n\nReserved for daily notes.\n"),
-        FileSpec("outputs/README.md", "# Outputs\n\nReserved for finished artifacts.\n"),
-        FileSpec("archive/README.md", "# Archive\n\nReserved for inactive material.\n"),
+        FileSpec(
+            "sources/README.md",
+            root_folder_readme(
+                title="Sources",
+                body=(
+                    "Reserved for user-managed or future agent-managed source material outside the "
+                    "Memova raw meeting input root. Memova V1 does not write here."
+                ),
+            ),
+            machine=True,
+        ),
+        FileSpec(
+            "wiki/README.md",
+            root_folder_readme(
+                title="Wiki",
+                body=(
+                    "Reserved for curated long-term knowledge pages. Pages here should cite source "
+                    "packets or other evidence. Memova V1 does not auto-create wiki pages."
+                ),
+            ),
+            machine=True,
+        ),
+        FileSpec(
+            "projects/README.md",
+            root_folder_readme(
+                title="Projects",
+                body=(
+                    "Reserved for project-specific summaries, decisions, actions, and outputs that "
+                    "the user or a later confirmed agent workflow derives from sources."
+                ),
+            ),
+            machine=True,
+        ),
+        FileSpec(
+            "daily/README.md",
+            root_folder_readme(
+                title="Daily",
+                body=(
+                    "Reserved for daily notes, plans, and reviews. Memova V1 does not write daily "
+                    "notes automatically."
+                ),
+            ),
+            machine=True,
+        ),
+        FileSpec(
+            "outputs/README.md",
+            root_folder_readme(
+                title="Outputs",
+                body=(
+                    "Reserved for finished artifacts such as reports, specs, articles, decks, or "
+                    "other deliverables derived from the knowledge base."
+                ),
+            ),
+            machine=True,
+        ),
+        FileSpec(
+            "archive/README.md",
+            root_folder_readme(
+                title="Archive",
+                body=(
+                    "Reserved for inactive material. Archive content should stay searchable but "
+                    "should not drive current project context unless explicitly selected."
+                ),
+            ),
+            machine=True,
+        ),
+        FileSpec(
+            "schemas/README.md",
+            root_folder_readme(
+                title="Schemas",
+                body=(
+                    "Reserved for user-level or future vault-level schemas. The active Memova V1 "
+                    "raw input schemas live in `inbox/memova/schemas/`."
+                ),
+            ),
+            machine=True,
+        ),
         FileSpec(
             "_memova/manifest.json",
             json.dumps(root_manifest(setup, now=now), indent=2, ensure_ascii=False) + "\n",
@@ -561,6 +1010,97 @@ Created by Memova setup on {now}.
             machine=True,
         ),
     ]
+
+
+def root_readme(*, now: str) -> str:
+    return markdown(
+        f"""# Memova Vault
+
+This is a user-owned Memova knowledge base initialized by Codex for Memova.
+
+Memova V1 writes complete raw meeting packets only under `inbox/memova/`. The other folders are
+intentionally empty starter surfaces for the user, Obsidian, Codex, Claude Code, Cursor, or future
+Memova compiler workflows.
+
+## Structure
+
+```text
+inbox/
+  memova/
+    meetings/
+    imports/
+    attachments/
+    schemas/
+    _memova/
+sources/
+wiki/
+projects/
+daily/
+outputs/
+archive/
+schemas/
+_memova/
+```
+
+## Ownership Model
+
+- `inbox/memova/` is the Memova raw input root.
+- `sources/`, `wiki/`, `projects/`, `daily/`, `outputs/`, `archive/`, and root `schemas/` are
+  user-owned surfaces.
+- `_memova/` contains machine-readable setup and sync metadata.
+
+## V1 Scope
+
+Memova captures and compiles meeting source material, then syncs that source material into the raw
+input root. It does not automatically classify meetings into projects, update long-term wiki pages,
+or create durable memories in V1.
+
+Agents should use `inbox/memova/` as evidence. Any durable wiki/project/action output created later
+should cite the original meeting packet path and source file.
+
+Created by Memova setup on {now}.
+"""
+    )
+
+
+def root_agents() -> str:
+    return markdown(
+        """# Agent Rules For This Memova Vault
+
+These rules apply to the whole vault. More specific rules for Memova raw meeting packets live in
+`inbox/memova/AGENTS.md`.
+
+## Core Rules
+
+- Treat `inbox/memova/` as source evidence, not curated long-term memory.
+- Do not reorganize or rename user-authored folders without explicit user approval.
+- Do not move raw Memova packets out of `inbox/memova/meetings/` unless the user requests a
+  migration.
+- No memory without source. Durable wiki/project pages must cite the source packet and source file.
+- No action without evidence. Action candidates must reference meeting evidence.
+- No external write without confirmation.
+
+## Recommended Agent Flow
+
+1. Read `inbox/memova/README.md` and `inbox/memova/AGENTS.md`.
+2. Use `inbox/memova/schemas/*.schema.md` to understand packet contracts.
+3. Read packet `manifest.json` before reading packet content.
+4. Create derived wiki/project/daily/output files only after the user asks for that workflow.
+5. Preserve original raw source packets for future reprocessing.
+"""
+    )
+
+
+def root_folder_readme(*, title: str, body: str) -> str:
+    return markdown(
+        f"""# {title}
+
+{body}
+
+This folder is part of the Memova LLM wiki skeleton. In V1, Memova's automatic writes are limited
+to the raw input root at `inbox/memova/`.
+"""
+    )
 
 
 def build_dirs(setup: dict[str, Any]) -> list[str]:
@@ -853,6 +1393,7 @@ def validate_vault(path: Path) -> dict[str, Any]:
     is_new_vault = safe_join(root, f"{INPUT_ROOT_RELATIVE_PATH}/_memova/manifest.json").is_file()
     missing_roots: list[str] = []
     missing_machine_files: list[str] = []
+    invalid_required_files: list[dict[str, Any]] = []
     input_root = safe_join(root, INPUT_ROOT_RELATIVE_PATH) if is_new_vault else root
 
     if is_new_vault:
@@ -860,6 +1401,7 @@ def validate_vault(path: Path) -> dict[str, Any]:
             target = safe_join(root, root_path.rstrip("/"))
             if not target.exists():
                 missing_roots.append(root_path)
+        invalid_required_files.extend(validate_doc_content(root, NEW_VAULT_DOC_CHECKS, min_chars=120))
         for relative_path in (
             "_memova/manifest.json",
             "_memova/vault_mapping.json",
@@ -873,6 +1415,17 @@ def validate_vault(path: Path) -> dict[str, Any]:
             missing_machine_files.append(
                 f"{INPUT_ROOT_RELATIVE_PATH}/{relative_path}" if is_new_vault else relative_path,
             )
+    input_doc_issues = validate_doc_content(input_root, INPUT_ROOT_DOC_CHECKS, min_chars=240)
+    if is_new_vault:
+        invalid_required_files.extend(
+            {
+                **issue,
+                "relative_path": f"{INPUT_ROOT_RELATIVE_PATH}/{issue['relative_path']}",
+            }
+            for issue in input_doc_issues
+        )
+    else:
+        invalid_required_files.extend(input_doc_issues)
 
     manifest_path = safe_join(input_root, "_memova/manifest.json")
     manifest: dict[str, Any] | None = None
@@ -884,7 +1437,7 @@ def validate_vault(path: Path) -> dict[str, Any]:
             manifest_error = str(exc)
 
     status = "ok"
-    if missing_roots or missing_machine_files or manifest_error:
+    if missing_roots or missing_machine_files or invalid_required_files or manifest_error:
         status = "fail"
 
     return {
@@ -900,11 +1453,47 @@ def validate_vault(path: Path) -> dict[str, Any]:
         else ".",
         "missing_roots": missing_roots,
         "missing_machine_files": missing_machine_files,
+        "invalid_required_files": invalid_required_files,
         "vault_manifest_id": manifest_id_from_root(root) if is_new_vault else None,
         "input_root_manifest_id": manifest.get("manifest_id") if manifest else None,
         "manifest_id": manifest.get("manifest_id") if manifest else None,
         "manifest_error": manifest_error,
     }
+
+
+def validate_doc_content(
+    root: Path,
+    checks: dict[str, list[str]],
+    *,
+    min_chars: int,
+) -> list[dict[str, Any]]:
+    issues: list[dict[str, Any]] = []
+    for relative_path, keywords in checks.items():
+        path = safe_join(root, relative_path)
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        stripped = text.strip()
+        if len(stripped) < min_chars:
+            issues.append(
+                {
+                    "relative_path": relative_path,
+                    "code": "thin_required_doc",
+                    "char_count": len(stripped),
+                    "min_chars": min_chars,
+                }
+            )
+            continue
+        missing_keywords = [keyword for keyword in keywords if keyword not in text]
+        if missing_keywords:
+            issues.append(
+                {
+                    "relative_path": relative_path,
+                    "code": "missing_required_doc_keywords",
+                    "missing_keywords": missing_keywords,
+                }
+            )
+    return issues
 
 
 def manifest_id_from_root(root: Path) -> str | None:

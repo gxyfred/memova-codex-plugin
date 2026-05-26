@@ -46,7 +46,10 @@ def add_plan_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--overwrite-machine-files",
         action="store_true",
-        help="Allow overwriting _memova machine files. User-authored files are still skipped.",
+        help=(
+            "Allow overwriting Memova-managed setup files such as _memova JSON, README, AGENTS, "
+            "and schemas. User packet/source files are still skipped."
+        ),
     )
 
 

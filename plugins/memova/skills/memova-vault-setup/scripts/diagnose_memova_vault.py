@@ -112,6 +112,15 @@ def diagnose(validation: dict[str, Any], inspection: dict[str, Any]) -> dict[str
                     "details": {"missing_machine_files": validation["missing_machine_files"]},
                 }
             )
+        if validation.get("invalid_required_files"):
+            findings.append(
+                {
+                    "severity": "error",
+                    "code": "invalid_required_files",
+                    "message": "Required Memova README, AGENTS, or schema files are too thin or missing expected contract language.",
+                    "details": {"invalid_required_files": validation["invalid_required_files"]},
+                }
+            )
         if validation.get("manifest_error"):
             findings.append(
                 {
