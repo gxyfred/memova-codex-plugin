@@ -17,8 +17,6 @@ ALLOWED_SETUP_MODES = {"create_new_vault", "connect_existing_vault"}
 NEW_VAULT_DIRS = [
     "inbox/memova/schemas",
     "inbox/memova/meetings",
-    "inbox/memova/imports",
-    "inbox/memova/attachments",
     "inbox/memova/_memova",
     "sources",
     "wiki",
@@ -33,8 +31,6 @@ NEW_VAULT_DIRS = [
 INPUT_ROOT_DIRS = [
     "schemas",
     "meetings",
-    "imports",
-    "attachments",
     "_memova",
 ]
 
@@ -64,11 +60,12 @@ NEW_VAULT_REQUIRED_ROOTS = [
 INPUT_ROOT_REQUIRED_FILES = [
     "README.md",
     "AGENTS.md",
+    "INDEX.md",
     "schemas/meeting_packet.schema.md",
-    "schemas/transcript.schema.md",
-    "schemas/note.schema.md",
-    "schemas/ocr.schema.md",
-    "schemas/attachment.schema.md",
+    "schemas/manifest.schema.md",
+    "schemas/packet.schema.md",
+    "schemas/asset.schema.md",
+    "schemas/promotion.schema.md",
     "_memova/manifest.json",
     "_memova/input_root.json",
     "_memova/sync_state.json",
@@ -91,9 +88,10 @@ NEW_VAULT_DOC_CHECKS = {
 INPUT_ROOT_DOC_CHECKS = {
     "README.md": [
         "Memova Raw Input Root",
+        "Memova Inbox Packet Format v1",
         "meetings/YYYY/MM",
-        "manifest.json",
-        "media/audio_manifest.json",
+        "sources.md",
+        "promotion.json",
     ],
     "AGENTS.md": [
         "Agent Rules",
@@ -101,35 +99,40 @@ INPUT_ROOT_DOC_CHECKS = {
         "No action without evidence",
         "Reading Order",
     ],
+    "INDEX.md": [
+        "Memova Inbox Index",
+        "meetings/",
+        "recent meeting packets",
+    ],
     "schemas/meeting_packet.schema.md": [
         "Meeting Packet Schema",
-        "transcript.md",
-        "final_note.json",
-        "hashes.json",
+        "sources.md",
+        "note.md",
+        "promotion.json",
     ],
-    "schemas/transcript.schema.md": [
-        "Transcript Schema",
-        "transcript.md",
-        "transcript.json",
-        "stable post-meeting transcript",
+    "schemas/manifest.schema.md": [
+        "Manifest Schema",
+        "files",
+        "assets_summary",
+        "processing",
     ],
-    "schemas/note.schema.md": [
-        "Note Schema",
-        "raw_user_note",
-        "final_note",
-        "Grounding Rules",
+    "schemas/packet.schema.md": [
+        "Packet JSON Schema",
+        "sources",
+        "note",
+        "processing",
     ],
-    "schemas/ocr.schema.md": [
-        "OCR Schema",
-        "ocr/imports.json",
-        "pages.json",
-        "files/page-001.png",
+    "schemas/asset.schema.md": [
+        "Asset Manifest Schema",
+        "asset_id",
+        "role",
+        "source_ref",
     ],
-    "schemas/attachment.schema.md": [
-        "Attachment And Image Schema",
-        "attachments.json",
-        "images.json",
-        "analysis_images",
+    "schemas/promotion.schema.md": [
+        "Promotion Schema",
+        "promotion_status",
+        "not_started",
+        "promoted_items",
     ],
 }
 
@@ -463,6 +466,7 @@ def input_root_file_specs(
     files = [
         FileSpec("README.md", input_root_readme(relative_path=relative_path), machine=True),
         FileSpec("AGENTS.md", input_root_agents(relative_path=relative_path), machine=True),
+        FileSpec("INDEX.md", input_root_index(), machine=True),
         FileSpec(
             "_memova/manifest.json",
             json.dumps(input_root_manifest(setup, now=now, relative_path=relative_path), indent=2, ensure_ascii=False)
@@ -477,8 +481,16 @@ def input_root_file_specs(
                     "updated_at": now,
                     "relative_path": relative_path,
                     "meeting_packet_root": "meetings",
-                    "imports_root": "imports",
-                    "attachments_root": "attachments",
+                    "packet_format_version": "memova_meeting_packet_v1",
+                    "packet_core_files": [
+                        "README.md",
+                        "manifest.json",
+                        "sources.md",
+                        "note.md",
+                        "packet.json",
+                        "promotion.json",
+                        "assets/manifest.json",
+                    ],
                     "writes_audio_files_by_default": False,
                 },
                 indent=2,
@@ -510,8 +522,8 @@ def input_root_file_specs(
                     "schema_version": "memova_input_source_index_v1",
                     "updated_at": now,
                     "meetings": [],
-                    "imports": [],
-                    "attachments": [],
+                    "assets": [],
+                    "promotions": [],
                 },
                 indent=2,
                 ensure_ascii=False,
@@ -530,63 +542,43 @@ def input_root_readme(*, relative_path: str) -> str:
     return markdown(
         f"""# Memova Raw Input Root
 
-This folder is the Memova-owned raw input layer for a user-owned knowledge base.
-Its relative path is `{relative_path}`.
+This folder is the Memova-owned raw input layer for a user-owned knowledge base. Its relative path
+is `{relative_path}`.
 
-Memova V1 writes source material here so the user's own LLM wiki, Obsidian workflow, Codex workflow,
-Claude Code workflow, or future Memova compiler can decide how to extract, compress, classify, and
-move knowledge into downstream folders. Memova does not treat this folder as curated memory.
+This root uses **Memova Inbox Packet Format v1**. It is an LLM Wiki-compatible inbox/staging layer,
+not the user's long-term wiki. Memova writes meeting packets here; the user's own workflow or a
+future approved Memova compiler can later promote stable information into `wiki/`, `projects/`,
+`daily/`, or other long-term folders.
 
 ## What Memova Writes
 
 Meeting packets are written under `meetings/YYYY/MM/YYYY-MM-DD-<slug>-<meeting_id>/`.
-Each packet is append-or-replace source material for one meeting. A packet can contain:
+Each packet is source evidence plus Memova's processed note for one meeting:
 
 ```text
 README.md
 manifest.json
-metadata.json
-transcript.md
-transcript.json
-final_note.md
-final_note.json
-raw_user_note.md
-raw_user_note.json
-ocr/
-  imports.json
-  <ocr_import_id>/
-    manifest.json
-    text.md
-    pages.json
-    pages/
-      page-001.md
-    files/
-      page-001.png
-attachments/
-  attachments.json
-  <attachment_id>.<ext>
-images/
-  images.json
-  <analysis_image_id>.<ext>
-media/
-  audio_manifest.json
-hashes.json
+sources.md
+note.md
+packet.json
+promotion.json
+assets/
+  manifest.json
+  <asset_id>.<ext>
 ```
 
-The canonical image folder is `images/`. Older V0 packets may contain `analysis_images/`; treat
-that as the same raw analysis-image source area and do not rewrite it unless a migration is
-explicitly requested.
-
-The canonical OCR page binary folder is `ocr/<ocr_import_id>/files/`, with optional page markdown
-under `ocr/<ocr_import_id>/pages/`. Older V0 packets may place page binaries directly under
-`ocr/<ocr_import_id>/pages/`; readers should tolerate both shapes.
+`sources.md` is the main LLM-readable evidence file. It can contain transcript text, raw user notes,
+OCR text, attachment extracted text, and image descriptions with source ids and reliability labels.
+`note.md` is Memova's processed inbox note. `packet.json` is the complete structured snapshot for
+iOS and deterministic tools. `promotion.json` tracks whether any packet items have been promoted to
+long-term knowledge. `assets/` stores binary files through stable asset ids.
 
 ## What Memova Does Not Write
 
 - Memova does not organize `wiki/`, `projects/`, `daily/`, or other downstream knowledge folders in
   V1.
-- Memova does not save audio files by default. It writes `media/audio_manifest.json` so apps and
-  agents can understand audio provenance and retention without expecting the audio file to exist.
+- Memova does not save audio files by default. Audio provenance is recorded in `packet.json` and
+  `assets/manifest.json` when relevant.
 - Memova does not turn meeting content into long-term memory without a later user-confirmed
   extraction workflow.
 
@@ -594,10 +586,11 @@ under `ocr/<ocr_import_id>/pages/`. Older V0 packets may place page binaries dir
 
 Use this folder as evidence, not as truth after interpretation. When an agent creates wiki pages,
 project updates, action lists, or summaries from these packets, it should cite the packet path and
-the specific source file it used. Keep raw source files stable so future compilers can re-run from
-the same evidence.
+the specific source section or JSON pointer it used. Keep packet source files stable so future
+compilers can re-run from the same evidence.
 
-See `AGENTS.md` for operating rules and `schemas/*.schema.md` for the file contracts.
+See `INDEX.md` for the packet index, `AGENTS.md` for operating rules, and `schemas/*.schema.md` for
+the file contracts.
 """
     )
 
@@ -612,29 +605,29 @@ inside it.
 ## Core Rules
 
 - Treat this folder as source evidence, not curated long-term knowledge.
-- Do not rewrite `transcript.*`, `raw_user_note.*`, OCR text, attachment files, image files,
-  `metadata.json`, `manifest.json`, or `hashes.json` unless the user explicitly asks for a repair or
-  migration.
+- Do not rewrite `sources.md`, `packet.json`, asset files, or source metadata unless the user
+  explicitly asks for a repair or migration.
+- `note.md` is processed inbox output. It is useful context, but it is not long-term memory until an
+  approved promotion workflow records that in `promotion.json`.
 - Do not delete packets or source files just because a downstream wiki/project page has been
   generated.
 - No memory without source. Any long-term memory derived from this folder must cite a packet path and
-  source file.
+  source section such as `sources.md#transcript` or a JSON pointer in `packet.json`.
 - No action without evidence. Action candidates derived from this folder must cite transcript,
-  final-note, raw-note, OCR, attachment, or image evidence.
+  raw-note, OCR, attachment, image, or processed-note evidence.
 - No external write without confirmation. Email, calendar, repo, docs, Slack, Linear, or other
   external changes need user approval unless a separate approved automation explicitly says
   otherwise.
 
 ## Reading Order
 
-1. Read `manifest.json` first to understand roles, write modes, and asset availability.
-2. Read `metadata.json` for meeting identity, title, time range, status, note ids, and processing
-   metadata.
-3. Read `transcript.md` or `transcript.json` for source speech.
-4. Read `raw_user_note.*`, OCR files, attachments, and images as user-provided context.
-5. Read `final_note.*` as a Memova-compiled view that still needs source citation for durable
-   knowledge.
-6. Check `hashes.json` before assuming local files are unchanged.
+1. Read packet `README.md` to understand meeting identity and recommended order.
+2. Read `manifest.json` to verify file roles, hashes, schema versions, and asset availability.
+3. Read `note.md` for Memova's processed inbox note.
+4. Read `sources.md` when evidence or quotes are needed.
+5. Read `packet.json` only when structured details, ids, timestamps, or full app state are needed.
+6. Read `promotion.json` before creating or updating downstream knowledge.
+7. Read `assets/manifest.json` before opening binary assets.
 
 ## Updating Derived Knowledge
 
@@ -642,17 +635,54 @@ When creating or updating downstream wiki/project/daily files:
 
 - preserve the original packet files;
 - include source links such as
-  `inbox/memova/meetings/2026/05/2026-05-21-example-meeting-<meeting_id>/transcript.md`;
+  `inbox/memova/meetings/2026/05/2026-05-21-example-meeting-<meeting_id>/sources.md#transcript`;
 - distinguish confirmed meeting facts from model inference;
 - keep uncertain OCR, ASR corrections, and failed imports marked as uncertain;
+- update `promotion.json` only when a promotion workflow has explicitly succeeded;
 - prefer small append/update patches over reorganizing a user's whole vault.
 
 ## Conflict Handling
 
-If a packet has both legacy and canonical shapes, read both and preserve both. If two files disagree,
-prefer user-entered raw notes over reviewed OCR, reviewed OCR over high-confidence automatic OCR,
-automatic OCR over final transcript, final transcript over realtime ASR drafts, and all source
-evidence over model inference.
+If two sources disagree, prefer user-entered raw notes over reviewed OCR, reviewed OCR over
+high-confidence automatic OCR, automatic OCR over final transcript, final transcript over realtime
+ASR drafts, and all source evidence over model inference.
+"""
+    )
+
+
+def input_root_index() -> str:
+    return markdown(
+        """# Memova Inbox Index
+
+This index is the stable entry point for Memova meeting packets.
+
+Meeting packets live under:
+
+```text
+meetings/YYYY/MM/YYYY-MM-DD-<slug>-<meeting_id>/
+```
+
+## recent meeting packets
+
+Memova and iOS may append lightweight links here in a later version. For V1, use the date-partitioned
+`meetings/` folder and each packet's `manifest.json` to discover synced meetings.
+
+## Packet Format
+
+Each packet uses Memova Inbox Packet Format v1:
+
+```text
+README.md
+manifest.json
+sources.md
+note.md
+packet.json
+promotion.json
+assets/manifest.json
+assets/<asset_id>.<ext>
+```
+
+Read `schemas/meeting_packet.schema.md` for the full contract.
 """
     )
 
@@ -660,10 +690,10 @@ evidence over model inference.
 def input_root_schema_specs() -> dict[str, str]:
     return {
         "schemas/meeting_packet.schema.md": meeting_packet_schema(),
-        "schemas/transcript.schema.md": transcript_schema(),
-        "schemas/note.schema.md": note_schema(),
-        "schemas/ocr.schema.md": ocr_schema(),
-        "schemas/attachment.schema.md": attachment_schema(),
+        "schemas/manifest.schema.md": manifest_schema(),
+        "schemas/packet.schema.md": packet_schema(),
+        "schemas/asset.schema.md": asset_schema(),
+        "schemas/promotion.schema.md": promotion_schema(),
     }
 
 
@@ -683,31 +713,22 @@ user-owned file system and later consumed by LLM wiki compilers, local apps, and
 ## Required Packet Files
 
 - `README.md`: human-readable packet overview.
-- `manifest.json`: machine index of every generated file and downloadable asset. Agents should read
-  this first.
-- `metadata.json`: meeting, note, transcript, processing, and source metadata.
-- `transcript.md`: human-readable final transcript. This is not realtime draft text.
-- `transcript.json`: structured transcript with machine-readable timing/speaker metadata when
-  available.
-- `final_note.md`: Memova compiled final note in Markdown.
-- `final_note.json`: structured final note for apps and agents.
-- `raw_user_note.md`: user-entered notes and source notes in Markdown.
-- `raw_user_note.json`: structured raw-user-note data.
-- `hashes.json`: checksums for packet integrity and sync comparison.
-
-## Conditional Packet Folders
-
-- `ocr/`: OCR imports from handwritten notes, screenshots, documents, or other image-derived text.
-  When OCR exists, include an index such as `ocr/imports.json` plus one folder per import.
-- `attachments/`: non-image attachments plus `attachments.json`.
-- `images/`: analysis images plus `images.json`. Older packets may use `analysis_images/`.
-- `media/`: audio provenance, usually `audio_manifest.json`; audio files are not saved by default.
+- `manifest.json`: lightweight machine index of schema versions, files, hashes, assets, and
+  processing status. Agents should read this before large files.
+- `sources.md`: LLM-readable source material with transcript, raw notes, OCR text, attachment text,
+  and image descriptions separated by source id and reliability.
+- `note.md`: Memova processed inbox note. It is not long-term memory until promoted.
+- `packet.json`: complete structured packet snapshot for iOS and deterministic tools.
+- `promotion.json`: mutable promotion state for downstream wiki/project/action/memory workflows.
+- `assets/manifest.json`: asset index for binary files.
+- `assets/<asset_id>.<ext>`: optional OCR images, attachments, screenshots, analysis images,
+  thumbnails, or other binary files.
 
 ## Write Mode
 
 iOS should write packet files from the backend sync package using the write mode in
-`manifest.json`. V0 normally uses replace semantics for generated packet files. Agents should not
-hand-edit packet source files unless repairing a broken sync with user approval.
+`manifest.json`. V1 normally uses replace semantics for generated packet files. Agents should not
+hand-edit source files unless repairing a broken sync with user approval.
 
 ## Evidence Rules
 
@@ -718,148 +739,112 @@ meeting id or packet path.
     )
 
 
-def transcript_schema() -> str:
+def manifest_schema() -> str:
     return markdown(
-        """# Transcript Schema
+        """# Manifest Schema
 
-`transcript.md` and `transcript.json` store the stable post-meeting transcript. Realtime captions or
-draft ASR text should not be treated as final transcript evidence unless explicitly labeled.
+`manifest.json` is the lightweight machine-readable index for a meeting packet. It should not
+contain transcript or note body text.
 
-## `transcript.md`
+Required top-level fields:
 
-Markdown is for human and LLM reading. It should preserve speaker labels and temporal order when
-available. It may include section headings for readability, but it should not add facts that were
-not present in the speech or reviewed transcript source.
+- `schema_version`: `memova_meeting_packet_manifest_v1`.
+- `packet_type`: `memova_meeting_packet`.
+- `packet_schema_version`: `memova_meeting_packet_v1`.
+- `meeting_id`, `packet_id`, `title`, `created_at`, `updated_at`, `status`.
+- `files`: list of packet files with `path`, `role`, `sha256`, `size_bytes`, and `content_type`.
+- `assets_summary`: count plus `manifest_path`.
+- `processing`: transcription, summarization, OCR, asset, and promotion states.
 
-## `transcript.json`
+Recommended file roles:
 
-JSON is for deterministic app and agent access. Recommended fields include:
+- `entry`: `README.md`
+- `source_text`: `sources.md`
+- `processed_note`: `note.md`
+- `structured_packet`: `packet.json`
+- `promotion_state`: `promotion.json`
+- `asset_manifest`: `assets/manifest.json`
 
-- meeting id and transcript id;
-- language and provider metadata;
-- utterance or segment list;
-- speaker label or speaker id when available;
-- start and end offsets when available;
-- calibrated or corrected transcript text;
-- confidence, provenance, and processing metadata when available.
-
-## Update Rules
-
-If a transcript is regenerated, replace both Markdown and JSON together and update `manifest.json`
-and `hashes.json`. Do not mix final transcript text with inferred summary content.
+Use this file for fast completeness checks before reading larger Markdown or JSON files.
 """
     )
 
 
-def note_schema() -> str:
+def packet_schema() -> str:
     return markdown(
-        """# Note Schema
+        """# Packet JSON Schema
 
-This schema covers `final_note.*` and `raw_user_note.*` inside a meeting packet.
+`packet.json` is the complete structured snapshot of a Memova meeting packet. It is for iOS,
+desktop tools, deterministic sync, and agents that need precise ids or timestamps. LLMs should
+usually read `note.md` and `sources.md` first.
 
-## `raw_user_note.md` and `raw_user_note.json`
+Recommended top-level fields:
 
-Raw user notes are user-authored or user-captured source material. They may include typed notes,
-quick thoughts, imported text, or reviewed OCR-derived notes. Treat them as source evidence and do
-not rewrite them into polished prose inside the packet.
+- `schema_version`: `memova_meeting_packet_v1`.
+- `packet_type`: `memova_meeting_packet`.
+- `meeting`: meeting id, title, time range, timezone, language, participants, status.
+- `sources`: raw user notes, transcript segments, OCR pages, attachment extractions, image
+  analyses, and audio provenance.
+- `note`: Memova processed note fields, summary, sections, decisions, actions, open questions, and
+  candidate memories when present.
+- `assets`: asset records mirrored from `assets/manifest.json`.
+- `processing`: transcription, summarization, OCR, asset, and sync status plus errors.
+- `promotion`: summary of promotion status. Detailed mutable state lives in `promotion.json`.
 
-## `final_note.md` and `final_note.json`
-
-Final notes are Memova-compiled outputs derived from transcript, raw notes, OCR, attachments, and
-other packet evidence. They are useful for reading and search, but they are still derived content.
-Downstream durable memory should cite both the final note and the original source files when
-possible.
-
-## Grounding Rules
-
-- Ordinary final-note sections should compress evidence rather than invent external facts.
-- Raw-note response sections may include interpretation, but should distinguish meeting-grounded
-  content from external expansion.
-- Action-like text in a final note is not automatically a confirmed action. Confirmed actions need
-  explicit user confirmation in the product workflow or a later approved agent workflow.
+`packet.json` should be treated as a generated snapshot. Avoid frequent manual edits; use
+`promotion.json` for downstream state changes.
 """
     )
 
 
-def ocr_schema() -> str:
+def asset_schema() -> str:
     return markdown(
-        """# OCR Schema
+        """# Asset Manifest Schema
 
-OCR data records text extracted from images, handwritten notes, screenshots, or scanned pages.
+`assets/manifest.json` indexes every binary or large external file stored in `assets/`.
 
-Recommended structure:
+Each asset should include:
 
-```text
-ocr/
-  imports.json
-  <ocr_import_id>/
-    manifest.json
-    text.md
-    pages.json
-    pages/
-      page-001.md
-    files/
-      page-001.png
-```
+- `asset_id`: stable id, not the original filename.
+- `filename`: local filename under `assets/`.
+- `original_filename`: optional user/source filename.
+- `role`: one of `audio_recording`, `ocr_source_image`, `attachment`, `screenshot`,
+  `whiteboard_image`, `analysis_image`, `thumbnail`, `exported_pdf`, or `derived_text`.
+- `mime_type`, `size_bytes`, `sha256`.
+- `source_ref`: JSON pointer or Markdown section that produced this asset.
+- `derived_text_ref`: optional `sources.md` section containing extracted or analyzed text.
+- `available_for_download`, `download_url_expires_at`, and source API metadata when applicable.
 
-## Files
-
-- `ocr/imports.json`: packet-level OCR import index. Include success and failure states so the app
-  can show import status without scanning every folder.
-- `<ocr_import_id>/manifest.json`: import-level metadata, source ids, status, processing timestamps,
-  and failure information when relevant.
-- `<ocr_import_id>/text.md`: reviewed or calibrated OCR text for human and LLM reading.
-- `<ocr_import_id>/pages.json`: structured page metadata, raw OCR output, uncertain spans, page
-  numbers, and asset references.
-- `<ocr_import_id>/pages/page-001.md`: optional page-level text for LLM-friendly reading.
-- `<ocr_import_id>/files/page-001.png`: source image or page binary when saved.
-
-Older V0 packets may store page binaries under `pages/page-001.png` without a separate `files/`
-folder. Readers should tolerate this shape. New writers should prefer the structure above.
-
-## Authority And Uncertainty
-
-Reviewed OCR is stronger evidence than automatic OCR. Automatic OCR uncertain spans, failed pages,
-and model-inferred corrections must remain visible in JSON metadata and should not be promoted to
-confirmed facts without user review.
+Use stable generated filenames like `asset_<id>.png` rather than user filenames as primary keys.
 """
     )
 
 
-def attachment_schema() -> str:
+def promotion_schema() -> str:
     return markdown(
-        """# Attachment And Image Schema
+        """# Promotion Schema
 
-This schema covers generic attachments and analysis images stored inside a meeting packet.
+`promotion.json` tracks whether information from an inbox packet has been promoted into long-term
+wiki/project/action/memory surfaces.
 
-## Attachments
+Required fields:
 
-```text
-attachments/
-  attachments.json
-  <attachment_id>.<ext>
-```
+- `schema_version`: `memova_promotion_v1`.
+- `meeting_id`, `packet_id`.
+- `promotion_status`: `not_started`, `partially_promoted`, `promoted`, or `rejected`.
+- `items`: list of promoted or pending items.
+- `promoted_items`: optional convenience list of promoted targets for quick app display.
 
-`attachments.json` should list each attachment id, filename, extension, content type, byte size,
-checksum when available, source API path or provenance, and relative file path. If there are no
-attachments, keep `attachments.json` with an empty list so apps do not need to guess.
+Each item should include:
 
-## Images
+- `source_item_id`: stable id from `packet.json` or a generated source id.
+- `source_ref`: `sources.md` anchor or `packet.json` pointer.
+- `target_path`: destination wiki/project/action path when known.
+- `status`: `pending_review`, `promoted`, `rejected`, or `superseded`.
+- `promoted_at`, `promoted_by`, and `notes` when available.
 
-```text
-images/
-  images.json
-  <analysis_image_id>.<ext>
-```
-
-`images.json` should list analysis images that are useful as source evidence. Older packets may use
-`analysis_images/`; readers should treat it as a legacy alias for `images/`.
-
-## Agent Rules
-
-Agents may summarize attachments and images only after checking the metadata and source files. If a
-binary asset is unavailable, expired, or not downloaded, say that explicitly rather than inventing
-visual evidence.
+V1 starts with `promotion_status: not_started` and an empty `items` list. Later workflows may update
+this file without rewriting the full `packet.json`.
 """
     )
 
@@ -1027,9 +1012,8 @@ Memova compiler workflows.
 ```text
 inbox/
   memova/
+    INDEX.md
     meetings/
-    imports/
-    attachments/
     schemas/
     _memova/
 sources/

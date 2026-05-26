@@ -410,9 +410,10 @@ def _assert_input_root_docs(root: Path, issues: list[HarnessIssue]) -> None:
     required = {
         "README.md": [
             "Memova Raw Input Root",
+            "Memova Inbox Packet Format v1",
             "meetings/YYYY/MM",
-            "manifest.json",
-            "media/audio_manifest.json",
+            "sources.md",
+            "promotion.json",
         ],
         "AGENTS.md": [
             "Agent Rules",
@@ -420,35 +421,40 @@ def _assert_input_root_docs(root: Path, issues: list[HarnessIssue]) -> None:
             "No action without evidence",
             "Reading Order",
         ],
+        "INDEX.md": [
+            "Memova Inbox Index",
+            "meetings/",
+            "recent meeting packets",
+        ],
         "schemas/meeting_packet.schema.md": [
             "Meeting Packet Schema",
-            "transcript.md",
-            "final_note.json",
-            "hashes.json",
+            "sources.md",
+            "note.md",
+            "promotion.json",
         ],
-        "schemas/transcript.schema.md": [
-            "Transcript Schema",
-            "transcript.md",
-            "transcript.json",
-            "stable post-meeting transcript",
+        "schemas/manifest.schema.md": [
+            "Manifest Schema",
+            "files",
+            "assets_summary",
+            "processing",
         ],
-        "schemas/note.schema.md": [
-            "Note Schema",
-            "raw_user_note",
-            "final_note",
-            "Grounding Rules",
+        "schemas/packet.schema.md": [
+            "Packet JSON Schema",
+            "sources",
+            "note",
+            "processing",
         ],
-        "schemas/ocr.schema.md": [
-            "OCR Schema",
-            "ocr/imports.json",
-            "pages.json",
-            "files/page-001.png",
+        "schemas/asset.schema.md": [
+            "Asset Manifest Schema",
+            "asset_id",
+            "role",
+            "source_ref",
         ],
-        "schemas/attachment.schema.md": [
-            "Attachment And Image Schema",
-            "attachments.json",
-            "images.json",
-            "analysis_images",
+        "schemas/promotion.schema.md": [
+            "Promotion Schema",
+            "promotion_status",
+            "not_started",
+            "promoted_items",
         ],
     }
     for relative_path, keywords in required.items():

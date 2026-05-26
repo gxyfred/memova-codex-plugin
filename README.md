@@ -125,7 +125,7 @@ Codex will:
 6. Create either a new empty Memova vault skeleton with `inbox/memova/`, or only a scoped Memova
    input root inside the approved existing vault folder.
 7. Write non-empty README, AGENTS, schema, manifest, and sync-state files that explain the raw-input
-   contract for humans, iOS, and agents.
+   contract for humans, iOS, and agents. The input root uses Memova Inbox Packet Format v1.
 8. Validate the Memova input-root manifest, setup documentation, schema files, and required metadata
    files.
 9. Report success or failure back to Memova through MCP, including
@@ -180,15 +180,14 @@ Memova Vault/
     memova/
       README.md
       AGENTS.md
+      INDEX.md
       schemas/
         meeting_packet.schema.md
-        transcript.schema.md
-        note.schema.md
-        ocr.schema.md
-        attachment.schema.md
+        manifest.schema.md
+        packet.schema.md
+        asset.schema.md
+        promotion.schema.md
       meetings/
-      imports/
-      attachments/
       _memova/
         manifest.json
         input_root.json
@@ -222,15 +221,14 @@ Existing User Vault/
     Memova/
       README.md
       AGENTS.md
+      INDEX.md
       schemas/
         meeting_packet.schema.md
-        transcript.schema.md
-        note.schema.md
-        ocr.schema.md
-        attachment.schema.md
+        manifest.schema.md
+        packet.schema.md
+        asset.schema.md
+        promotion.schema.md
       meetings/
-      imports/
-      attachments/
       _memova/
         manifest.json
         input_root.json
@@ -243,8 +241,9 @@ meetings into projects, update wiki pages, or reorganize an existing knowledge b
 
 Setup does not pre-create concrete meeting packet folders. After meetings end, the iOS app writes
 packets under `meetings/YYYY/MM/YYYY-MM-DD-<slug>-<meeting_id>/` using the backend sync package.
-The setup README, AGENTS, and schema files describe that future packet shape, including transcript,
-final note, raw user note, OCR, attachments, images, media manifest, and hash files.
+The setup README, AGENTS, INDEX, and schema files describe that future packet shape:
+`README.md`, `manifest.json`, `sources.md`, `note.md`, `packet.json`, `promotion.json`, and
+`assets/manifest.json` plus optional binary assets.
 
 ## Diagnose Or Repair A Memova Vault
 
