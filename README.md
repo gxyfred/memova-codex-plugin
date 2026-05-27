@@ -6,7 +6,7 @@ This plugin bundles:
 
 - the Memova OAuth MCP server at `https://api.memova.ai/mcp`,
 - the `memova-menu` skill for a lightweight `@memova` workflow menu,
-- the `memova-workflow` skill for one-click final-note workflows,
+- the `memova-workflow` skill for reviewing and running existing Codex automation tasks,
 - the `memova-vault-setup` skill for iCloud-first Memova knowledge-base setup,
 - the `memova-vault-diagnose` skill for validating and repairing a Memova vault/input root,
 - Memova starter prompts and plugin presentation metadata.
@@ -87,46 +87,43 @@ In Codex, type:
 Codex should open a short Memova menu:
 
 ```text
-1. Setup your knowledge base
-2. View pending tasks
-3. View completed actions
-4. Run latest final note workflow
-5. Continue pending automation task
-6. Diagnose your Memova vault
-7. View ready approvals
+1. Set up knowledge base
+2. Review my automation tasks
+3. Run latest note automation tasks
+4. Diagnose knowledge base
 ```
 
 Reply with a number, or select one of the plugin starter prompts:
 
 ```text
 Open Memova menu.
-Setup your Memova knowledge base.
-View pending tasks.
-View completed actions.
-Run latest final note workflow.
-Diagnose your Memova vault.
+Set up knowledge base.
+Review my automation tasks.
+Run latest note automation tasks.
+Diagnose knowledge base.
 ```
 
 You can still ask directly:
 
 ```text
-@memova Run latest final note workflow.
-@memova Continue pending Memova automation tasks.
-@memova View completed actions.
+@memova Run latest note automation tasks.
+@memova Review my automation tasks.
+@memova Diagnose knowledge base.
 ```
 
 The menu is the safe default entrypoint. It does not run a write-heavy workflow just because the
-user typed bare `@memova`; it routes the user to setup, read-only task views, latest final-note
-review, pending task continuation, vault diagnosis, or ready approvals.
+user typed bare `@memova`; it routes the user to setup, read-only automation task review,
+latest-note automation task execution, or vault diagnosis.
 
-The latest final-note workflow reviews recent Memova final notes, organizes engineering actions,
-asks before approval-required work, executes safe tasks when the current workspace is appropriate,
-and writes progress/results back to Memova.
+The latest-note automation workflow does not extract new actions from a final note. It reads
+existing `automation_tasks` that the user already sent to Codex from Memova/iOS, claims one safe
+task at a time, asks before approval-required work, executes safe tasks when the current workspace
+is appropriate, and writes progress/results back to Memova.
 
 On the first non-setup Memova workflow, the plugin checks whether a Memova knowledge-base vault is
 already present on the Mac. If not, it shows one setup reminder, records that reminder locally under
 `~/.cache/memova-codex-plugin/`, and does not repeat it on later workflows. Users can still start
-setup explicitly with `@memova Setup your Memova knowledge base.`
+setup explicitly with `@memova Set up knowledge base.`
 
 The plugin also checks for newer Memova plugin releases at most once per day. If a newer version is
 available, it reminds the user to upgrade, then repeats that reminder at most once every 7 days for
@@ -139,7 +136,7 @@ The knowledge-base setup flow is designed for users who already completed the Me
 In Codex, run:
 
 ```text
-@memova Setup your Memova knowledge base.
+@memova Set up knowledge base.
 ```
 
 Codex will:
@@ -304,16 +301,17 @@ When triggered, the bundled `memova-menu` skill tells Codex to:
 
 1. Run the low-frequency plugin version check.
 2. Run the one-time knowledge-base setup reminder check.
-3. Show a numbered menu for setup, pending tasks, completed actions, latest final-note workflow,
-   pending automation continuation, vault diagnosis, and ready approvals.
+3. Show a numbered menu for setup, automation task review, latest-note automation task execution,
+   and vault diagnosis.
 4. Treat a simple numeric reply like `1` or `2` as the selected Memova action in the current
    thread.
-5. Keep read-only views read-only unless the user explicitly asks to continue or execute a task.
+5. Keep automation task review read-only unless the user explicitly asks to execute a task.
 
 When triggered, the bundled `memova-workflow` skill tells Codex to:
 
-1. Read recent Memova meetings and final notes through MCP.
-2. Identify engineering-relevant tasks.
+1. Read existing Memova automation tasks through MCP.
+2. For latest-note execution, call `list_latest_note_automation_tasks` and use only tasks already
+   linked to the latest ready note's meeting.
 3. Ask before work that needs approval, such as external messages, calendars, purchases, destructive changes, production deploys, secrets, or unclear repo context.
 4. Claim matching Memova automation tasks when appropriate.
 5. Execute safe work in the current Codex workspace.

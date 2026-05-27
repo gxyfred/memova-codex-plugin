@@ -1,7 +1,7 @@
 interface:
   display_name: "Memova Workflow"
-  short_description: "Run the latest final note workflow."
-  default_prompt: "Run latest final note workflow."
+  short_description: "Run existing Memova automation tasks."
+  default_prompt: "Run latest note automation tasks."
 
 policy:
   allow_implicit_invocation: false
@@ -10,6 +10,6 @@ dependencies:
   tools:
     - type: "mcp"
       value: "memova"
-      description: "Memova OAuth MCP server for notes, actions, and automation tasks."
+      description: "Memova OAuth MCP server for notes and automation tasks."
       transport: "streamable_http"
       url: "https://api.memova.ai/mcp"

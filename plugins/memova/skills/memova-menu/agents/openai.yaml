@@ -10,6 +10,6 @@ dependencies:
   tools:
     - type: "mcp"
       value: "memova"
-      description: "Memova OAuth MCP server for notes, actions, automation tasks, approvals, and setup sessions."
+      description: "Memova OAuth MCP server for notes, automation tasks, vault setup sessions, and diagnosis workflows."
       transport: "streamable_http"
       url: "https://api.memova.ai/mcp"
