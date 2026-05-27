@@ -76,9 +76,11 @@ repeat `@memova`.
 
 - Do not perform a separate Memova MCP auth check for the menu itself. For MCP-backed selections,
   follow the target workflow's MCP login checks. If the needed MCP tools are unavailable and
-  `codex mcp list` shows `memova` Auth `Not logged in`, tell the user to run
-  `codex mcp login memova --scopes notes.read,actions.read,actions.write,automation.read,automation.write`,
-  complete browser consent, then start a new Codex thread.
+  `codex mcp list` shows `memova` Auth `Not logged in`, run
+  `python3 plugins/memova/scripts/ensure_mcp_login.py` from the plugin root. The helper starts MCP
+  OAuth login and opens one browser authorization URL; the user still approves in the browser. After
+  successful login, tell the user to start a new Codex thread if this thread still does not expose
+  the Memova MCP tools.
 - Setup, diagnosis repair, automation task claiming, task execution, external writes, and destructive local
   changes require the approval rules in the target workflow skill.
 - Keep menu responses short. For list views, show enough information for the user to choose a next

@@ -63,13 +63,27 @@ Start a new thread after installation so Codex loads the plugin.
 ## Connect Memova OAuth MCP
 
 Memova's setup and automation workflows require the bundled MCP server to be authenticated before
-Codex can expose its tools. After installing or upgrading the plugin, run the MCP login once:
+Codex can expose its tools. The plugin normally starts this login automatically the first time a
+setup or automation workflow needs Memova MCP and the local server is `Not logged in`. It runs:
 
 ```bash
 codex mcp login memova --scopes notes.read,actions.read,actions.write,automation.read,automation.write
 ```
 
-Follow the browser login/consent flow, then restart Codex or start a new thread.
+and opens one browser authorization URL. The user still approves Memova OAuth in the browser. After
+OAuth succeeds, restart Codex or start a new thread if the current thread still does not expose the
+Memova MCP tools; Codex does not refresh MCP tool availability mid-thread.
+
+The plugin cannot currently open a new Codex Desktop thread and inject the next prompt by itself.
+It can run the OAuth helper automatically, then show the exact next `@memova` prompt for a fresh
+thread. Codex CLI has `codex fork` and `codex exec` for terminal workflows, but knowledge-base setup
+is intentionally interactive because it asks before local file writes.
+
+You can also run the bundled helper directly from the plugin root:
+
+```bash
+python3 plugins/memova/scripts/ensure_mcp_login.py
+```
 
 You can verify the state with:
 
@@ -79,6 +93,7 @@ codex mcp list
 
 The `memova` row should be enabled and logged in. If it says `Not logged in`, MCP-backed setup and
 automation tools such as `list_pending_knowledge_base_setups` will not be exposed in Codex yet.
+Avoid starting a second manual `codex mcp login` while a Memova authorization tab is already open.
 
 ## Use The Plugin
 
@@ -121,7 +136,8 @@ latest-note automation task execution, or vault diagnosis.
 
 The menu itself does not fetch Memova data. MCP-backed selections require the Memova MCP login above.
 If Codex says setup or automation MCP tools are unavailable, check `codex mcp list`; `Not logged in`
-means the OAuth step has not completed for this Codex install.
+means the OAuth step has not completed for this Codex install. The setup/workflow skills should run
+the bundled login helper instead of asking the user to type the command manually.
 
 The latest-note automation workflow does not extract new actions from a final note. It reads
 existing `automation_tasks` that the user already sent to Codex from Memova/iOS, claims one safe
@@ -140,15 +156,6 @@ the same latest version.
 ## Set Up A Memova Knowledge Base
 
 The knowledge-base setup flow is designed for users who already completed the Memova iOS setup step and marked setup ready for Codex.
-
-Before starting setup, verify MCP auth:
-
-```bash
-codex mcp list
-```
-
-If `memova` is `Not logged in`, run the login command from the previous section first, complete the
-browser consent flow, then start a new Codex thread.
 
 In Codex, run:
 
@@ -172,6 +179,10 @@ Codex will:
    files.
 9. Report success or failure back to Memova through MCP, including
    `memova_input_root_relative_path`.
+
+If multiple old setup sessions are still ready/running, Codex asks which one to use, then marks the
+unselected setup sessions failed with `failure_code=setup.superseded_by_selected_session` so they do
+not keep showing up in future setup runs.
 
 If Codex cannot call the Memova setup MCP tools or cannot retrieve a valid setup package, setup
 must stop before any local file plan/create command. The local filesystem helper requires
@@ -391,7 +402,8 @@ If `@memova` does not appear:
 
 If Memova tools are unavailable:
 
-- Re-run the MCP OAuth login command above, using the same Memova account as the iOS app setup.
+- Run `python3 plugins/memova/scripts/ensure_mcp_login.py` from the plugin root, using the same
+  Memova account as the iOS app setup.
 - If setup packages exist in the app but Codex sees none, the most likely cause is that Codex OAuth
   is connected to a different Memova account than the iOS app.
 - Confirm the Memova account has access to the expected notes and actions.
@@ -413,9 +425,10 @@ Validate skill metadata and helper scripts:
 
 ```bash
 ruby -e 'require "yaml"; YAML.load_file("plugins/memova/skills/memova-menu/agents/openai.yaml"); YAML.load_file("plugins/memova/skills/memova-workflow/agents/openai.yaml"); YAML.load_file("plugins/memova/skills/memova-vault-setup/agents/openai.yaml"); YAML.load_file("plugins/memova/skills/memova-vault-diagnose/agents/openai.yaml"); puts "yaml ok"'
-python3 -m py_compile plugins/memova/skills/memova-vault-setup/scripts/*.py
+python3 -m py_compile plugins/memova/scripts/*.py plugins/memova/skills/memova-vault-setup/scripts/*.py
 python3 plugins/memova/skills/memova-vault-setup/scripts/create_memova_vault.py discover
 python3 plugins/memova/skills/memova-vault-setup/scripts/setup_fixture_harness.py --json
+python3 plugins/memova/scripts/ensure_mcp_login.py --check-only
 python3 plugins/memova/scripts/version_check.py --force
 python3 plugins/memova/scripts/kb_setup_reminder.py
 ```

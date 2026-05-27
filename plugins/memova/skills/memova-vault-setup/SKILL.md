@@ -57,16 +57,31 @@ When the user asks to set up their Memova knowledge base:
    Memova OAuth and the tool is exposed, let this call trigger that browser login/consent flow.
    If this MCP tool is not exposed in the current thread, run `codex mcp list` before giving
    recovery instructions:
-   - If `memova` is listed with Auth `Not logged in`, stop and tell the user to run
-     `codex mcp login memova --scopes notes.read,actions.read,actions.write,automation.read,automation.write`,
-     complete the browser consent flow, then start a new Codex thread.
+   - If `memova` is listed with Auth `Not logged in`, run the bundled helper from the plugin root:
+
+     ```bash
+     python3 plugins/memova/scripts/ensure_mcp_login.py
+     ```
+
+     This helper starts `codex mcp login memova --scopes ...` and opens exactly one browser
+     authorization URL. The user still has to approve Memova OAuth in the browser. After it reports
+     `login_completed`, tell the user to start a new Codex thread if the current thread still does
+     not expose the Memova setup tools; Codex does not refresh MCP tool availability mid-thread.
    - If `memova` is not listed, stop and tell the user to upgrade/reinstall the Memova plugin, then
      restart Codex or start a new thread.
    Do not use the filesystem helper scripts without the MCP package.
 3. If there is exactly one ready/running setup, use it.
    If there are no pending setups, stop and tell the user to create/mark a setup package from the
    Memova app first, or disconnect/reconnect Memova OAuth in Codex with the same Memova account used
-   in the iOS app. If there are multiple, summarize them and ask which one to run.
+   in the iOS app. If there are multiple, summarize them and ask which one to run. After the user
+   selects one setup session, call `fail_knowledge_base_setup` for every other ready/running setup
+   session returned by the pending list, using:
+   - `failure_code`: `setup.superseded_by_selected_session`
+   - `failure_message`: `Superseded because the user selected another knowledge-base setup session.`
+   - `payload`: include `selected_setup_session_id` and `discarded_setup_session_id`
+
+   Continue only with the selected setup session. This prevents abandoned older setup attempts from
+   appearing again on the next setup run.
 4. Call `get_knowledge_base_setup_context` for the selected `setup_session_id`.
 5. Call `append_knowledge_base_setup_progress` with a concise message that setup has started.
 6. Write the MCP `setup_package` object to a temporary JSON file under `/tmp`, then run:
