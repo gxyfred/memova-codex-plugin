@@ -49,21 +49,24 @@ the latest Memova note:
 
 1. Run the plugin version check described above.
 2. Run the one-time knowledge-base setup reminder check described above.
-3. Check that Memova MCP tools are available and authenticated. If auth is missing, tell the user to connect the Memova MCP server through OAuth and stop.
-4. Call `list_latest_note_automation_tasks` with `status=["pending","running"]`,
+3. Call `list_latest_note_automation_tasks` with `status=["pending","running"]`,
    `claimable_only=true`, and a reasonable `limit` such as `20`.
-5. If no latest ready note exists, say so and stop. Do not call `extract_action_items`.
-6. If a latest note exists but has no claimable automation tasks, summarize the latest note/meeting
+   This first MCP read call is the intended OAuth trigger when no Memova token exists. Do not run an
+   extra manual `codex mcp login` command before it unless the MCP tools are unavailable. If auth is
+   still missing after the attempted MCP call, tell the user to complete Memova OAuth MCP login and
+   stop.
+4. If no latest ready note exists, say so and stop. Do not call `extract_action_items`.
+5. If a latest note exists but has no claimable automation tasks, summarize the latest note/meeting
    identifiers and say there are no unfinished Codex automation tasks for it. Do not create new
    tasks.
-7. If tasks are returned, summarize the task ids, objectives, source note/meeting, status, and
+6. If tasks are returned, summarize the task ids, objectives, source note/meeting, status, and
    safety constraints. If there are multiple tasks, choose the first clearly safe task or ask the
    user which one to run when the right order is ambiguous.
-8. Claim one task at a time with `claim_task`, then call `get_task_context`.
-9. Before execution, append a short `append_task_progress` event that states the chosen task and execution plan.
-10. Execute safe work in the current Codex workspace. Keep edits scoped to the task and follow the repo's local instructions.
-11. If approval or missing information is required, use `create_approval_request` with a specific prompt and stop instead of guessing. If the user is present in the Codex thread, also ask directly when that is faster.
-12. On success, call `complete_task` with a concise result summary. On a recoverable blocker, call `release_task`. On a real failure, call `fail_task` with a clear failure code and message.
+7. Claim one task at a time with `claim_task`, then call `get_task_context`.
+8. Before execution, append a short `append_task_progress` event that states the chosen task and execution plan.
+9. Execute safe work in the current Codex workspace. Keep edits scoped to the task and follow the repo's local instructions.
+10. If approval or missing information is required, use `create_approval_request` with a specific prompt and stop instead of guessing. If the user is present in the Codex thread, also ask directly when that is faster.
+11. On success, call `complete_task` with a concise result summary. On a recoverable blocker, call `release_task`. On a real failure, call `fail_task` with a clear failure code and message.
 
 Do not call `extract_action_items`, `accept_action_candidate`, or `ensure_task_from_action` in this
 workflow. The user already chose actions in Memova/iOS and sent them to Codex as automation tasks.
@@ -76,6 +79,10 @@ When the user asks to review Memova automation tasks without immediately executi
 2. Run the one-time knowledge-base setup reminder check described above.
 3. Call `list_automation_tasks` with statuses `pending`, `running`, and `waiting_for_user`,
    `claimable_only=false`, and a reasonable `limit` such as `20`.
+   This first MCP read call is the intended OAuth trigger when no Memova token exists. Do not run an
+   extra manual `codex mcp login` command before it unless the MCP tools are unavailable. If auth is
+   still missing after the attempted MCP call, tell the user to complete Memova OAuth MCP login and
+   stop.
 4. Summarize task ids, objective, source note/context, status, lease state, and approval policy.
 5. Do not claim tasks or write progress for read-only views unless the user asks to run a specific
    task.

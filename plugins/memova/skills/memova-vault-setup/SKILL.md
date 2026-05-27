@@ -50,9 +50,12 @@ because a prompt mentions Obsidian, iCloud, or notes.
 When the user asks to set up their Memova knowledge base:
 
 1. Run the plugin version check described above.
-2. Confirm Memova MCP tools are available and authenticated. If not, tell the user to connect the
-   Memova MCP server through OAuth and stop.
-3. Call `list_pending_knowledge_base_setups`. If there is exactly one ready/running setup, use it.
+2. Call `list_pending_knowledge_base_setups` as the setup workflow's first MCP read. If Codex needs
+   Memova OAuth, let this call trigger that single browser login/consent flow. Do not run an extra
+   manual `codex mcp login` command before this call unless the MCP tools are unavailable. If auth
+   is still missing after the attempted MCP call, tell the user to connect the Memova MCP server
+   through OAuth and stop.
+3. If there is exactly one ready/running setup, use it.
    If there are multiple, summarize them and ask which one to run.
 4. Call `get_knowledge_base_setup_context` for the selected `setup_session_id`.
 5. Call `append_knowledge_base_setup_progress` with a concise message that setup has started.

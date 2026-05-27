@@ -62,7 +62,10 @@ Start a new thread after installation so Codex loads the plugin.
 
 ## Connect Memova OAuth MCP
 
-If Codex asks for MCP authentication, complete the Memova OAuth flow. The bundled MCP server requests these scopes:
+Memova uses on-use MCP authentication: installing the plugin and typing bare `@memova` should not
+open a browser by themselves. The first MCP-backed action, such as setup or automation task review,
+will trigger the Memova OAuth browser login/consent flow if no token exists. The bundled MCP server
+requests these scopes:
 
 ```text
 notes.read actions.read actions.write automation.read automation.write
@@ -114,6 +117,10 @@ You can still ask directly:
 The menu is the safe default entrypoint. It does not run a write-heavy workflow just because the
 user typed bare `@memova`; it routes the user to setup, read-only automation task review,
 latest-note automation task execution, or vault diagnosis.
+
+The menu also avoids a redundant OAuth prompt. OAuth should happen once, on the first workflow step
+that actually calls Memova MCP. If Codex opens more than one Memova OAuth browser window for the
+same action, upgrade to the latest plugin version and start a new thread.
 
 The latest-note automation workflow does not extract new actions from a final note. It reads
 existing `automation_tasks` that the user already sent to Codex from Memova/iOS, claims one safe
