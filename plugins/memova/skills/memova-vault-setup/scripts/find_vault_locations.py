@@ -5,16 +5,18 @@ import argparse
 import json
 from pathlib import Path
 
-from memova_vault_lib import detect_icloud_roots, inspect_tree
+from memova_vault_lib import detect_icloud_roots, load_setup_json, new_vault_folder_name, inspect_tree
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Find likely Memova/Obsidian vault locations.")
+    parser.add_argument("--setup-json", help="Optional Memova setup package JSON for path hints.")
     parser.add_argument("--search-existing", action="store_true")
     parser.add_argument("--max-existing", type=int, default=20)
     args = parser.parse_args()
 
-    icloud_roots = detect_icloud_roots()
+    setup = load_setup_json(args.setup_json) if args.setup_json else {}
+    icloud_roots = detect_icloud_roots(setup)
     existing_vaults = []
     if args.search_existing:
         for candidate in icloud_roots:
@@ -32,9 +34,11 @@ def main() -> int:
         "schema_version": "memova_vault_location_discovery_v1",
         "platform": "macos",
         "icloud_roots": icloud_roots,
+        "recommended_new_vault_folder_name": new_vault_folder_name(setup),
         "existing_memova_vaults": existing_vaults,
         "recommended_next_step": (
-            "Choose a target path under an existing iCloud root, usually '<iCloud>/Memova Vault'."
+            "Choose a target path under an existing iCloud root using the setup package's "
+            "recommended_new_vault path when setup_mode is create_new_vault."
         ),
     }
     if existing_vaults:

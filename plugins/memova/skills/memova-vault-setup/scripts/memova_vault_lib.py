@@ -12,6 +12,7 @@ TEMPLATE_VERSION = "memova_inbox_v1"
 SETUP_SCHEMA_VERSION = "knowledge_base_setup_v1"
 INPUT_ROOT_RELATIVE_PATH = "inbox/memova"
 INPUT_ROOT_FOLDER_NAME = "Memova"
+DEFAULT_NEW_VAULT_FOLDER_NAME = "Memova Vault"
 ALLOWED_SETUP_MODES = {"create_new_vault", "connect_existing_vault"}
 
 NEW_VAULT_DIRS = [
@@ -166,13 +167,37 @@ def utc_now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def load_setup_json(path: str | None) -> dict[str, Any]:
+def load_setup_json(path: str | None, *, required: bool = False) -> dict[str, Any]:
     if not path:
+        if required:
+            raise ValueError(
+                "A Memova setup package JSON file is required. Retrieve it from "
+                "list_pending_knowledge_base_setups/get_knowledge_base_setup_context before planning or creating files."
+            )
         return {}
     data = json.loads(Path(path).expanduser().read_text(encoding="utf-8"))
     if "setup_package" in data and isinstance(data["setup_package"], dict):
-        return data["setup_package"]
-    return data
+        setup = data["setup_package"]
+    else:
+        setup = data
+    if required:
+        errors = setup_package_errors(setup)
+        if errors:
+            raise ValueError("Invalid Memova setup package: " + "; ".join(errors))
+    return setup
+
+
+def setup_package_errors(setup: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    if setup.get("schema_version") != SETUP_SCHEMA_VERSION:
+        errors.append(f"schema_version must be {SETUP_SCHEMA_VERSION}")
+    if setup_mode(setup) not in ALLOWED_SETUP_MODES:
+        errors.append("setup_mode must be create_new_vault or connect_existing_vault")
+    if not isinstance(setup.get("target_path_hints") or {}, dict):
+        errors.append("target_path_hints must be an object when provided")
+    if not isinstance(setup.get("source_path_hints") or {}, dict):
+        errors.append("source_path_hints must be an object when provided")
+    return errors
 
 
 def write_json(data: Any) -> None:
@@ -202,7 +227,7 @@ def safe_join(root: Path, relative_path: str) -> Path:
     return target
 
 
-def detect_icloud_roots() -> list[dict[str, str]]:
+def detect_icloud_roots(setup: dict[str, Any] | None = None) -> list[dict[str, str]]:
     home = Path.home()
     candidates = [
         home / "Library" / "Mobile Documents" / "com~apple~CloudDocs",
@@ -214,6 +239,8 @@ def detect_icloud_roots() -> list[dict[str, str]]:
             if child.is_dir() and "CloudDocs" in child.name and child not in candidates:
                 candidates.append(child)
 
+    setup = setup or {}
+    new_vault_folder = new_vault_folder_name(setup)
     results = []
     seen: set[str] = set()
     for path in candidates:
@@ -226,7 +253,7 @@ def detect_icloud_roots() -> list[dict[str, str]]:
             {
                 "path": key,
                 "exists": path.exists(),
-                "recommended_new_vault": str(expanded / "Memova Vault"),
+                "recommended_new_vault": str(expanded / new_vault_folder),
             },
         )
     return results
@@ -318,6 +345,29 @@ def input_root_folder_name(setup: dict[str, Any]) -> str:
             if isinstance(value, str) and value.strip():
                 return safe_component(value)
     return INPUT_ROOT_FOLDER_NAME
+
+
+def new_vault_folder_name(setup: dict[str, Any]) -> str:
+    hints = setup.get("target_path_hints") or {}
+    if isinstance(hints, dict):
+        for key in (
+            "desired_vault_folder_name",
+            "desired_vault_name",
+            "desired_input_folder_name",
+            "memova_folder_name",
+            "desired_memova_folder_name",
+        ):
+            value = hints.get(key)
+            if isinstance(value, str) and value.strip():
+                return safe_component(value)
+    return DEFAULT_NEW_VAULT_FOLDER_NAME
+
+
+def suggested_new_vault_target(setup: dict[str, Any]) -> Path | None:
+    for candidate in detect_icloud_roots(setup):
+        if candidate.get("exists"):
+            return resolved(Path(candidate["recommended_new_vault"]))
+    return None
 
 
 def extract_source_vault_paths(setup: dict[str, Any]) -> list[Path]:
@@ -1124,6 +1174,7 @@ def create_plan(
     errors: list[str] = []
     source_vault_paths = extract_source_vault_paths(setup)
     suggested_existing_vault_target = None
+    suggested_new_vault_target_path = None
 
     if mode not in ALLOWED_SETUP_MODES:
         errors.append(
@@ -1137,6 +1188,16 @@ def create_plan(
             errors.append(message)
     if mode == "create_new_vault" and nonempty and not allow_existing_nonempty:
         errors.append("Target root already exists and is not empty.")
+    if mode == "create_new_vault":
+        desired_folder = new_vault_folder_name(setup)
+        suggested = suggested_new_vault_target(setup)
+        suggested_new_vault_target_path = str(suggested) if suggested is not None else None
+        if safe_component(target_root.name) != desired_folder:
+            hint = f" Use {suggested_new_vault_target_path}." if suggested_new_vault_target_path else ""
+            errors.append(
+                "For create_new_vault, target root folder must match the Memova setup package "
+                f"desired new-vault folder '{desired_folder}'.{hint}"
+            )
     if mode == "connect_existing_vault" and source_vault_paths:
         target_resolved = resolved(target_root)
         containing_sources = [source for source in source_vault_paths if path_inside(source, target_resolved)]
@@ -1206,6 +1267,7 @@ def create_plan(
         "input_root_manifest_id": input_root_manifest_id(setup),
         "memova_input_root_relative_path": relative_path,
         "source_vault_paths": [str(path) for path in source_vault_paths],
+        "suggested_new_vault_target": suggested_new_vault_target_path,
         "suggested_existing_vault_target": suggested_existing_vault_target,
         "warnings": warnings,
         "errors": errors,

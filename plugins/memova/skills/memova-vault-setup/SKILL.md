@@ -13,6 +13,9 @@ because a prompt mentions Obsidian, iCloud, or notes.
 
 - Treat the Memova MCP setup package as the source of truth for setup mode, storage target, and
   path hints. Preferences are not collected in inbox-first V1.
+- Do not plan or create local setup files if the Memova MCP setup package cannot be retrieved. A
+  missing MCP tool, failed OAuth flow, empty pending setup list, or invalid setup package is a hard
+  stop, not permission to fall back to local defaults.
 - Before starting setup, run the low-frequency plugin version check from the plugin root:
 
   ```bash
@@ -55,14 +58,20 @@ When the user asks to set up their Memova knowledge base:
    manual `codex mcp login` command before this call unless the MCP tools are unavailable. If auth
    is still missing after the attempted MCP call, tell the user to connect the Memova MCP server
    through OAuth and stop.
+   If this MCP tool is not exposed in the current thread, stop and tell the user to start a new
+   Codex thread/restart Codex after installing/enabling the plugin. Do not use the filesystem helper
+   scripts without the MCP package.
 3. If there is exactly one ready/running setup, use it.
-   If there are multiple, summarize them and ask which one to run.
+   If there are no pending setups, stop and tell the user to create/mark a setup package from the
+   Memova app first, or disconnect/reconnect Memova OAuth in Codex with the same Memova account used
+   in the iOS app. If there are multiple, summarize them and ask which one to run.
 4. Call `get_knowledge_base_setup_context` for the selected `setup_session_id`.
 5. Call `append_knowledge_base_setup_progress` with a concise message that setup has started.
-6. Run:
+6. Write the MCP `setup_package` object to a temporary JSON file under `/tmp`, then run:
 
    ```bash
-   python3 scripts/find_vault_locations.py
+   python3 scripts/find_vault_locations.py \
+     --setup-json "/tmp/memova-setup.json"
    ```
 
    Use the output plus the setup package path hints to identify likely iCloud / existing vault
@@ -74,10 +83,12 @@ When the user asks to set up their Memova knowledge base:
    ```
 
    Keep inspection light; do not recursively read the full vault unless the user asks.
-8. Write the MCP `setup_package` object to a temporary JSON file under `/tmp` and run a dry plan:
+8. Run a dry plan with the same MCP setup package:
 
    - For `create_new_vault`, the target root is the new vault root, usually
-     `<iCloud>/Memova Vault`.
+     the discovery output's `recommended_new_vault`. If the setup package includes
+     `target_path_hints.desired_input_folder_name`, that value names the new vault folder, for
+     example `<iCloud>/Test111`.
    - For `connect_existing_vault`, the target root is the final Memova input-root folder, usually a
      child of the user's existing raw-input folder such as `<existing vault>/00_Inbox/Memova`.
      Never target the existing vault root itself.
@@ -130,7 +141,10 @@ When the user asks to set up their Memova knowledge base:
 
 - Common iCloud Drive path on Mac:
   `~/Library/Mobile Documents/com~apple~CloudDocs`
-- A good default new-vault target is:
+- If the setup package has `target_path_hints.desired_input_folder_name`, use that value as the
+  create-new-vault folder name. Example: `desired_input_folder_name: Test111` maps to
+  `~/Library/Mobile Documents/com~apple~CloudDocs/Test111`.
+- If no desired folder name is present, the default new-vault target is:
   `~/Library/Mobile Documents/com~apple~CloudDocs/Memova Vault`
 - Do not assume iOS and Mac expose the same absolute path. The shared identity is the Memova input
   root manifest, not the path string.

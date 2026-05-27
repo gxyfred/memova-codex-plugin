@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from typing import Any
 
 from memova_vault_lib import (
     apply_plan,
@@ -40,7 +41,13 @@ def main() -> int:
 
 def add_plan_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--target-root", required=True)
-    parser.add_argument("--setup-json")
+    parser.add_argument(
+        "--setup-json",
+        help=(
+            "Required Memova setup package JSON retrieved from Memova MCP. "
+            "Planning/creation is blocked without it."
+        ),
+    )
     parser.add_argument("--allow-non-icloud", action="store_true")
     parser.add_argument("--allow-existing-nonempty", action="store_true")
     parser.add_argument(
@@ -64,7 +71,10 @@ def run_discover(_args: argparse.Namespace) -> int:
 
 
 def run_plan(args: argparse.Namespace) -> int:
-    setup = load_setup_json(args.setup_json)
+    setup, error = load_required_setup(args.setup_json)
+    if error:
+        write_json(error)
+        return 2
     plan = create_plan(
         target_root=expand_path(args.target_root),
         setup=setup,
@@ -86,7 +96,10 @@ def run_create(args: argparse.Namespace) -> int:
         )
         return 2
 
-    setup = load_setup_json(args.setup_json)
+    setup, error = load_required_setup(args.setup_json)
+    if error:
+        write_json(error)
+        return 2
     plan = create_plan(
         target_root=expand_path(args.target_root),
         setup=setup,
@@ -103,6 +116,17 @@ def run_create(args: argparse.Namespace) -> int:
     result["validation"] = validation
     write_json(result)
     return 0 if validation["status"] == "ok" else 1
+
+
+def load_required_setup(path: str) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    try:
+        return load_setup_json(path, required=True), None
+    except Exception as exc:
+        return {}, {
+            "status": "error",
+            "error_code": "setup_package_required",
+            "error": str(exc),
+        }
 
 
 if __name__ == "__main__":

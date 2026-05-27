@@ -41,6 +41,7 @@ def setup_package(
     mode: str,
     source_path: Path | None = None,
     session_id: str = "fixture",
+    target_path_hints: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     source_hints: dict[str, Any] = {}
     if source_path is not None:
@@ -53,7 +54,7 @@ def setup_package(
         "storage_target": "icloud_drive",
         "vault_template_version": "memova_inbox_v1",
         "source_path_hints": source_hints,
-        "target_path_hints": {},
+        "target_path_hints": target_path_hints or {},
     }
 
 
@@ -66,6 +67,7 @@ def run_harness(output_root: Path | None = None, *, keep_artifacts: bool = False
 
     results = [
         case_create_new_vault(output_root),
+        case_create_new_vault_uses_desired_folder(output_root),
         case_connect_existing_inbox(output_root),
         case_connect_existing_sources(output_root),
         case_existing_vault_root_guard(output_root),
@@ -126,6 +128,73 @@ def case_create_new_vault(root: Path) -> HarnessCaseResult:
         target_root=str(target),
         issues=issues,
         details={
+            "plan_summary": plan["summary"],
+            "validation": validation,
+            "ios_folder_binding_hints": result.get("ios_folder_binding_hints"),
+        },
+    )
+
+
+def case_create_new_vault_uses_desired_folder(root: Path) -> HarnessCaseResult:
+    wrong_target = root / "icloud" / "Memova Vault"
+    target = root / "icloud" / "Test111"
+    setup = setup_package(
+        mode="create_new_vault",
+        session_id="create-new-desired-folder",
+        target_path_hints={"desired_input_folder_name": "Test111"},
+    )
+    wrong_plan = create_plan(
+        target_root=wrong_target,
+        setup=setup,
+        allow_non_icloud=True,
+        allow_existing_nonempty=False,
+    )
+    plan = create_plan(
+        target_root=target,
+        setup=setup,
+        allow_non_icloud=True,
+        allow_existing_nonempty=False,
+    )
+    result = apply_plan(plan, setup)
+    validation = validate_vault(target)
+    issues = _issues_for_ok_plan(plan, result, validation)
+    if not wrong_plan.get("errors"):
+        issues.append(
+            HarnessIssue(
+                "error",
+                "missing_desired_folder_guard",
+                "New vault setup should reject a target root that ignores desired_input_folder_name.",
+            )
+        )
+    if not str(wrong_plan.get("suggested_new_vault_target") or "").endswith("/Test111"):
+        issues.append(
+            HarnessIssue(
+                "error",
+                "wrong_desired_folder_suggestion",
+                "New vault setup should suggest the desired_input_folder_name path.",
+                {"suggested_new_vault_target": wrong_plan.get("suggested_new_vault_target")},
+            )
+        )
+    if not str(result.get("target_root") or "").endswith("/Test111"):
+        issues.append(
+            HarnessIssue(
+                "error",
+                "wrong_desired_folder_target_root",
+                "New vault setup should create the desired new-vault folder for create_new_vault.",
+                {"target_root": result.get("target_root")},
+            )
+        )
+    _assert_ios_binding_hints(result, issues, expected_target_kind="memova_vault")
+    _assert_new_vault_docs(target, issues)
+    _assert_input_root_docs(target / "inbox" / "memova", issues)
+    _assert_no_meeting_packets_created(target / "inbox" / "memova", issues)
+    return HarnessCaseResult(
+        case_id="create_new_vault_uses_desired_folder",
+        status="ok" if not _has_error(issues) else "fail",
+        target_root=str(target),
+        issues=issues,
+        details={
+            "wrong_plan_errors": wrong_plan.get("errors"),
             "plan_summary": plan["summary"],
             "validation": validation,
             "ios_folder_binding_hints": result.get("ios_folder_binding_hints"),
@@ -263,7 +332,11 @@ def case_existing_vault_root_guard(root: Path) -> HarnessCaseResult:
 
 def case_repair_missing_machine_file(root: Path) -> HarnessCaseResult:
     target = root / "repairable-vault"
-    setup = setup_package(mode="create_new_vault", session_id="repair")
+    setup = setup_package(
+        mode="create_new_vault",
+        session_id="repair",
+        target_path_hints={"desired_input_folder_name": target.name},
+    )
     initial_plan = create_plan(
         target_root=target,
         setup=setup,
@@ -311,7 +384,11 @@ def case_repair_missing_machine_file(root: Path) -> HarnessCaseResult:
 
 def case_repair_thin_setup_doc(root: Path) -> HarnessCaseResult:
     target = root / "thin-doc-vault"
-    setup = setup_package(mode="create_new_vault", session_id="thin-doc")
+    setup = setup_package(
+        mode="create_new_vault",
+        session_id="thin-doc",
+        target_path_hints={"desired_input_folder_name": target.name},
+    )
     initial_plan = create_plan(
         target_root=target,
         setup=setup,

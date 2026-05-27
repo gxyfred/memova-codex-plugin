@@ -163,10 +163,22 @@ Codex will:
 9. Report success or failure back to Memova through MCP, including
    `memova_input_root_relative_path`.
 
+If Codex cannot call the Memova setup MCP tools or cannot retrieve a valid setup package, setup
+must stop before any local file plan/create command. The local filesystem helper requires
+`--setup-json` specifically to avoid silently creating a default vault when the app already supplied
+setup path hints.
+
 For a new iCloud vault, the usual Mac target path is:
 
 ```text
 ~/Library/Mobile Documents/com~apple~CloudDocs/Memova Vault
+```
+
+If the setup package includes `target_path_hints.desired_input_folder_name`, that value becomes the
+new vault folder name. For example `desired_input_folder_name: "Test111"` maps to:
+
+```text
+~/Library/Mobile Documents/com~apple~CloudDocs/Test111
 ```
 
 If the user connects an old Obsidian or Markdown vault, Codex preserves the user's structure. It
@@ -187,8 +199,8 @@ Example new-vault hints:
 
 ```json
 {
-  "icloud_relative_input_root_path": "Memova Vault/inbox/memova",
-  "input_root_manifest_relative_path": "Memova Vault/inbox/memova/_memova/manifest.json",
+  "icloud_relative_input_root_path": "Test111/inbox/memova",
+  "input_root_manifest_relative_path": "Test111/inbox/memova/_memova/manifest.json",
   "expected_input_root_manifest_id": "memova-input-root-..."
 }
 ```
@@ -201,7 +213,9 @@ The actual file-tree implementation lives in:
 plugins/memova/skills/memova-vault-setup/scripts/memova_vault_lib.py
 ```
 
-For a new vault, Codex creates an empty Memova vault skeleton and the Memova input root:
+For a new vault, Codex creates an empty Memova vault skeleton and the Memova input root. The folder
+name shown here is illustrative; a setup package can request a different new-vault folder such as
+`Test111`.
 
 ```text
 Memova Vault/
@@ -367,9 +381,13 @@ If `@memova` does not appear:
 
 If Memova tools are unavailable:
 
-- Re-run the MCP OAuth login command above.
+- Re-run the MCP OAuth login command above, using the same Memova account as the iOS app setup.
+- If setup packages exist in the app but Codex sees none, the most likely cause is that Codex OAuth
+  is connected to a different Memova account than the iOS app.
 - Confirm the Memova account has access to the expected notes and actions.
 - Confirm the MCP endpoint is reachable from the machine running Codex.
+- If setup is the current workflow, do not use local fallback paths. Start a new Codex thread or
+  restart Codex after installing/enabling the plugin so the setup MCP tools are loaded, then retry.
 
 ## Development
 
