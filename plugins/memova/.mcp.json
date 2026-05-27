@@ -1,15 +1,9 @@
 {
-  "mcp_servers": {
+  "mcpServers": {
     "memova": {
+      "type": "http",
       "url": "https://api.memova.ai/mcp",
-      "oauth_resource": "https://api.memova.ai/mcp",
-      "scopes": [
-        "notes.read",
-        "actions.read",
-        "actions.write",
-        "automation.read",
-        "automation.write"
-      ]
+      "note": "Memova OAuth MCP server. Uses dynamic OAuth registration; if no scope is provided, Memova grants the supported MCP scopes during consent."
     }
   }
 }
