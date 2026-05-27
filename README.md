@@ -5,6 +5,7 @@ Codex plugin marketplace for Memova.
 This plugin bundles:
 
 - the Memova OAuth MCP server at `https://api.memova.ai/mcp`,
+- the `memova-menu` skill for a lightweight `@memova` workflow menu,
 - the `memova-workflow` skill for one-click final-note workflows,
 - the `memova-vault-setup` skill for iCloud-first Memova knowledge-base setup,
 - the `memova-vault-diagnose` skill for validating and repairing a Memova vault/input root,
@@ -77,28 +78,55 @@ Follow the browser login/consent flow, then return to Codex.
 
 ## Use The Plugin
 
-In Codex, type `@memova` and choose a starter prompt, or ask:
+In Codex, type:
+
+```text
+@memova
+```
+
+Codex should open a short Memova menu:
+
+```text
+1. Setup your knowledge base
+2. View pending tasks
+3. View completed actions
+4. Run latest final note workflow
+5. Continue pending automation task
+6. Diagnose your Memova vault
+7. View ready approvals
+```
+
+Reply with a number, or select one of the plugin starter prompts:
+
+```text
+Open Memova menu.
+Setup your Memova knowledge base.
+View pending tasks.
+View completed actions.
+Run latest final note workflow.
+Diagnose your Memova vault.
+```
+
+You can still ask directly:
 
 ```text
 @memova Run latest final note workflow.
+@memova Continue pending Memova automation tasks.
+@memova View completed actions.
 ```
 
-You can also select one of the plugin starter prompts:
+The menu is the safe default entrypoint. It does not run a write-heavy workflow just because the
+user typed bare `@memova`; it routes the user to setup, read-only task views, latest final-note
+review, pending task continuation, vault diagnosis, or ready approvals.
 
-```text
-Setup my Memova knowledge base.
-Diagnose my Memova vault.
-Run latest final note workflow.
-Review latest Memova note and prepare engineering tasks.
-Continue pending Memova automation tasks.
-```
-
-The workflow reviews recent Memova final notes, organizes engineering actions, asks before approval-required work, executes safe tasks when the current workspace is appropriate, and writes progress/results back to Memova.
+The latest final-note workflow reviews recent Memova final notes, organizes engineering actions,
+asks before approval-required work, executes safe tasks when the current workspace is appropriate,
+and writes progress/results back to Memova.
 
 On the first non-setup Memova workflow, the plugin checks whether a Memova knowledge-base vault is
 already present on the Mac. If not, it shows one setup reminder, records that reminder locally under
 `~/.cache/memova-codex-plugin/`, and does not repeat it on later workflows. Users can still start
-setup explicitly with `@memova Setup my Memova knowledge base.`
+setup explicitly with `@memova Setup your Memova knowledge base.`
 
 The plugin also checks for newer Memova plugin releases at most once per day. If a newer version is
 available, it reminds the user to upgrade, then repeats that reminder at most once every 7 days for
@@ -111,7 +139,7 @@ The knowledge-base setup flow is designed for users who already completed the Me
 In Codex, run:
 
 ```text
-@memova Setup my Memova knowledge base.
+@memova Setup your Memova knowledge base.
 ```
 
 Codex will:
@@ -251,7 +279,7 @@ If setup completed but the iOS app cannot verify the folder, or meeting-to-vault
 run:
 
 ```text
-@memova Diagnose my Memova vault.
+@memova Diagnose your Memova vault.
 ```
 
 Codex will ask for the Mac path if needed, then use deterministic helper scripts to inspect and
@@ -270,7 +298,17 @@ python3 plugins/memova/skills/memova-vault-setup/scripts/diagnose_memova_vault.p
   --repair-plan
 ```
 
-## What The Workflow Does
+## What The Menu And Workflow Do
+
+When triggered, the bundled `memova-menu` skill tells Codex to:
+
+1. Run the low-frequency plugin version check.
+2. Run the one-time knowledge-base setup reminder check.
+3. Show a numbered menu for setup, pending tasks, completed actions, latest final-note workflow,
+   pending automation continuation, vault diagnosis, and ready approvals.
+4. Treat a simple numeric reply like `1` or `2` as the selected Memova action in the current
+   thread.
+5. Keep read-only views read-only unless the user explicitly asks to continue or execute a task.
 
 When triggered, the bundled `memova-workflow` skill tells Codex to:
 
@@ -341,7 +379,7 @@ python3 -m json.tool plugins/memova/.mcp.json >/dev/null
 Validate skill metadata and helper scripts:
 
 ```bash
-ruby -e 'require "yaml"; YAML.load_file("plugins/memova/skills/memova-workflow/agents/openai.yaml"); YAML.load_file("plugins/memova/skills/memova-vault-setup/agents/openai.yaml"); YAML.load_file("plugins/memova/skills/memova-vault-diagnose/agents/openai.yaml"); puts "yaml ok"'
+ruby -e 'require "yaml"; YAML.load_file("plugins/memova/skills/memova-menu/agents/openai.yaml"); YAML.load_file("plugins/memova/skills/memova-workflow/agents/openai.yaml"); YAML.load_file("plugins/memova/skills/memova-vault-setup/agents/openai.yaml"); YAML.load_file("plugins/memova/skills/memova-vault-diagnose/agents/openai.yaml"); puts "yaml ok"'
 python3 -m py_compile plugins/memova/skills/memova-vault-setup/scripts/*.py
 python3 plugins/memova/skills/memova-vault-setup/scripts/create_memova_vault.py discover
 python3 plugins/memova/skills/memova-vault-setup/scripts/setup_fixture_harness.py --json

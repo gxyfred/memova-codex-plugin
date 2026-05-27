@@ -55,7 +55,7 @@ def main() -> int:
             "discovered_vaults": discovered,
             "message": (
                 "Memova knowledge base is not set up on this Mac yet. You can run "
-                "'@memova Setup my Memova knowledge base.' when you want Codex to create or connect it."
+                "'@memova Setup your Memova knowledge base.' when you want Codex to create or connect it."
                 if should_remind
                 else None
             ),

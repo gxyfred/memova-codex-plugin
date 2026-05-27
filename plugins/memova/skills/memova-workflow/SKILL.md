@@ -1,6 +1,6 @@
 ---
 name: memova-workflow
-description: Use when the user explicitly invokes Memova to run meeting-note workflows from Codex: review recent final notes, organize engineering actions, continue pending Memova automation tasks, ask for approval when needed, and write progress/results back to Memova.
+description: Use when the user explicitly asks Memova to run a latest final-note workflow, review recent final notes, organize engineering actions, continue pending Memova automation tasks, ask for approval when needed, or write progress/results back to Memova. For bare @memova, menu requests, or numbered menu choices, use memova-menu instead.
 ---
 
 # Memova Workflow
@@ -28,15 +28,22 @@ Use this skill only when the user explicitly invokes Memova, selects a Memova st
 
   If it returns `should_remind: true`, show its message once and continue the requested workflow.
   Do not repeat the reminder when `already_reminded: true`. If the user wants setup later, they must
-  explicitly run `@memova Setup my Memova knowledge base.`
+  explicitly run `@memova Setup your Memova knowledge base.`
 - Do not send email, send messages, create calendar events, make purchases, create external accounts, or modify external systems without explicit user approval.
 - Never store or echo secrets, access tokens, refresh tokens, or raw credentials.
 - Keep progress writes concise and non-sensitive. Store links, IDs, and summaries instead of full files or large payloads.
 - If a task requires a codebase, inspect the current workspace before editing. If the workspace is unrelated or missing, ask the user which repo to use or create a Memova approval request.
 
-## Default Workflow
+## Bare Memova Invocation
 
-When the user chooses "Run latest final note workflow" or invokes `@memova` without more detail:
+When the user invokes bare `@memova`, asks for the Memova menu, or gives a numbered Memova menu
+selection, do not start this workflow by default. Use `plugins/memova/skills/memova-menu/SKILL.md`
+so the user can choose the action first.
+
+## Latest Final Note Workflow
+
+When the user chooses "Run latest final note workflow" or explicitly asks to review the latest
+Memova final note:
 
 1. Run the plugin version check described above.
 2. Run the one-time knowledge-base setup reminder check described above.
@@ -67,6 +74,19 @@ When the user asks to continue Memova tasks:
 5. Summarize the task objective, source note/context, approval policy, and forbidden operations before doing work.
 6. Claim one task at a time unless the user explicitly asks for batch execution.
 7. Use `get_task_context` after claiming so the latest events and approval state guide the work.
+
+## Read-Only Task Views
+
+When the user asks to view tasks without executing them:
+
+- For pending automation work, call `list_pending_tasks` and summarize task ids, objective,
+  source note/context, status, lease state, and approval policy.
+- For pending action items, call `list_action_items` with statuses `accepted`, `planned`, and
+  `in_progress`; summarize ids, titles, source meeting when present, assignee, due date, and status.
+- For completed actions, call `list_action_items` with status `done`; summarize ids, titles, source
+  meeting when present, completion date when available, and any visible follow-up state.
+- Do not claim tasks, accept candidates, or write progress for read-only views unless the user asks
+  to continue or execute a specific item.
 
 ## Approval Guidance
 

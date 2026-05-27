@@ -1,6 +1,6 @@
 {
   "name": "memova",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Run Memova workflows and set up user-owned raw-input roots from Codex.",
   "author": {
     "name": "Memova",
@@ -22,8 +22,8 @@
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Memova",
-    "shortDescription": "Run Memova workflows and vault setup.",
-    "longDescription": "Connect Codex to Memova through OAuth MCP, then use Memova starter prompts and bundled skills to review final notes, organize engineering actions, set up or diagnose an iCloud-first user-owned Memova raw-input root, request approval when needed, execute safe tasks, and write progress back to Memova.",
+    "shortDescription": "Open Memova workflows, tasks, and vault setup.",
+    "longDescription": "Connect Codex to Memova through OAuth MCP, then use @memova starter prompts and bundled skills to open a Memova menu, review pending or completed work, review final notes, organize engineering actions, set up or diagnose an iCloud-first user-owned Memova raw-input root, request approval when needed, execute safe tasks, and write progress back to Memova.",
     "developerName": "Memova",
     "category": "Productivity",
     "capabilities": [
@@ -33,11 +33,12 @@
     ],
     "websiteURL": "https://memova.ai",
     "defaultPrompt": [
-      "Setup my Memova knowledge base.",
-      "Diagnose my Memova vault.",
+      "Open Memova menu.",
+      "Setup your Memova knowledge base.",
+      "View pending tasks.",
+      "View completed actions.",
       "Run latest final note workflow.",
-      "Review latest Memova note and prepare engineering tasks.",
-      "Continue pending Memova automation tasks."
+      "Diagnose your Memova vault."
     ],
     "brandColor": "#3366FF",
     "composerIcon": "./assets/icon.svg",

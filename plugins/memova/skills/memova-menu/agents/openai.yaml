@@ -1,0 +1,15 @@
+interface:
+  display_name: "Memova Menu"
+  short_description: "Choose a Memova workflow."
+  default_prompt: "Use $memova-menu to open the Memova workflow menu."
+
+policy:
+  allow_implicit_invocation: true
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "memova"
+      description: "Memova OAuth MCP server for notes, actions, automation tasks, approvals, and setup sessions."
+      transport: "streamable_http"
+      url: "https://api.memova.ai/mcp"
