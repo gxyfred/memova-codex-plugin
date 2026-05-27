@@ -38,11 +38,16 @@ This repo does not contain Memova user data or OAuth tokens. It only contains pl
 
 ## Quick Start
 
-From Codex CLI, add this marketplace:
+From Codex CLI, add the marketplace source, then install the Memova plugin from that marketplace:
 
 ```bash
 codex plugin marketplace add gxyfred/memova-codex-plugin
+codex plugin add memova@memova-codex-plugin
 ```
+
+The first command only adds the marketplace source. The second command installs the actual
+`memova` plugin. `codex plugin list` is optional; use it only when you want to inspect available
+plugins or confirm the installed status.
 
 Open Codex:
 
@@ -57,6 +62,9 @@ Open the plugin directory:
 ```
 
 Choose the `Memova Codex Plugins` marketplace, then install `Memova`.
+
+The `/plugins` UI is an alternative to `codex plugin add memova@memova-codex-plugin`; you do not
+need both.
 
 Start a new thread after installation so Codex loads the plugin.
 
@@ -397,6 +405,9 @@ codex plugin marketplace add git@github.com:gxyfred/memova-codex-plugin.git
 If `@memova` does not appear:
 
 - Restart Codex after installing the plugin.
+- Confirm both install steps completed:
+  `codex plugin marketplace add gxyfred/memova-codex-plugin` and
+  `codex plugin add memova@memova-codex-plugin`.
 - Open `/plugins` and confirm `Memova` is installed and enabled.
 - Start a new thread after installation.
 
