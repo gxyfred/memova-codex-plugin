@@ -75,8 +75,10 @@ repeat `@memova`.
 ## Safety
 
 - Do not perform a separate Memova MCP auth check for the menu itself. For MCP-backed selections,
-  let the first intended MCP read call trigger the single Memova OAuth flow if no token exists. If
-  auth is still unavailable after that, tell the user to complete Memova OAuth MCP login and stop.
+  follow the target workflow's MCP login checks. If the needed MCP tools are unavailable and
+  `codex mcp list` shows `memova` Auth `Not logged in`, tell the user to run
+  `codex mcp login memova --scopes notes.read,actions.read,actions.write,automation.read,automation.write`,
+  complete browser consent, then start a new Codex thread.
 - Setup, diagnosis repair, automation task claiming, task execution, external writes, and destructive local
   changes require the approval rules in the target workflow skill.
 - Keep menu responses short. For list views, show enough information for the user to choose a next

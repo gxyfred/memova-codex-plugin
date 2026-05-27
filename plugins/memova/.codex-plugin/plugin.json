@@ -1,6 +1,6 @@
 {
   "name": "memova",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "description": "Run Memova workflows and set up user-owned raw-input roots from Codex.",
   "author": {
     "name": "Memova",

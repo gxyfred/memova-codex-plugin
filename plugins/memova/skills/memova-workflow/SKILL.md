@@ -51,10 +51,11 @@ the latest Memova note:
 2. Run the one-time knowledge-base setup reminder check described above.
 3. Call `list_latest_note_automation_tasks` with `status=["pending","running"]`,
    `claimable_only=true`, and a reasonable `limit` such as `20`.
-   This first MCP read call is the intended OAuth trigger when no Memova token exists. Do not run an
-   extra manual `codex mcp login` command before it unless the MCP tools are unavailable. If auth is
-   still missing after the attempted MCP call, tell the user to complete Memova OAuth MCP login and
-   stop.
+   If this MCP tool is unavailable, run `codex mcp list`. If `memova` is listed with Auth
+   `Not logged in`, tell the user to run
+   `codex mcp login memova --scopes notes.read,actions.read,actions.write,automation.read,automation.write`,
+   complete browser consent, then start a new Codex thread. If `memova` is not listed, tell the user
+   to upgrade/reinstall the Memova plugin and restart Codex.
 4. If no latest ready note exists, say so and stop. Do not call `extract_action_items`.
 5. If a latest note exists but has no claimable automation tasks, summarize the latest note/meeting
    identifiers and say there are no unfinished Codex automation tasks for it. Do not create new
@@ -79,10 +80,11 @@ When the user asks to review Memova automation tasks without immediately executi
 2. Run the one-time knowledge-base setup reminder check described above.
 3. Call `list_automation_tasks` with statuses `pending`, `running`, and `waiting_for_user`,
    `claimable_only=false`, and a reasonable `limit` such as `20`.
-   This first MCP read call is the intended OAuth trigger when no Memova token exists. Do not run an
-   extra manual `codex mcp login` command before it unless the MCP tools are unavailable. If auth is
-   still missing after the attempted MCP call, tell the user to complete Memova OAuth MCP login and
-   stop.
+   If this MCP tool is unavailable, run `codex mcp list`. If `memova` is listed with Auth
+   `Not logged in`, tell the user to run
+   `codex mcp login memova --scopes notes.read,actions.read,actions.write,automation.read,automation.write`,
+   complete browser consent, then start a new Codex thread. If `memova` is not listed, tell the user
+   to upgrade/reinstall the Memova plugin and restart Codex.
 4. Summarize task ids, objective, source note/context, status, lease state, and approval policy.
 5. Do not claim tasks or write progress for read-only views unless the user asks to run a specific
    task.

@@ -54,13 +54,15 @@ When the user asks to set up their Memova knowledge base:
 
 1. Run the plugin version check described above.
 2. Call `list_pending_knowledge_base_setups` as the setup workflow's first MCP read. If Codex needs
-   Memova OAuth, let this call trigger that single browser login/consent flow. Do not run an extra
-   manual `codex mcp login` command before this call unless the MCP tools are unavailable. If auth
-   is still missing after the attempted MCP call, tell the user to connect the Memova MCP server
-   through OAuth and stop.
-   If this MCP tool is not exposed in the current thread, stop and tell the user to start a new
-   Codex thread/restart Codex after installing/enabling the plugin. Do not use the filesystem helper
-   scripts without the MCP package.
+   Memova OAuth and the tool is exposed, let this call trigger that browser login/consent flow.
+   If this MCP tool is not exposed in the current thread, run `codex mcp list` before giving
+   recovery instructions:
+   - If `memova` is listed with Auth `Not logged in`, stop and tell the user to run
+     `codex mcp login memova --scopes notes.read,actions.read,actions.write,automation.read,automation.write`,
+     complete the browser consent flow, then start a new Codex thread.
+   - If `memova` is not listed, stop and tell the user to upgrade/reinstall the Memova plugin, then
+     restart Codex or start a new thread.
+   Do not use the filesystem helper scripts without the MCP package.
 3. If there is exactly one ready/running setup, use it.
    If there are no pending setups, stop and tell the user to create/mark a setup package from the
    Memova app first, or disconnect/reconnect Memova OAuth in Codex with the same Memova account used

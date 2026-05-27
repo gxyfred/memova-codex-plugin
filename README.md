@@ -62,22 +62,23 @@ Start a new thread after installation so Codex loads the plugin.
 
 ## Connect Memova OAuth MCP
 
-Memova uses on-use MCP authentication: installing the plugin and typing bare `@memova` should not
-open a browser by themselves. The first MCP-backed action, such as setup or automation task review,
-will trigger the Memova OAuth browser login/consent flow if no token exists. The bundled MCP server
-requests these scopes:
-
-```text
-notes.read actions.read actions.write automation.read automation.write
-```
-
-If authentication does not start automatically, run this from a terminal:
+Memova's setup and automation workflows require the bundled MCP server to be authenticated before
+Codex can expose its tools. After installing or upgrading the plugin, run the MCP login once:
 
 ```bash
 codex mcp login memova --scopes notes.read,actions.read,actions.write,automation.read,automation.write
 ```
 
-Follow the browser login/consent flow, then return to Codex.
+Follow the browser login/consent flow, then restart Codex or start a new thread.
+
+You can verify the state with:
+
+```bash
+codex mcp list
+```
+
+The `memova` row should be enabled and logged in. If it says `Not logged in`, MCP-backed setup and
+automation tools such as `list_pending_knowledge_base_setups` will not be exposed in Codex yet.
 
 ## Use The Plugin
 
@@ -118,9 +119,9 @@ The menu is the safe default entrypoint. It does not run a write-heavy workflow 
 user typed bare `@memova`; it routes the user to setup, read-only automation task review,
 latest-note automation task execution, or vault diagnosis.
 
-The menu also avoids a redundant OAuth prompt. OAuth should happen once, on the first workflow step
-that actually calls Memova MCP. If Codex opens more than one Memova OAuth browser window for the
-same action, upgrade to the latest plugin version and start a new thread.
+The menu itself does not fetch Memova data. MCP-backed selections require the Memova MCP login above.
+If Codex says setup or automation MCP tools are unavailable, check `codex mcp list`; `Not logged in`
+means the OAuth step has not completed for this Codex install.
 
 The latest-note automation workflow does not extract new actions from a final note. It reads
 existing `automation_tasks` that the user already sent to Codex from Memova/iOS, claims one safe
@@ -139,6 +140,15 @@ the same latest version.
 ## Set Up A Memova Knowledge Base
 
 The knowledge-base setup flow is designed for users who already completed the Memova iOS setup step and marked setup ready for Codex.
+
+Before starting setup, verify MCP auth:
+
+```bash
+codex mcp list
+```
+
+If `memova` is `Not logged in`, run the login command from the previous section first, complete the
+browser consent flow, then start a new Codex thread.
 
 In Codex, run:
 
