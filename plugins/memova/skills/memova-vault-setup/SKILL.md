@@ -63,8 +63,11 @@ When the user asks to set up their Memova knowledge base:
      python3 plugins/memova/scripts/ensure_mcp_login.py
      ```
 
-     This helper starts `codex mcp login memova --scopes ...` and opens exactly one browser
-     authorization URL. The user still has to approve Memova OAuth in the browser. After it reports
+     This helper starts `codex mcp login memova --scopes ...` and attempts to open exactly one
+     browser authorization URL. The user still has to approve Memova OAuth in the browser. If
+     automatic browser opening fails, tell the user to copy the printed `authorization_url` into a
+     browser. If the helper reports a `login_error` or `manual_login_command`, tell the user to run
+     that command in Windows Terminal/PowerShell or a normal shell. After it reports
      `login_completed`, tell the user to start a new Codex thread if the current thread still does
      not expose the Memova setup tools; Codex does not refresh MCP tool availability mid-thread.
    - If `memova` is not listed, stop and tell the user to upgrade/reinstall the Memova plugin, then

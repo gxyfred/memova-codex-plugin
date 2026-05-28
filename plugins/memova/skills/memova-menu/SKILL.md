@@ -78,9 +78,12 @@ repeat `@memova`.
   follow the target workflow's MCP login checks. If the needed MCP tools are unavailable and
   `codex mcp list` shows `memova` Auth `Not logged in`, run
   `python3 plugins/memova/scripts/ensure_mcp_login.py` from the plugin root. The helper starts MCP
-  OAuth login and opens one browser authorization URL; the user still approves in the browser. After
-  successful login, tell the user to start a new Codex thread if this thread still does not expose
-  the Memova MCP tools.
+  OAuth login and attempts to open one browser authorization URL; the user still approves in the
+  browser. If automatic browser opening fails, tell the user to copy the printed
+  `authorization_url` into a browser. If the helper reports a `login_error` or
+  `manual_login_command`, tell the user to run that command in Windows Terminal/PowerShell or a
+  normal shell. After successful login, tell the user to start a new Codex thread if this thread
+  still does not expose the Memova MCP tools.
 - Setup, diagnosis repair, automation task claiming, task execution, external writes, and destructive local
   changes require the approval rules in the target workflow skill.
 - Keep menu responses short. For list views, show enough information for the user to choose a next

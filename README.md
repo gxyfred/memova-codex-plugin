@@ -78,9 +78,11 @@ setup or automation workflow needs Memova MCP and the local server is `Not logge
 codex mcp login memova --scopes notes.read,actions.read,actions.write,automation.read,automation.write
 ```
 
-and opens one browser authorization URL. The user still approves Memova OAuth in the browser. After
-OAuth succeeds, restart Codex or start a new thread if the current thread still does not expose the
-Memova MCP tools; Codex does not refresh MCP tool availability mid-thread.
+and attempts to open one browser authorization URL. The user still approves Memova OAuth in the
+browser. If Windows, Linux, or a Codex sandbox blocks automatic browser launch, the helper prints a
+copyable `authorization_url`; paste that URL into a browser to finish OAuth. After OAuth succeeds,
+restart Codex or start a new thread if the current thread still does not expose the Memova MCP
+tools; Codex does not refresh MCP tool availability mid-thread.
 
 The plugin cannot currently open a new Codex Desktop thread and inject the next prompt by itself.
 It can run the OAuth helper automatically, then show the exact next `@memova` prompt for a fresh
@@ -91,6 +93,13 @@ You can also run the bundled helper directly from the plugin root:
 
 ```bash
 python3 plugins/memova/scripts/ensure_mcp_login.py
+```
+
+If the helper cannot start `codex` because of WindowsApps or sandbox permissions, run the same MCP
+login command directly in Windows Terminal or PowerShell:
+
+```powershell
+codex mcp login memova --scopes notes.read,actions.read,actions.write,automation.read,automation.write
 ```
 
 You can verify the state with:
@@ -415,6 +424,10 @@ If Memova tools are unavailable:
 
 - Run `python3 plugins/memova/scripts/ensure_mcp_login.py` from the plugin root, using the same
   Memova account as the iOS app setup.
+- If automatic browser opening fails, copy the printed `authorization_url` into a browser. If the
+  helper cannot execute `codex` because of WindowsApps or sandbox permissions, run
+  `codex mcp login memova --scopes notes.read,actions.read,actions.write,automation.read,automation.write`
+  directly in Windows Terminal or PowerShell, then restart Codex or start a new thread.
 - If setup packages exist in the app but Codex sees none, the most likely cause is that Codex OAuth
   is connected to a different Memova account than the iOS app.
 - Confirm the Memova account has access to the expected notes and actions.
