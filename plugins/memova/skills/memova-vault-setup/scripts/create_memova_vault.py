@@ -114,8 +114,9 @@ def run_create(args: argparse.Namespace) -> int:
 
     validation = validate_vault(expand_path(args.target_root))
     result["validation"] = validation
+    identity_validation = result.get("identity_validation") or {}
     write_json(result)
-    return 0 if validation["status"] == "ok" else 1
+    return 0 if validation["status"] == "ok" and identity_validation.get("status") == "ok" else 1
 
 
 def load_required_setup(path: str) -> tuple[dict[str, Any], dict[str, Any] | None]:

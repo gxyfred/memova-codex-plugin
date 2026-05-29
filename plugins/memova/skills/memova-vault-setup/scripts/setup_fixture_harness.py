@@ -14,6 +14,7 @@ from memova_vault_lib import (
     create_plan,
     inspect_tree,
     raw_input_candidates,
+    setup_identity_validation,
     suggested_existing_input_target,
     validate_vault,
 )
@@ -73,6 +74,7 @@ def run_harness(output_root: Path | None = None, *, keep_artifacts: bool = False
         case_existing_vault_root_guard(output_root),
         case_repair_missing_machine_file(output_root),
         case_repair_thin_setup_doc(output_root),
+        case_reuse_existing_new_vault_refreshes_identity(output_root),
     ]
     issue_count = sum(len([issue for issue in result.issues if issue.severity == "error"]) for result in results)
     report = {
@@ -433,6 +435,84 @@ def case_repair_thin_setup_doc(root: Path) -> HarnessCaseResult:
         target_root=str(target),
         issues=issues,
         details={"broken_validation": broken, "validation": validation},
+    )
+
+
+def case_reuse_existing_new_vault_refreshes_identity(root: Path) -> HarnessCaseResult:
+    target = root / "reused-vault"
+    first_setup = setup_package(
+        mode="create_new_vault",
+        session_id="reuse-old-session",
+        target_path_hints={"desired_input_folder_name": target.name},
+    )
+    first_plan = create_plan(
+        target_root=target,
+        setup=first_setup,
+        allow_non_icloud=True,
+        allow_existing_nonempty=True,
+    )
+    apply_plan(first_plan, first_setup)
+    user_packet = target / "inbox" / "memova" / "meetings" / "user-created-note.md"
+    user_packet.write_text("Existing user packet placeholder\n", encoding="utf-8")
+
+    second_setup = setup_package(
+        mode="create_new_vault",
+        session_id="reuse-new-session",
+        target_path_hints={"desired_input_folder_name": target.name},
+    )
+    second_plan = create_plan(
+        target_root=target,
+        setup=second_setup,
+        allow_non_icloud=True,
+        allow_existing_nonempty=True,
+    )
+    result = apply_plan(second_plan, second_setup)
+    validation = validate_vault(target)
+    identity = setup_identity_validation(target, second_setup)
+    issues = _issues_for_ok_plan(second_plan, result, validation)
+    expected_overwrites = {
+        "_memova/manifest.json",
+        "inbox/memova/_memova/manifest.json",
+    }
+    actual_overwrites = set(result.get("overwritten_files") or [])
+    missing_overwrites = sorted(expected_overwrites - actual_overwrites)
+    if missing_overwrites:
+        issues.append(
+            HarnessIssue(
+                "error",
+                "identity_files_not_overwritten",
+                "Reusing a Memova directory for a new setup should refresh setup identity manifests.",
+                {"missing_overwrites": missing_overwrites, "result": result},
+            )
+        )
+    if identity.get("status") != "ok":
+        issues.append(
+            HarnessIssue(
+                "error",
+                "identity_validation_failed",
+                "Reused setup should leave local manifests matching the new setup session.",
+                {"identity_validation": identity},
+            )
+        )
+    if not user_packet.is_file():
+        issues.append(
+            HarnessIssue(
+                "error",
+                "existing_user_file_removed",
+                "Refreshing setup identity must not delete existing user or packet files.",
+            )
+        )
+    return HarnessCaseResult(
+        case_id="reuse_existing_new_vault_refreshes_identity",
+        status="ok" if not _has_error(issues) else "fail",
+        target_root=str(target),
+        issues=issues,
+        details={
+            "plan_summary": second_plan["summary"],
+            "result": result,
+            "validation": validation,
+            "identity_validation": identity,
+        },
     )
 
 

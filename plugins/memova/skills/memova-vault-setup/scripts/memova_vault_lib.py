@@ -73,6 +73,11 @@ INPUT_ROOT_REQUIRED_FILES = [
     "_memova/source_index.json",
 ]
 
+SETUP_IDENTITY_FILE_PATHS = {
+    "_memova/manifest.json",
+    f"{INPUT_ROOT_RELATIVE_PATH}/_memova/manifest.json",
+}
+
 NEW_VAULT_DOC_CHECKS = {
     "README.md": ["Memova Vault", "inbox/memova", "V1 Scope"],
     "AGENTS.md": ["No memory without source", "No external write without confirmation"],
@@ -316,6 +321,11 @@ def input_root_manifest_id(setup: dict[str, Any]) -> str:
     if isinstance(setup_id, str) and setup_id:
         return f"memova-input-root-{setup_id}"
     return "memova-input-root-local"
+
+
+def is_setup_identity_file(relative_path: str) -> bool:
+    normalized = relative_path.strip().replace("\\", "/")
+    return normalized in SETUP_IDENTITY_FILE_PATHS
 
 
 def detect_language() -> str:
@@ -1237,7 +1247,9 @@ def create_plan(
     for spec in files:
         path = safe_join(target_root, spec.path)
         exists_file = path.exists()
-        should_overwrite = bool(spec.machine and overwrite_machine_files)
+        should_overwrite = bool(
+            spec.machine and (overwrite_machine_files or is_setup_identity_file(spec.path))
+        )
         status = "overwrite" if exists_file and should_overwrite else "skip" if exists_file else "create"
         operations.append(
             {
@@ -1404,7 +1416,10 @@ def apply_plan(plan: dict[str, Any], setup: dict[str, Any], *, overwrite_machine
             continue
         spec = specs_by_path[operation["relative_path"]]
         path.parent.mkdir(parents=True, exist_ok=True)
-        if path.exists() and not (spec.machine and overwrite_machine_files):
+        should_overwrite = bool(
+            spec.machine and (overwrite_machine_files or is_setup_identity_file(spec.path))
+        )
+        if path.exists() and not should_overwrite:
             skipped_files.append(operation["relative_path"])
             continue
         path.write_text(spec.content, encoding="utf-8")
@@ -1431,6 +1446,7 @@ def apply_plan(plan: dict[str, Any], setup: dict[str, Any], *, overwrite_machine
         "created_files": created_files,
         "skipped_files": skipped_files,
         "overwritten_files": overwritten_files,
+        "identity_validation": setup_identity_validation(target_root, setup),
     }
 
 
@@ -1505,6 +1521,121 @@ def validate_vault(path: Path) -> dict[str, Any]:
         "manifest_id": manifest.get("manifest_id") if manifest else None,
         "manifest_error": manifest_error,
     }
+
+
+def setup_identity_validation(path: Path, setup: dict[str, Any]) -> dict[str, Any]:
+    root = expand_path(str(path))
+    validation = validate_vault(root)
+    setup_session_id = setup.get("setup_session_id")
+    expected_vault_manifest_id = manifest_id(setup)
+    expected_input_root_manifest_id = input_root_manifest_id(setup)
+    target_kind = validation.get("target_kind")
+    input_root = Path(str(validation.get("memova_input_root_path") or root))
+    input_manifest_path = safe_join(input_root, "_memova/manifest.json")
+    input_manifest, input_error = read_json_file(input_manifest_path)
+
+    root_manifest_data: dict[str, Any] | None = None
+    root_error: str | None = None
+    if target_kind == "memova_vault":
+        root_manifest_data, root_error = read_json_file(safe_join(root, "_memova/manifest.json"))
+
+    mismatches: list[dict[str, Any]] = []
+
+    def expect(field: str, expected: Any, actual: Any, *, path_label: str) -> None:
+        if expected != actual:
+            mismatches.append(
+                {
+                    "field": field,
+                    "expected": expected,
+                    "actual": actual,
+                    "path": path_label,
+                }
+            )
+
+    if input_error:
+        mismatches.append(
+            {
+                "field": "input_root_manifest",
+                "expected": "valid_json",
+                "actual": input_error,
+                "path": str(input_manifest_path),
+            }
+        )
+    else:
+        input_manifest = input_manifest or {}
+        expect(
+            "manifest_id",
+            expected_input_root_manifest_id,
+            input_manifest.get("manifest_id"),
+            path_label=str(input_manifest_path),
+        )
+        expect(
+            "setup_session_id",
+            setup_session_id,
+            input_manifest.get("setup_session_id"),
+            path_label=str(input_manifest_path),
+        )
+        expect(
+            "vault_manifest_id",
+            expected_vault_manifest_id,
+            input_manifest.get("vault_manifest_id"),
+            path_label=str(input_manifest_path),
+        )
+
+    if target_kind == "memova_vault":
+        root_manifest_path = safe_join(root, "_memova/manifest.json")
+        if root_error:
+            mismatches.append(
+                {
+                    "field": "vault_manifest",
+                    "expected": "valid_json",
+                    "actual": root_error,
+                    "path": str(root_manifest_path),
+                }
+            )
+        else:
+            root_manifest_data = root_manifest_data or {}
+            expect(
+                "manifest_id",
+                expected_vault_manifest_id,
+                root_manifest_data.get("manifest_id"),
+                path_label=str(root_manifest_path),
+            )
+            expect(
+                "setup_session_id",
+                setup_session_id,
+                root_manifest_data.get("setup_session_id"),
+                path_label=str(root_manifest_path),
+            )
+
+    return {
+        "schema_version": "memova_setup_identity_validation_v1",
+        "status": "ok" if not mismatches else "fail",
+        "setup_session_id": setup_session_id,
+        "target_kind": target_kind,
+        "expected_vault_manifest_id": expected_vault_manifest_id,
+        "expected_input_root_manifest_id": expected_input_root_manifest_id,
+        "actual_vault_manifest_id": (
+            root_manifest_data.get("manifest_id")
+            if isinstance(root_manifest_data, dict)
+            else validation.get("vault_manifest_id")
+        ),
+        "actual_input_root_manifest_id": (
+            input_manifest.get("manifest_id")
+            if isinstance(input_manifest, dict)
+            else validation.get("input_root_manifest_id")
+        ),
+        "mismatches": mismatches,
+    }
+
+
+def read_json_file(path: Path) -> tuple[dict[str, Any] | None, str | None]:
+    try:
+        return json.loads(path.read_text(encoding="utf-8")), None
+    except FileNotFoundError:
+        return None, "missing"
+    except json.JSONDecodeError as exc:
+        return None, str(exc)
 
 
 def validate_doc_content(

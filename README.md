@@ -192,14 +192,20 @@ Codex will:
    input root inside the approved existing vault folder.
 7. Write non-empty README, AGENTS, schema, manifest, and sync-state files that explain the raw-input
    contract for humans, iOS, and agents. The input root uses Memova Inbox Packet Format v1.
-8. Validate the Memova input-root manifest, setup documentation, schema files, and required metadata
-   files.
+   Existing user files are not overwritten, but setup identity manifests are refreshed when the user
+   reuses an old Memova directory so iOS sees the current setup session ids.
+8. Validate the Memova input-root manifest, setup identity, setup documentation, schema files, and
+   required metadata files.
 9. Report success or failure back to Memova through MCP, including
    `memova_input_root_relative_path`.
 
 If multiple old setup sessions are still ready/running, Codex asks which one to use, then marks the
 unselected setup sessions failed with `failure_code=setup.superseded_by_selected_session` so they do
 not keep showing up in future setup runs.
+
+Before reporting success, the helper returns `identity_validation`. Codex must only call
+`complete_knowledge_base_setup` when that status is `ok`; otherwise the local manifest files do not
+match the backend setup session and iOS folder binding can fail.
 
 If Codex cannot call the Memova setup MCP tools or cannot retrieve a valid setup package, setup
 must stop before any local file plan/create command. The local filesystem helper requires

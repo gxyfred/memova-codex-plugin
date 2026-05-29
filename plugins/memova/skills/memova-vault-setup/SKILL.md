@@ -29,6 +29,9 @@ because a prompt mentions Obsidian, iCloud, or notes.
 - Default to iCloud Drive on Mac for V1. Google Drive and OneDrive are deferred.
 - Never write outside the user-approved target directory.
 - Do not overwrite existing user files by default. Create missing files and record skipped files.
+  The exception is Memova setup identity manifests (`_memova/manifest.json` and the input-root
+  `_memova/manifest.json`): when a user reuses a Memova directory for a new setup session, these
+  files must be refreshed to the current MCP setup package before reporting success.
 - For `create_new_vault`, create a new Memova vault with an empty LLM Wiki skeleton and a writable
   Memova input root at `inbox/memova/`.
 - For `connect_existing_vault`, preserve the user's existing vault root and create only a scoped
@@ -139,12 +142,14 @@ When the user asks to set up their Memova knowledge base:
     ```
 
 12. Confirm validation reports no missing required documentation, schema, manifest, or sync-state
-    files.
+    files. Also confirm `identity_validation.status == "ok"` in the helper output; this proves the
+    local manifest ids and `setup_session_id` match the current backend setup package. If identity
+    validation fails, do not call `complete_knowledge_base_setup`; repair or fail the setup.
 13. Call `complete_knowledge_base_setup` with a small result summary:
     `manifest_id`, `vault_manifest_id`, `input_root_manifest_id`,
     `memova_input_root_relative_path`, `selected_by`, `target_path_summary`,
     `ios_folder_binding_hints`, `created_file_count`, `created_dir_count`,
-    `skipped_file_count`, and `validation_status`.
+    `skipped_file_count`, `validation_status`, and `identity_validation`.
 14. Mark this Mac as setup-complete for future non-setup workflow reminders:
 
     ```bash
