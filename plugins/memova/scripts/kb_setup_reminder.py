@@ -14,13 +14,44 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Check one-time Memova knowledge-base setup reminder state.")
     parser.add_argument("--mark-complete", action="store_true")
     parser.add_argument("--vault-path")
+    parser.add_argument(
+        "--backend-completed",
+        action="store_true",
+        help=(
+            "Required with --mark-complete. Set only after complete_knowledge_base_setup "
+            "succeeds for the same setup session."
+        ),
+    )
+    parser.add_argument(
+        "--setup-session-id",
+        help="Backend setup session id that was completed before marking the local reminder complete.",
+    )
     args = parser.parse_args()
 
     state = read_state()
     discovered = discover_vaults(args.vault_path)
 
     if args.mark_complete:
+        if not args.backend_completed or not args.setup_session_id:
+            print_json(
+                {
+                    "schema_version": "memova_kb_setup_reminder_v1",
+                    "status": "blocked",
+                    "error_code": "backend_setup_completion_required",
+                    "error": (
+                        "--mark-complete is allowed only after the backend "
+                        "complete_knowledge_base_setup call succeeds. Re-run with "
+                        "--backend-completed and --setup-session-id after that MCP call."
+                    ),
+                    "should_remind": True,
+                    "state_path": str(STATE_PATH),
+                    "discovered_vaults": discovered,
+                },
+            )
+            return 2
         state["completed_at"] = utc_now()
+        state["setup_session_id"] = args.setup_session_id
+        state["backend_completed"] = True
         if args.vault_path:
             state["vault_path"] = str(Path(args.vault_path).expanduser().resolve(strict=False))
         write_state(state)

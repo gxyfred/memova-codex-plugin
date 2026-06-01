@@ -3,7 +3,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
+import subprocess
+import sys
 import tempfile
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -75,6 +78,8 @@ def run_harness(output_root: Path | None = None, *, keep_artifacts: bool = False
         case_repair_missing_machine_file(output_root),
         case_repair_thin_setup_doc(output_root),
         case_reuse_existing_new_vault_refreshes_identity(output_root),
+        case_validate_cli_completion_guard(output_root),
+        case_reminder_mark_complete_requires_backend(output_root),
     ]
     issue_count = sum(len([issue for issue in result.issues if issue.severity == "error"]) for result in results)
     report = {
@@ -513,6 +518,250 @@ def case_reuse_existing_new_vault_refreshes_identity(root: Path) -> HarnessCaseR
             "validation": validation,
             "identity_validation": identity,
         },
+    )
+
+
+def case_validate_cli_completion_guard(root: Path) -> HarnessCaseResult:
+    target = root / "cli-completion-guard-vault"
+    setup = setup_package(
+        mode="create_new_vault",
+        session_id="cli-completion-guard",
+        target_path_hints={"desired_input_folder_name": target.name},
+    )
+    plan = create_plan(
+        target_root=target,
+        setup=setup,
+        allow_non_icloud=True,
+        allow_existing_nonempty=True,
+    )
+    apply_plan(plan, setup)
+    setup_json = root / "cli-completion-guard-setup.json"
+    setup_json.write_text(json.dumps({"setup_package": setup}, indent=2) + "\n", encoding="utf-8")
+    stale_setup = setup_package(
+        mode="create_new_vault",
+        session_id="cli-completion-stale",
+        target_path_hints={"desired_input_folder_name": target.name},
+    )
+    stale_setup_json = root / "cli-completion-stale-setup.json"
+    stale_setup_json.write_text(
+        json.dumps({"setup_package": stale_setup}, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    script = Path(__file__).resolve().parent / "validate_memova_vault.py"
+    without_setup = _run_json(
+        [sys.executable, str(script), "--path", str(target), "--require-setup-identity"],
+    )
+    with_setup = _run_json(
+        [
+            sys.executable,
+            str(script),
+            "--path",
+            str(target),
+            "--setup-json",
+            str(setup_json),
+            "--require-setup-identity",
+        ],
+    )
+    with_stale_setup = _run_json(
+        [
+            sys.executable,
+            str(script),
+            "--path",
+            str(target),
+            "--setup-json",
+            str(stale_setup_json),
+            "--require-setup-identity",
+        ],
+    )
+
+    issues: list[HarnessIssue] = []
+    if without_setup.returncode != 2:
+        issues.append(
+            HarnessIssue(
+                "error",
+                "validate_missing_setup_not_blocked",
+                "CLI validation should block setup completion when --setup-json is omitted.",
+                {"returncode": without_setup.returncode, "stdout": without_setup.stdout},
+            )
+        )
+    if "setup_package_not_provided" not in without_setup.json.get("completion_blockers", []):
+        issues.append(
+            HarnessIssue(
+                "error",
+                "validate_missing_setup_blocker_absent",
+                "Missing setup package should appear as a completion blocker.",
+                {"result": without_setup.json},
+            )
+        )
+    if with_setup.returncode != 0 or not with_setup.json.get("setup_completion_eligible"):
+        issues.append(
+            HarnessIssue(
+                "error",
+                "validate_current_setup_not_eligible",
+                "CLI validation with the current setup package should be completion eligible.",
+                {"returncode": with_setup.returncode, "result": with_setup.json},
+            )
+        )
+    if with_stale_setup.returncode == 0:
+        issues.append(
+            HarnessIssue(
+                "error",
+                "validate_stale_setup_not_blocked",
+                "CLI validation should fail when local manifests do not match the setup package.",
+                {"result": with_stale_setup.json},
+            )
+        )
+    if "setup_identity_validation_failed" not in with_stale_setup.json.get("completion_blockers", []):
+        issues.append(
+            HarnessIssue(
+                "error",
+                "validate_stale_setup_blocker_absent",
+                "Stale setup identity should appear as a completion blocker.",
+                {"result": with_stale_setup.json},
+            )
+        )
+
+    return HarnessCaseResult(
+        case_id="validate_cli_completion_guard",
+        status="ok" if not _has_error(issues) else "fail",
+        target_root=str(target),
+        issues=issues,
+        details={
+            "without_setup": without_setup.to_details(),
+            "with_setup": with_setup.to_details(),
+            "with_stale_setup": with_stale_setup.to_details(),
+        },
+    )
+
+
+def case_reminder_mark_complete_requires_backend(root: Path) -> HarnessCaseResult:
+    reminder_script = (
+        Path(__file__).resolve().parents[3] / "scripts" / "kb_setup_reminder.py"
+    )
+    target = root / "reminder-vault"
+    target.mkdir(parents=True, exist_ok=True)
+
+    blocked_home = root / "reminder-home-blocked"
+    ok_home = root / "reminder-home-ok"
+    blocked = _run_json(
+        [sys.executable, str(reminder_script), "--mark-complete", "--vault-path", str(target)],
+        env={**os.environ, "HOME": str(blocked_home)},
+    )
+    allowed = _run_json(
+        [
+            sys.executable,
+            str(reminder_script),
+            "--mark-complete",
+            "--vault-path",
+            str(target),
+            "--backend-completed",
+            "--setup-session-id",
+            "reminder-completed-session",
+        ],
+        env={**os.environ, "HOME": str(ok_home)},
+    )
+    allowed_state_path = (
+        ok_home
+        / ".cache"
+        / "memova-codex-plugin"
+        / "kb-setup-reminder-v1.json"
+    )
+    allowed_state = (
+        json.loads(allowed_state_path.read_text(encoding="utf-8"))
+        if allowed_state_path.exists()
+        else {}
+    )
+
+    issues: list[HarnessIssue] = []
+    if blocked.returncode != 2:
+        issues.append(
+            HarnessIssue(
+                "error",
+                "reminder_mark_complete_not_blocked",
+                "Reminder mark-complete should require successful backend completion proof.",
+                {"returncode": blocked.returncode, "stdout": blocked.stdout},
+            )
+        )
+    if blocked.json.get("error_code") != "backend_setup_completion_required":
+        issues.append(
+            HarnessIssue(
+                "error",
+                "reminder_missing_backend_error_code",
+                "Blocked reminder mark-complete should expose backend_setup_completion_required.",
+                {"result": blocked.json},
+            )
+        )
+    if allowed.returncode != 0 or allowed.json.get("status") != "complete_marked":
+        issues.append(
+            HarnessIssue(
+                "error",
+                "reminder_backend_complete_not_allowed",
+                "Reminder mark-complete should work after backend completion proof is provided.",
+                {"returncode": allowed.returncode, "result": allowed.json},
+            )
+        )
+    if allowed_state.get("setup_session_id") != "reminder-completed-session":
+        issues.append(
+            HarnessIssue(
+                "error",
+                "reminder_setup_session_not_recorded",
+                "Reminder completion state should record the backend setup session id.",
+                {"state": allowed_state},
+            )
+        )
+
+    return HarnessCaseResult(
+        case_id="reminder_mark_complete_requires_backend",
+        status="ok" if not _has_error(issues) else "fail",
+        target_root=str(target),
+        issues=issues,
+        details={
+            "blocked": blocked.to_details(),
+            "allowed": allowed.to_details(),
+            "allowed_state": allowed_state,
+        },
+    )
+
+
+@dataclass(frozen=True)
+class CommandJsonResult:
+    returncode: int
+    stdout: str
+    stderr: str
+    json: dict[str, Any]
+
+    def to_details(self) -> dict[str, Any]:
+        return {
+            "returncode": self.returncode,
+            "stdout": self.stdout[:4000],
+            "stderr": self.stderr[:4000],
+            "json": self.json,
+        }
+
+
+def _run_json(
+    command: list[str],
+    *,
+    env: dict[str, str] | None = None,
+) -> CommandJsonResult:
+    completed = subprocess.run(  # noqa: S603 - harness commands are fixed local scripts.
+        command,
+        check=False,
+        cwd=str(Path(__file__).resolve().parent),
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    try:
+        payload = json.loads(completed.stdout)
+    except json.JSONDecodeError:
+        payload = {}
+    return CommandJsonResult(
+        returncode=completed.returncode,
+        stdout=completed.stdout,
+        stderr=completed.stderr,
+        json=payload,
     )
 
 

@@ -207,6 +207,31 @@ Before reporting success, the helper returns `identity_validation`. Codex must o
 `complete_knowledge_base_setup` when that status is `ok`; otherwise the local manifest files do not
 match the backend setup session and iOS folder binding can fail.
 
+Local validation alone is not setup completion. Codex must not report "Memova knowledge base setup
+is complete" unless `complete_knowledge_base_setup` succeeds for the current backend setup session.
+If a thread can validate files but cannot access the Memova setup MCP tools, the correct result is:
+the local folder is valid, but backend setup is incomplete and iOS may not be able to bind the
+current setup session.
+
+For final setup validation, run:
+
+```bash
+python3 scripts/validate_memova_vault.py \
+  --path "<approved-target-path>" \
+  --setup-json "/tmp/memova-setup.json" \
+  --require-setup-identity
+```
+
+Only after `complete_knowledge_base_setup` succeeds may Codex mark the local reminder complete:
+
+```bash
+python3 plugins/memova/scripts/kb_setup_reminder.py \
+  --mark-complete \
+  --backend-completed \
+  --setup-session-id "<setup_session_id>" \
+  --vault-path "<approved-target-path>"
+```
+
 If Codex cannot call the Memova setup MCP tools or cannot retrieve a valid setup package, setup
 must stop before any local file plan/create command. The local filesystem helper requires
 `--setup-json` specifically to avoid silently creating a default vault when the app already supplied

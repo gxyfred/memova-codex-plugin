@@ -25,6 +25,9 @@ Memova vault/input root or a meeting-to-vault sync failure.
 - Do not overwrite user-authored files. Only missing folders/files and `_memova` machine files may be
   created or overwritten after approval.
 - Never store or echo secrets, OAuth tokens, raw credentials, or full private note contents.
+- Diagnosis/local validation is not setup completion. Do not say a knowledge-base setup is complete
+  or mark the setup reminder complete from this skill; only the setup workflow may do that after
+  backend `complete_knowledge_base_setup` succeeds.
 
 ## Default Diagnosis Workflow
 

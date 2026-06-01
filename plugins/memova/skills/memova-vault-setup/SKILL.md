@@ -16,6 +16,9 @@ because a prompt mentions Obsidian, iCloud, or notes.
 - Do not plan or create local setup files if the Memova MCP setup package cannot be retrieved. A
   missing MCP tool, failed OAuth flow, empty pending setup list, or invalid setup package is a hard
   stop, not permission to fall back to local defaults.
+- Never report knowledge-base setup as complete unless `complete_knowledge_base_setup` succeeded in
+  the same workflow. Local directory validation alone is only "local validation OK"; it is not a
+  completed Memova setup and may not be enough for iOS to bind the current setup session.
 - Before starting setup, run the low-frequency plugin version check from the plugin root:
 
   ```bash
@@ -75,7 +78,9 @@ When the user asks to set up their Memova knowledge base:
      not expose the Memova setup tools; Codex does not refresh MCP tool availability mid-thread.
    - If `memova` is not listed, stop and tell the user to upgrade/reinstall the Memova plugin, then
      restart Codex or start a new thread.
-   Do not use the filesystem helper scripts without the MCP package.
+   Do not use the filesystem helper scripts without the MCP package. In the final answer for this
+   path, do not say "setup complete", "locally set up", or "mark complete"; say that setup is
+   blocked because the current Codex thread cannot access the Memova setup MCP tools.
 3. If there is exactly one ready/running setup, use it.
    If there are no pending setups, stop and tell the user to create/mark a setup package from the
    Memova app first, or disconnect/reconnect Memova OAuth in Codex with the same Memova account used
@@ -138,13 +143,16 @@ When the user asks to set up their Memova knowledge base:
 
     ```bash
     python3 scripts/validate_memova_vault.py \
-      --path "<approved-target-path>"
+      --path "<approved-target-path>" \
+      --setup-json "/tmp/memova-setup.json" \
+      --require-setup-identity
     ```
 
-12. Confirm validation reports no missing required documentation, schema, manifest, or sync-state
-    files. Also confirm `identity_validation.status == "ok"` in the helper output; this proves the
-    local manifest ids and `setup_session_id` match the current backend setup package. If identity
-    validation fails, do not call `complete_knowledge_base_setup`; repair or fail the setup.
+12. Confirm validation reports `status == "ok"`, `setup_completion_eligible == true`, no
+    completion blockers, no missing required documentation/schema/manifest/sync-state files, and
+    `identity_validation.status == "ok"`. This proves the local manifest ids and
+    `setup_session_id` match the current backend setup package. If identity validation fails, do
+    not call `complete_knowledge_base_setup`; repair or fail the setup.
 13. Call `complete_knowledge_base_setup` with a small result summary:
     `manifest_id`, `vault_manifest_id`, `input_root_manifest_id`,
     `memova_input_root_relative_path`, `selected_by`, `target_path_summary`,
@@ -155,7 +163,9 @@ When the user asks to set up their Memova knowledge base:
     ```bash
     python3 plugins/memova/scripts/kb_setup_reminder.py \
       --mark-complete \
-    --vault-path "<approved-target-path>"
+      --backend-completed \
+      --setup-session-id "<setup_session_id>" \
+      --vault-path "<approved-target-path>"
     ```
 
 15. If setup cannot proceed, call `fail_knowledge_base_setup` with a clear failure code such as
@@ -191,5 +201,7 @@ End with:
 - iOS authorization hint summary, especially the iCloud relative input-root path when available,
 - created/skipped counts,
 - validation result,
+- backend completion result. If `complete_knowledge_base_setup` was not called and did not
+  succeed, explicitly say "backend setup is incomplete" and do not say setup is complete,
 - what the iOS app should do next: authorize the same vault/input-root folder through Files and
   verify the Memova input-root `_memova/manifest.json`.
