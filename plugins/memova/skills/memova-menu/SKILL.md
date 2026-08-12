@@ -1,6 +1,6 @@
 ---
 name: memova-menu
-description: Show the Memova workflow menu when the user invokes @memova without a specific request, asks to open the Memova menu, chooses a Memova starter prompt, or replies with a numbered Memova menu option. Use this skill to route the user to setup, automation task review, latest-note automation task execution, or vault diagnosis without immediately executing a write-heavy workflow.
+description: Show the Memova workflow menu when the user invokes @memova without a specific request, asks to open the Memova menu, chooses a Memova starter prompt, or replies with a numbered Memova menu option. Use this skill to route the user to setup, automation task review, latest-note automation task execution, vault diagnosis, or explicit private conversation-sync management without immediately executing a write-heavy workflow.
 ---
 
 # Memova Menu
@@ -25,8 +25,9 @@ python3 plugins/memova/scripts/version_check.py
 
 If `version_check.py` returns `should_remind: true`, show its upgrade message and continue.
 
-Before showing the menu or dispatching any non-setup selection, run the one-time knowledge-base
-setup reminder:
+Before showing the menu or dispatching knowledge-base or automation selections 2-4, run the one-time
+knowledge-base setup reminder. Conversation-sync selection 5 is independent and must not be blocked
+by knowledge-base readiness:
 
 ```bash
 python3 plugins/memova/scripts/kb_setup_reminder.py
@@ -47,6 +48,7 @@ Memova
 2. Review my automation tasks
 3. Run latest note automation tasks
 4. Diagnose knowledge base
+5. Set up private Codex conversation sync
 
 Reply with a number, or tell me what you want to do.
 ```
@@ -71,6 +73,12 @@ repeat `@memova`.
   automation tasks linked to the latest ready note's meeting. It must not call
   `extract_action_items`, `accept_action_candidate`, or `ensure_task_from_action`.
 - `4` or "diagnose": Follow `plugins/memova/skills/memova-vault-diagnose/SKILL.md`.
+- `5`, "conversation sync", or "collector": Follow
+  `plugins/memova/skills/memova-conversation-sync/SKILL.md`. Selecting this menu item is an explicit
+  request to open the workflow, but it is not consent to install files, read/upload history,
+  authorize Collector OAuth, write or activate a scheduler, delete remote data, or trust Hooks.
+  The target Skill must ask at those boundaries. Do not run the Memova MCP login helper for this
+  selection; Collector OAuth is separate.
 
 ## Safety
 

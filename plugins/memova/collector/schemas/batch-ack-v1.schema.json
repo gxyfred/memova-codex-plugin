@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://memova.ai/schemas/conversation-sync/batch-ack-v1.schema.json",
+  "title": "Memova External Conversation Batch Ack V1",
+  "type": "object",
+  "required": ["schema_version", "batch_id", "idempotency_key", "status", "accepted_item_count", "rejected_items", "acknowledged_at", "archive_status"],
+  "properties": {
+    "schema_version": {"const": "memova_external_conversation_batch_ack_v1"},
+    "batch_id": {"type": "string"},
+    "idempotency_key": {"type": "string"},
+    "status": {"enum": ["accepted", "partially_accepted", "rejected"]},
+    "accepted_item_count": {"type": "integer", "minimum": 0},
+    "rejected_items": {"type": "array", "items": {"type": "object"}},
+    "acknowledged_at": {"type": "string", "format": "date-time"},
+    "reused_existing": {"type": "boolean"},
+    "archive_status": {"const": "durable"},
+    "local_export": {"type": "object"}
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://memova.ai/schemas/conversation-sync/consent-v1.schema.json",
+  "title": "Memova Codex Conversation Sync Consent V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "consent_id", "device_id", "accepted_at", "status", "policy", "retention_mode"],
+  "properties": {
+    "schema_version": {"const": "memova_conversation_sync_consent_v1"},
+    "consent_id": {"type": "string", "minLength": 8, "maxLength": 128},
+    "device_id": {"type": "string", "minLength": 8, "maxLength": 128},
+    "accepted_at": {"type": "string", "format": "date-time"},
+    "status": {"enum": ["active", "paused", "revoked"]},
+    "memova_account_hint": {"type": ["string", "null"], "maxLength": 256},
+    "retention_mode": {"const": "until_user_or_account_deletion"},
+    "policy": {
+      "type": "object",
+      "required": ["schema_version", "purpose", "included", "excluded", "controls", "transport"],
+      "properties": {
+        "schema_version": {"const": "memova_conversation_collection_policy_v1"},
+        "purpose": {"const": "private_memova_archive_and_user_requested_knowledge_derivation"},
+        "included": {"type": "object"},
+        "excluded": {"type": "object"},
+        "controls": {"type": "array", "items": {"type": "string"}, "minItems": 5},
+        "transport": {"type": "object"}
+      }
+    }
+  }
+}

@@ -1,0 +1,7 @@
+interface:
+  display_name: "Memova Conversation Sync"
+  short_description: "Authorize and control private Codex cloud sync."
+  default_prompt: "Use $memova-conversation-sync to safely configure private Codex conversation sync with Memova."
+
+policy:
+  allow_implicit_invocation: false

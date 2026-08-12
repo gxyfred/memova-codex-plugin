@@ -1,0 +1,29 @@
+{
+  "description": "Content-free activity hints for the opt-in Memova conversation Collector.",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$PLUGIN_ROOT/hooks/write_sync_hint.py\"",
+            "commandWindows": "py -3 \"%PLUGIN_ROOT%\\hooks\\write_sync_hint.py\"",
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$PLUGIN_ROOT/hooks/write_sync_hint.py\"",
+            "commandWindows": "py -3 \"%PLUGIN_ROOT%\\hooks\\write_sync_hint.py\"",
+            "timeout": 2
+          }
+        ]
+      }
+    ]
+  }
+}

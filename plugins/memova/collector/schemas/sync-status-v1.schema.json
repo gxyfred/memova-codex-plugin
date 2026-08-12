@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://memova.ai/schemas/conversation-sync/sync-status-v1.schema.json",
+  "title": "Memova Conversation Sync Status V1",
+  "type": "object",
+  "required": ["schema_version", "mode", "paused", "thread_checkpoint_count", "acknowledged_item_count", "pending_batch_count", "acked_batch_count"],
+  "properties": {
+    "schema_version": {"const": "memova_conversation_sync_status_v1"},
+    "mode": {"enum": ["unconfigured", "local_m3_not_scheduled", "m4_ready_not_connected", "rest_connected_not_scheduled", "mock", "rest"]},
+    "paused": {"type": "boolean"},
+    "thread_checkpoint_count": {"type": "integer", "minimum": 0},
+    "acknowledged_item_count": {"type": "integer", "minimum": 0},
+    "pending_batch_count": {"type": "integer", "minimum": 0},
+    "acked_batch_count": {"type": "integer", "minimum": 0},
+    "consent_id": {"type": ["string", "null"]},
+    "device_id": {"type": ["string", "null"]},
+    "preview_completed": {"type": "boolean"},
+    "preview_source": {"type": ["string", "null"]},
+    "run_active": {"type": "boolean"},
+    "oauth": {"type": "object"},
+    "remote": {"type": "object"}
+  }
+}

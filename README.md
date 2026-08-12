@@ -9,7 +9,16 @@ This plugin bundles:
 - the `memova-workflow` skill for reviewing and running existing Codex automation tasks,
 - the `memova-vault-setup` skill for iCloud-first Memova knowledge-base setup,
 - the `memova-vault-diagnose` skill for validating and repairing a Memova vault/input root,
+- the explicit-only `memova-conversation-sync` skill for managing the user-scoped Collector,
+- content-free optional Hooks and three-platform background-scheduler definitions,
 - Memova starter prompts and plugin presentation metadata.
+
+The `1.1.0` development line contains M0-M4 of the consent-gated Codex conversation Collector under
+`plugins/memova/collector/`. M4 adds one-login MCP pairing with a separate device-bound Collector
+credential, OS credential storage, an idempotent Memova REST sink with durable server ACK, and
+thread/device/all deletion plus retain-until-deleted controls. The optional 15-minute macOS launchd, Windows Task
+Scheduler, or Linux systemd user task activates only after consent, live preview, and OAuth gates.
+No production deployment is enabled by this repository change.
 
 ## Should This Repo Be Public?
 
@@ -27,14 +36,16 @@ A private repo can also work for internal testing, but every user must have GitH
 codex plugin marketplace add git@github.com:gxyfred/memova-codex-plugin.git
 ```
 
-This repo does not contain Memova user data or OAuth tokens. It only contains plugin metadata, workflow instructions, icons, and the public MCP endpoint URL. Each user's Memova data remains protected by Memova OAuth during MCP login.
+This repo does not contain Memova user data or OAuth tokens. Runtime Collector tokens are stored
+only in the user's OS credential store, separately from the MCP login.
 
 ## Requirements
 
 - Codex CLI or Codex app installed and signed in.
 - A Memova account.
 - Access to this GitHub repository.
-- Network access to `https://api.memova.ai/mcp`.
+- Network access to `https://api.memova.ai/mcp` and `https://api.memova.ai/v1/external-conversations`
+  when conversation cloud sync is enabled.
 
 ## Quick Start
 
@@ -127,6 +138,7 @@ Codex should open a short Memova menu:
 2. Review my automation tasks
 3. Run latest note automation tasks
 4. Diagnose knowledge base
+5. Set up private Codex conversation sync
 ```
 
 Reply with a number, or select one of the plugin starter prompts:
@@ -137,6 +149,7 @@ Set up knowledge base.
 Review my automation tasks.
 Run latest note automation tasks.
 Diagnose knowledge base.
+Set up private Codex conversation sync.
 ```
 
 You can still ask directly:
@@ -145,6 +158,7 @@ You can still ask directly:
 @memova Run latest note automation tasks.
 @memova Review my automation tasks.
 @memova Diagnose knowledge base.
+@memova Set up private Codex conversation sync.
 ```
 
 The menu is the safe default entrypoint. It does not run a write-heavy workflow just because the

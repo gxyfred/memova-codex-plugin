@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://memova.ai/schemas/conversation-sync/external-conversation-batch-v1.schema.json",
+  "title": "Memova External Conversation Batch V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "batch_id", "idempotency_key", "collector_version", "generated_at", "consent_id", "device_id", "delivery_target", "threads", "diagnostics"],
+  "properties": {
+    "schema_version": {"const": "memova_external_conversation_batch_v1"},
+    "batch_id": {"type": "string", "minLength": 8, "maxLength": 128},
+    "idempotency_key": {"type": "string", "minLength": 16, "maxLength": 256},
+    "collector_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "consent_id": {"type": "string", "minLength": 8, "maxLength": 128},
+    "device_id": {"type": "string", "minLength": 8, "maxLength": 128},
+    "delivery_target": {"enum": ["mock", "rest"]},
+    "diagnostics": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
+    "threads": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 20,
+      "items": {"$ref": "#/$defs/thread"}
+    }
+  },
+  "$defs": {
+    "thread": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["external_thread_id", "source_kind", "archived", "messages", "thread_hash"],
+      "properties": {
+        "external_thread_id": {"type": "string", "minLength": 1, "maxLength": 256},
+        "title": {"type": ["string", "null"], "maxLength": 2000},
+        "source_kind": {"enum": ["cli", "vscode", "exec", "appServer", "unknown"]},
+        "created_at": {"type": ["string", "integer", "number", "null"]},
+        "updated_at": {"type": ["string", "integer", "number", "null"]},
+        "archived": {"type": "boolean"},
+        "thread_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "messages": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {"$ref": "#/$defs/message"}
+        }
+      }
+    },
+    "message": {
+      "type": "object",
+      "required": ["operation", "external_item_id", "external_turn_id", "content_hash"],
+      "properties": {
+        "operation": {"enum": ["upsert", "delete"]},
+        "external_item_id": {"type": "string", "minLength": 1, "maxLength": 256},
+        "external_turn_id": {"type": "string", "minLength": 1, "maxLength": 256},
+        "sequence": {"type": "integer", "minimum": 0},
+        "turn_sequence": {"type": "integer", "minimum": 0},
+        "item_sequence": {"type": "integer", "minimum": 0},
+        "role": {"enum": ["user", "assistant"]},
+        "phase": {"enum": ["commentary", "final_answer", "unknown", null]},
+        "content": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["type", "text"],
+            "properties": {
+              "type": {"const": "text"},
+              "text": {"type": "string"}
+            }
+          }
+        },
+        "content_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"operation": {"const": "upsert"}}},
+          "then": {"required": ["sequence", "turn_sequence", "item_sequence", "role", "phase", "content"]}
+        }
+      ]
+    }
+  }
+}

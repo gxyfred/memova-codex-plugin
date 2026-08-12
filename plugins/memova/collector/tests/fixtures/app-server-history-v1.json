@@ -1,0 +1,100 @@
+{
+  "active": [
+    {
+      "id": "thread-active-001",
+      "title": "Active conversation",
+      "createdAt": 100,
+      "updatedAt": 200,
+      "source": {"kind": "appServer"}
+    }
+  ],
+  "archived": [
+    {
+      "id": "thread-archived-001",
+      "title": "Archived conversation",
+      "createdAt": 50,
+      "updatedAt": 150,
+      "source": {"kind": "cli"}
+    }
+  ],
+  "threads": {
+    "thread-active-001": {
+      "id": "thread-active-001",
+      "title": "Active conversation",
+      "createdAt": 100,
+      "updatedAt": 200,
+      "source": {"kind": "appServer"},
+      "turns": [
+        {
+          "id": "turn-active-1",
+          "items": [
+            {
+              "type": "userMessage",
+              "id": "user-active-1",
+              "content": [
+                {"type": "text", "text": "Please inspect the project."},
+                {"type": "localImage", "path": "/private/example.png"}
+              ]
+            },
+            {"type": "reasoning", "id": "reasoning-secret", "summary": ["hidden"], "content": []},
+            {
+              "type": "agentMessage",
+              "id": "assistant-commentary-1",
+              "text": "I am checking the project now.",
+              "phase": "commentary"
+            },
+            {"type": "commandExecution", "id": "tool-secret", "command": "printenv", "output": "TOKEN=secret"}
+          ]
+        },
+        {
+          "id": "turn-active-2",
+          "items": [
+            {
+              "type": "userMessage",
+              "id": "user-active-2",
+              "content": [{"type": "text", "text": "Include the intermediate response too."}]
+            },
+            {
+              "type": "agentMessage",
+              "id": "assistant-commentary-2",
+              "text": "The intermediate response is retained.",
+              "phase": "commentary"
+            },
+            {"type": "fileChange", "id": "file-secret", "changes": [{"path": "/secret.txt", "diff": "private"}]},
+            {
+              "type": "agentMessage",
+              "id": "assistant-final-2",
+              "text": "The final response is retained as well.",
+              "phase": "final_answer"
+            }
+          ]
+        }
+      ]
+    },
+    "thread-archived-001": {
+      "id": "thread-archived-001",
+      "title": "Archived conversation",
+      "createdAt": 50,
+      "updatedAt": 150,
+      "source": {"kind": "cli"},
+      "turns": [
+        {
+          "id": "turn-archived-1",
+          "items": [
+            {
+              "type": "userMessage",
+              "id": "user-archived-1",
+              "content": [{"type": "text", "text": "An archived question."}]
+            },
+            {
+              "type": "agentMessage",
+              "id": "assistant-archived-1",
+              "text": "An archived answer.",
+              "phase": "final_answer"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

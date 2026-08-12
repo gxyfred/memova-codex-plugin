@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://memova.ai/schemas/conversation-sync/deletion-v1.schema.json",
+  "title": "Memova External Conversation Deletion V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "request_id", "scope", "requested_at"],
+  "properties": {
+    "schema_version": {"const": "memova_external_conversation_delete_v1"},
+    "request_id": {"type": "string", "minLength": 8, "maxLength": 128},
+    "scope": {"enum": ["all_codex_conversations", "device", "thread"]},
+    "device_id": {"type": ["string", "null"], "maxLength": 128},
+    "external_thread_id": {"type": ["string", "null"], "maxLength": 256},
+    "requested_at": {"type": "string", "format": "date-time"}
+  }
+}
