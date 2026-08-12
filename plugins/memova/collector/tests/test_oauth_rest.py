@@ -6,7 +6,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from memova_collector.credentials import (
     MacOSCredentialStore,
@@ -17,11 +17,41 @@ from memova_collector.oauth import (
     TOKEN_SCHEMA_VERSION,
     CollectorOAuthClient,
     OAuthHttpError,
+    _json_request,
 )
 from memova_collector.sinks import RestSink
 
 
 class OAuthAndRestTests(unittest.TestCase):
+    def test_loopback_requests_bypass_system_proxy(self) -> None:
+        response = MagicMock()
+        response.status = 200
+        response.read.return_value = b'{"status":"ok"}'
+        response.__enter__.return_value = response
+        opener = MagicMock()
+        opener.open.return_value = response
+
+        with patch("memova_collector.oauth.urllib.request.build_opener", return_value=opener) as build:
+            status, payload = _json_request("http://127.0.0.1:8080/health")
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload, {"status": "ok"})
+        proxy_handler = build.call_args.args[0]
+        self.assertEqual(proxy_handler.proxies, {})
+
+    def test_remote_requests_retain_system_proxy_support(self) -> None:
+        response = MagicMock()
+        response.status = 200
+        response.read.return_value = b'{}'
+        response.__enter__.return_value = response
+        opener = MagicMock()
+        opener.open.return_value = response
+
+        with patch("memova_collector.oauth.urllib.request.build_opener", return_value=opener) as build:
+            _json_request("https://api.memova.test/health")
+
+        build.assert_called_once_with()
+
     def _oauth(self, store: MemoryCredentialStore, *, expires_at: float = 10_000) -> CollectorOAuthClient:
         oauth = CollectorOAuthClient(
             "https://api.memova.test",

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import ipaddress
 import json
 import secrets
 import sys
@@ -43,7 +44,19 @@ def _json_request(
         headers["Authorization"] = f"Bearer {token}"
     request = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        hostname = urllib.parse.urlsplit(url).hostname or ""
+        bypass_proxy = hostname.lower() == "localhost"
+        if not bypass_proxy:
+            try:
+                bypass_proxy = ipaddress.ip_address(hostname).is_loopback
+            except ValueError:
+                pass
+        opener = (
+            urllib.request.build_opener(urllib.request.ProxyHandler({}))
+            if bypass_proxy
+            else urllib.request.build_opener()
+        )
+        with opener.open(request, timeout=timeout) as response:
             body = response.read().decode("utf-8")
             return int(response.status), json.loads(body) if body else {}
     except urllib.error.HTTPError as exc:
