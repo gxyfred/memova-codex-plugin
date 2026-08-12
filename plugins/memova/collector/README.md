@@ -28,6 +28,8 @@ baseline `1.0.0`.
 
 The mock sink remains available for deterministic development. The `rest` sink is the M4
 production-shaped path and performs network traffic only after explicit consent and pairing.
+The pairing result and remote status show the server-confirmed Memova account and workspace so the
+user can verify the archive destination without revealing OAuth tokens.
 
 ## Privacy boundary
 

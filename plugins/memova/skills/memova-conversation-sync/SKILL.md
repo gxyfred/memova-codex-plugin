@@ -115,7 +115,8 @@ python3 "<launcher>" connect \
 The Collector exchanges the grant for its own `conversation_sync` access/refresh pair and stores it
 only in macOS Keychain, Windows Credential Manager, or Linux Secret Service. Browser Authorization
 Code + PKCE remains a fallback only when MCP pairing is unavailable. After pairing, the command
-registers device consent but reads/uploads no conversations.
+registers device consent but reads/uploads no conversations. Show the server-confirmed Memova
+account and workspace from the pairing/consent response and ask the user to verify the destination.
 
 ### 5. Offer background sync
 

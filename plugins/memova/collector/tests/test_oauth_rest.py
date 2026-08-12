@@ -238,7 +238,17 @@ class OAuthAndRestTests(unittest.TestCase):
             "idempotency_key": "codex-conversations:" + "a" * 64,
         }
         responses = [
-            (200, {"consent_id": "consent-0001", "status": "active"}),
+            (
+                200,
+                {
+                    "consent_id": "consent-0001",
+                    "status": "active",
+                    "memova_account_email": "owner@example.test",
+                    "memova_account_display_name": "Archive Owner",
+                    "memova_workspace_id": "00000000-0000-0000-0000-000000000001",
+                    "memova_workspace_name": "Personal",
+                },
+            ),
             (
                 202,
                 {
