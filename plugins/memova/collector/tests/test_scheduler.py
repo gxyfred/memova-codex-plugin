@@ -24,7 +24,7 @@ class SchedulerTests(unittest.TestCase):
             plan = self._plan("darwin", Path(temp_dir))
             content = next(iter(plan["files"].values())).encode("utf-8")
             payload = plistlib.loads(content)
-            self.assertEqual(payload["StartInterval"], 900)
+            self.assertEqual(payload["StartInterval"], 300)
             self.assertEqual(payload["ProgramArguments"][2], "sync-once")
             self.assertTrue(plan["remote_upload_enabled"])
             self.assertEqual(plan["sink"], "memova-rest")
@@ -34,7 +34,7 @@ class SchedulerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             plan = self._plan("linux", Path(temp_dir))
             values = "\n".join(plan["files"].values())
-            self.assertIn("OnUnitActiveSec=900s", values)
+            self.assertIn("OnUnitActiveSec=300s", values)
             self.assertIn('ExecStart="', values)
             self.assertIn("Persistent=true", values)
 
@@ -45,7 +45,7 @@ class SchedulerTests(unittest.TestCase):
             ET.fromstring(content)
             self.assertIn("MultipleInstancesPolicy", content)
             self.assertIn("IgnoreNew", content)
-            self.assertIn("PT15M", content)
+            self.assertIn("PT5M", content)
 
     def test_refuses_too_frequent_schedule(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

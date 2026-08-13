@@ -3,99 +3,169 @@ from __future__ import annotations
 import json
 import os
 import re
+import hashlib
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-TEMPLATE_VERSION = "memova_inbox_v1"
+V2_TEMPLATE_VERSION = "memova_knowledge_base_v2"
+V3_TEMPLATE_VERSION = "memova_knowledge_base_v3"
+SUPPORTED_TEMPLATE_VERSIONS = {V2_TEMPLATE_VERSION, V3_TEMPLATE_VERSION}
+TEMPLATE_VERSION = V2_TEMPLATE_VERSION
 SETUP_SCHEMA_VERSION = "knowledge_base_setup_v1"
-INPUT_ROOT_RELATIVE_PATH = "inbox/memova"
+VALIDATION_RESULT_SCHEMA_VERSION = "memova_kb_v2_validation_result_v1"
+REPAIR_PACKAGE_SCHEMA_VERSION = "memova_kb_v2_repair_package_v1"
+V3_VALIDATION_RESULT_SCHEMA_VERSION = "memova_kb_v3_validation_result_v1"
+V3_REPAIR_PACKAGE_SCHEMA_VERSION = "memova_kb_v3_repair_package_v1"
+INPUT_ROOT_RELATIVE_PATH = "."
 INPUT_ROOT_FOLDER_NAME = "Memova"
 DEFAULT_NEW_VAULT_FOLDER_NAME = "Memova Vault"
 ALLOWED_SETUP_MODES = {"create_new_vault", "connect_existing_vault"}
+ALLOWED_WRITE_MODES = {"create", "replace", "replace_machine_file", "skip_if_exists"}
 
 NEW_VAULT_DIRS = [
-    "inbox/memova/schemas",
-    "inbox/memova/meetings",
-    "inbox/memova/_memova",
-    "sources",
-    "wiki",
+    "inbox/meetings",
+    "inbox/captures",
+    "inbox/imports",
+    "inbox/activity",
+    "wiki/people",
+    "wiki/organizations",
+    "wiki/topics",
+    "wiki/decisions",
+    "wiki/processes",
+    "wiki/references",
     "projects",
     "daily",
-    "outputs",
+    "outputs/reports",
+    "outputs/briefs",
+    "outputs/specs",
+    "outputs/decks",
+    "outputs/assets",
     "archive",
     "schemas",
     "_memova",
 ]
 
 INPUT_ROOT_DIRS = [
-    "schemas",
-    "meetings",
-    "_memova",
+    *NEW_VAULT_DIRS,
 ]
 
 NEW_VAULT_REQUIRED_ROOTS = [
+    "index.md",
     "README.md",
     "AGENTS.md",
+    "log.md",
     "inbox/",
     "inbox/README.md",
-    "inbox/memova/",
-    "sources/",
-    "sources/README.md",
+    "inbox/index.md",
     "wiki/",
-    "wiki/README.md",
+    "wiki/index.md",
+    "wiki/people/index.md",
+    "wiki/organizations/index.md",
+    "wiki/topics/index.md",
+    "wiki/decisions/index.md",
+    "wiki/processes/index.md",
+    "wiki/references/index.md",
     "projects/",
-    "projects/README.md",
+    "projects/index.md",
     "daily/",
-    "daily/README.md",
+    "daily/index.md",
     "outputs/",
-    "outputs/README.md",
+    "outputs/index.md",
     "archive/",
-    "archive/README.md",
+    "archive/index.md",
     "schemas/",
+    "schemas/index.md",
     "schemas/README.md",
     "_memova/",
 ]
 
 INPUT_ROOT_REQUIRED_FILES = [
+    "index.md",
     "README.md",
     "AGENTS.md",
-    "INDEX.md",
-    "schemas/meeting_packet.schema.md",
-    "schemas/manifest.schema.md",
-    "schemas/packet.schema.md",
-    "schemas/asset.schema.md",
+    "log.md",
+    "inbox/index.md",
+    "inbox/README.md",
+    "wiki/index.md",
+    "wiki/people/index.md",
+    "wiki/organizations/index.md",
+    "wiki/topics/index.md",
+    "wiki/decisions/index.md",
+    "wiki/processes/index.md",
+    "wiki/references/index.md",
+    "projects/index.md",
+    "daily/index.md",
+    "outputs/index.md",
+    "schemas/index.md",
+    "schemas/README.md",
+    "schemas/okf-concept.schema.md",
+    "schemas/memova-root.schema.md",
+    "schemas/meeting-packet.schema.md",
+    "schemas/capture-packet.schema.md",
+    "schemas/import-packet.schema.md",
+    "schemas/activity-event.schema.md",
     "schemas/promotion.schema.md",
+    "schemas/project.schema.md",
+    "schemas/daily.schema.md",
+    "schemas/output.schema.md",
+    "schemas/citation.schema.md",
+    "archive/index.md",
     "_memova/manifest.json",
-    "_memova/input_root.json",
+    "_memova/root.json",
+    "_memova/tree_manifest.json",
     "_memova/sync_state.json",
     "_memova/source_index.json",
+    "_memova/promotion_index.json",
+    "_memova/repair_state.json",
 ]
 
 SETUP_IDENTITY_FILE_PATHS = {
     "_memova/manifest.json",
-    f"{INPUT_ROOT_RELATIVE_PATH}/_memova/manifest.json",
+}
+
+MACHINE_JSON_SCHEMA_VERSIONS = {
+    "_memova/manifest.json": "memova_root_manifest_v2",
+    "_memova/root.json": "memova_root_v2",
+    "_memova/tree_manifest.json": "memova_tree_manifest_v1",
+    "_memova/sync_state.json": "memova_root_sync_state_v1",
+    "_memova/source_index.json": "memova_source_index_v1",
+    "_memova/promotion_index.json": "memova_promotion_index_v1",
+    "_memova/repair_state.json": "memova_repair_state_v1",
+}
+
+V3_MACHINE_JSON_SCHEMA_VERSIONS = {
+    "_memova/manifest.json": "memova_root_manifest_v3",
+    "_memova/root.json": "memova_root_v3",
+    "_memova/tree_manifest.json": "memova_tree_manifest_v2",
+    "_memova/cloud_state.json": "memova_cloud_state_v1",
+    "_memova/source_index.json": "memova_source_index_v1",
+    "_memova/sync_state.json": "memova_root_sync_state_v1",
+    "_memova/promotion_index.json": "memova_promotion_index_v1",
+    "_memova/graph_index.json": "memova_graph_index_v1",
+    "_memova/repair_state.json": "memova_repair_state_v1",
 }
 
 NEW_VAULT_DOC_CHECKS = {
-    "README.md": ["Memova Vault", "inbox/memova", "V1 Scope"],
+    "index.md": ["Memova Knowledge Base", "inbox", "wiki"],
+    "README.md": ["Memova Knowledge Base", "V2", "inbox/"],
     "AGENTS.md": ["No memory without source", "No external write without confirmation"],
-    "inbox/README.md": ["Inbox", "inbox/memova"],
-    "sources/README.md": ["Sources", "Memova V1"],
-    "wiki/README.md": ["Wiki", "curated long-term knowledge"],
-    "projects/README.md": ["Projects", "project-specific"],
-    "daily/README.md": ["Daily", "daily notes"],
-    "outputs/README.md": ["Outputs", "finished artifacts"],
-    "archive/README.md": ["Archive", "inactive material"],
-    "schemas/README.md": ["Schemas", "inbox/memova/schemas"],
+    "inbox/README.md": ["Inbox", "inbox/meetings"],
+    "wiki/index.md": ["Wiki", "source citation"],
+    "projects/index.md": ["Projects", "action projection"],
+    "daily/index.md": ["Daily", "digest"],
+    "outputs/index.md": ["Outputs", "reports"],
+    "archive/index.md": ["Archive", "inactive"],
+    "schemas/README.md": ["Schemas", "OKF"],
 }
 
 INPUT_ROOT_DOC_CHECKS = {
+    **NEW_VAULT_DOC_CHECKS,
     "README.md": [
-        "Memova Raw Input Root",
-        "Memova Inbox Packet Format v1",
-        "meetings/YYYY/MM",
+        "Memova Knowledge Base",
+        "V2",
+        "inbox/",
         "sources.md",
         "promotion.json",
     ],
@@ -103,42 +173,18 @@ INPUT_ROOT_DOC_CHECKS = {
         "Agent Rules",
         "No memory without source",
         "No action without evidence",
-        "Reading Order",
+        "inbox/",
     ],
-    "INDEX.md": [
-        "Memova Inbox Index",
-        "meetings/",
-        "recent meeting packets",
-    ],
-    "schemas/meeting_packet.schema.md": [
+    "schemas/meeting-packet.schema.md": [
         "Meeting Packet Schema",
         "sources.md",
         "note.md",
         "promotion.json",
     ],
-    "schemas/manifest.schema.md": [
-        "Manifest Schema",
-        "files",
-        "assets_summary",
-        "processing",
-    ],
-    "schemas/packet.schema.md": [
-        "Packet JSON Schema",
-        "sources",
-        "note",
-        "processing",
-    ],
-    "schemas/asset.schema.md": [
-        "Asset Manifest Schema",
-        "asset_id",
-        "role",
-        "source_ref",
-    ],
     "schemas/promotion.schema.md": [
         "Promotion Schema",
         "promotion_status",
-        "not_started",
-        "promoted_items",
+        "promotion_index",
     ],
 }
 
@@ -162,6 +208,14 @@ class FileSpec:
     path: str
     content: str
     machine: bool = False
+    role: str | None = None
+    content_type: str = "text/markdown"
+    write_mode: str = "skip_if_exists"
+    sha256: str | None = None
+    byte_size: int | None = None
+    memova_uri: str | None = None
+    expected_existing_sha256: str | None = None
+    preserve_if_modified: bool = True
 
 
 def markdown(text: str) -> str:
@@ -202,6 +256,116 @@ def setup_package_errors(setup: dict[str, Any]) -> list[str]:
         errors.append("target_path_hints must be an object when provided")
     if not isinstance(setup.get("source_path_hints") or {}, dict):
         errors.append("source_path_hints must be an object when provided")
+    template_version = setup_template_version(setup)
+    if template_version not in SUPPORTED_TEMPLATE_VERSIONS:
+        errors.append(
+            "vault_template_version must be memova_knowledge_base_v2 or "
+            "memova_knowledge_base_v3"
+        )
+        return errors
+    contract = setup.get("vault_contract")
+    if isinstance(contract, dict):
+        contract_template = contract.get("template")
+        if contract_template and contract_template != template_version:
+            errors.append("vault_contract.template must match vault_template_version")
+    if template_version == V3_TEMPLATE_VERSION:
+        errors.extend(v3_setup_operation_errors(setup))
+    return errors
+
+
+def setup_template_version(setup: dict[str, Any]) -> str:
+    return str(setup.get("vault_template_version") or V2_TEMPLATE_VERSION)
+
+
+def setup_operations(setup: dict[str, Any]) -> dict[str, Any] | None:
+    contract = setup.get("vault_contract")
+    if not isinstance(contract, dict):
+        return None
+    managed_root = contract.get("memova_managed_root")
+    if not isinstance(managed_root, dict):
+        return None
+    operations = managed_root.get("setup_operations")
+    return operations if isinstance(operations, dict) else None
+
+
+def strict_relative_path(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip().replace("\\", "/").strip("/")
+    if (
+        not normalized
+        or normalized == "."
+        or value.startswith(("/", "\\", "~"))
+        or ":" in normalized
+        or "\x00" in normalized
+    ):
+        return None
+    parts = normalized.split("/")
+    if any(part in {"", ".", ".."} for part in parts):
+        return None
+    return "/".join(parts)
+
+
+def v3_setup_operation_errors(setup: dict[str, Any]) -> list[str]:
+    operations = setup_operations(setup)
+    if operations is None:
+        return ["V3 setup package must include vault_contract.memova_managed_root.setup_operations"]
+    directories = operations.get("directories")
+    files = operations.get("files")
+    errors: list[str] = []
+    if not isinstance(directories, list):
+        errors.append("V3 setup_operations.directories must be an array")
+        directories = []
+    if not isinstance(files, list):
+        errors.append("V3 setup_operations.files must be an array")
+        files = []
+    if not directories:
+        errors.append("V3 setup_operations.directories must not be empty")
+    if not files:
+        errors.append("V3 setup_operations.files must not be empty")
+
+    seen_paths: set[str] = set()
+    for index, item in enumerate(directories):
+        prefix = f"V3 directory operation {index}"
+        if not isinstance(item, dict):
+            errors.append(f"{prefix} must be an object")
+            continue
+        relative_path = strict_relative_path(item.get("relative_path"))
+        if relative_path is None:
+            errors.append(f"{prefix} has an unsafe relative_path")
+        elif relative_path in seen_paths:
+            errors.append(f"duplicate V3 operation path: {relative_path}")
+        else:
+            seen_paths.add(relative_path)
+        if item.get("write_mode", "create") != "create":
+            errors.append(f"{prefix} write_mode must be create")
+
+    for index, item in enumerate(files):
+        prefix = f"V3 file operation {index}"
+        if not isinstance(item, dict):
+            errors.append(f"{prefix} must be an object")
+            continue
+        relative_path = strict_relative_path(item.get("relative_path"))
+        if relative_path is None:
+            errors.append(f"{prefix} has an unsafe relative_path")
+        elif relative_path in seen_paths:
+            errors.append(f"duplicate V3 operation path: {relative_path}")
+        else:
+            seen_paths.add(relative_path)
+        if str(item.get("encoding", "utf-8")).lower() != "utf-8":
+            errors.append(f"{prefix} must use utf-8 encoding")
+        if item.get("write_mode") not in ALLOWED_WRITE_MODES:
+            errors.append(f"{prefix} has an unsupported write_mode")
+        content = item.get("content")
+        if not isinstance(content, str):
+            errors.append(f"{prefix} content must be a string")
+            continue
+        content_bytes = content.encode("utf-8")
+        expected_sha256 = hashlib.sha256(content_bytes).hexdigest()
+        if item.get("sha256") != expected_sha256:
+            errors.append(f"{prefix} sha256 does not match content")
+        if item.get("byte_size") != len(content_bytes):
+            errors.append(f"{prefix} byte_size does not match content")
     return errors
 
 
@@ -310,6 +474,9 @@ def is_existing_vault_setup(setup: dict[str, Any]) -> bool:
 
 
 def manifest_id(setup: dict[str, Any]) -> str:
+    backend_manifest = backend_manifest_content(setup)
+    if backend_manifest and isinstance(backend_manifest.get("manifest_id"), str):
+        return str(backend_manifest["manifest_id"])
     setup_id = setup.get("setup_session_id")
     if isinstance(setup_id, str) and setup_id:
         return f"memova-vault-{setup_id}"
@@ -317,6 +484,9 @@ def manifest_id(setup: dict[str, Any]) -> str:
 
 
 def input_root_manifest_id(setup: dict[str, Any]) -> str:
+    backend_manifest = backend_manifest_content(setup)
+    if backend_manifest and isinstance(backend_manifest.get("input_root_manifest_id"), str):
+        return str(backend_manifest["input_root_manifest_id"])
     setup_id = setup.get("setup_session_id")
     if isinstance(setup_id, str) and setup_id:
         return f"memova-input-root-{setup_id}"
@@ -326,6 +496,24 @@ def input_root_manifest_id(setup: dict[str, Any]) -> str:
 def is_setup_identity_file(relative_path: str) -> bool:
     normalized = relative_path.strip().replace("\\", "/")
     return normalized in SETUP_IDENTITY_FILE_PATHS
+
+
+def backend_manifest_content(setup: dict[str, Any]) -> dict[str, Any] | None:
+    if setup_template_version(setup) != V3_TEMPLATE_VERSION:
+        return None
+    operations = setup_operations(setup) or {}
+    for item in operations.get("files") or []:
+        if not isinstance(item, dict) or item.get("relative_path") != "_memova/manifest.json":
+            continue
+        content = item.get("content")
+        if not isinstance(content, str):
+            return None
+        try:
+            parsed = json.loads(content)
+        except json.JSONDecodeError:
+            return None
+        return parsed if isinstance(parsed, dict) else None
+    return None
 
 
 def detect_language() -> str:
@@ -455,10 +643,7 @@ def raw_input_candidates(root: Path, *, max_depth: int = 2, max_entries: int = 3
 
 
 def suggested_existing_input_target(setup: dict[str, Any], existing_vault_path: Path) -> Path:
-    candidates = raw_input_candidates(existing_vault_path)
     folder_name = input_root_folder_name(setup)
-    if candidates:
-        return resolved(Path(candidates[0]["path"]) / folder_name)
     return resolved(existing_vault_path / folder_name)
 
 
@@ -477,8 +662,9 @@ def memova_input_root_relative_path(setup: dict[str, Any], target_root: Path) ->
 
 def root_manifest(setup: dict[str, Any], *, now: str) -> dict[str, Any]:
     return {
-        "schema_version": "memova_vault_manifest_v1",
+        "schema_version": "memova_root_manifest_v2",
         "manifest_id": manifest_id(setup),
+        "input_root_manifest_id": input_root_manifest_id(setup),
         "created_at": now,
         "updated_at": now,
         "setup_session_id": setup.get("setup_session_id"),
@@ -488,7 +674,17 @@ def root_manifest(setup: dict[str, Any], *, now: str) -> dict[str, Any]:
         "setup_mode": setup_mode(setup),
         "storage_target": setup.get("storage_target") or "icloud_drive",
         "memova_input_root_relative_path": INPUT_ROOT_RELATIVE_PATH,
-        "ownership_scope": "raw_input_layer_only",
+        "ownership_scope": "memova_managed_root_v2",
+        "semantic_roots": {
+            "inbox": "inbox",
+            "wiki": "wiki",
+            "projects": "projects",
+            "daily": "daily",
+            "outputs": "outputs",
+            "schemas": "schemas",
+            "archive": "archive",
+            "_memova": "_memova",
+        },
     }
 
 
@@ -498,22 +694,9 @@ def input_root_manifest(
     now: str,
     relative_path: str,
 ) -> dict[str, Any]:
-    return {
-        "schema_version": "memova_input_root_manifest_v1",
-        "manifest_id": input_root_manifest_id(setup),
-        "vault_manifest_id": manifest_id(setup),
-        "created_at": now,
-        "updated_at": now,
-        "setup_session_id": setup.get("setup_session_id"),
-        "workspace_id": setup.get("workspace_id"),
-        "vault_template_version": setup.get("vault_template_version") or TEMPLATE_VERSION,
-        "setup_package_schema_version": setup.get("schema_version") or SETUP_SCHEMA_VERSION,
-        "setup_mode": setup_mode(setup),
-        "storage_target": setup.get("storage_target") or "icloud_drive",
-        "memova_input_root_relative_path": relative_path,
-        "ownership_scope": "raw_input_layer_only",
-        "audio_files_written_by_default": False,
-    }
+    manifest = root_manifest(setup, now=now)
+    manifest["memova_input_root_relative_path"] = relative_path
+    return manifest
 
 
 def input_root_file_specs(
@@ -523,10 +706,57 @@ def input_root_file_specs(
     relative_path: str,
     prefix: str = "",
 ) -> list[FileSpec]:
+    schema_specs = input_root_schema_specs()
     files = [
+        FileSpec("index.md", root_index(), machine=True),
         FileSpec("README.md", input_root_readme(relative_path=relative_path), machine=True),
         FileSpec("AGENTS.md", input_root_agents(relative_path=relative_path), machine=True),
-        FileSpec("INDEX.md", input_root_index(), machine=True),
+        FileSpec("log.md", markdown("# Log\n\n- Memova Knowledge Base V2 setup initialized."), machine=True),
+        FileSpec("inbox/index.md", area_index("Inbox", "原始输入和 staging 层。", ["meetings", "captures", "imports", "activity"]), machine=True),
+        FileSpec(
+            "inbox/README.md",
+            markdown(
+                """# Inbox
+
+Inbox 是 Memova 的 source-first 输入层。会议 packet 写入
+`inbox/meetings/YYYY/MM/YYYY-MM-DD-<slug>-<meeting_id>/`，轻量捕捉写入
+`inbox/captures/`，外部导入写入 `inbox/imports/`，用户动作和产品事件写入
+`inbox/activity/`。
+
+这里的内容可以灵活变化，但需要保留 source packet、manifest、sources.md、
+packet.json 和 promotion.json，方便后续整理流程把原始输入提升到 wiki、projects、
+daily 或 outputs。Inbox 不是长期事实层；长期结论必须在整理后带来源引用。
+"""
+            ),
+            machine=True,
+        ),
+        FileSpec("wiki/index.md", area_index("Wiki", "长期、可复用、带 source citation 的 OKF-compatible 知识概念。", ["people", "organizations", "topics", "decisions", "processes", "references"]), machine=True),
+        FileSpec("wiki/people/index.md", area_index("People", "人物相关长期知识。", []), machine=True),
+        FileSpec("wiki/organizations/index.md", area_index("Organizations", "组织相关长期知识。", []), machine=True),
+        FileSpec("wiki/topics/index.md", area_index("Topics", "可复用主题知识。", []), machine=True),
+        FileSpec("wiki/decisions/index.md", area_index("Decisions", "已确认决策和决策理由。", []), machine=True),
+        FileSpec("wiki/processes/index.md", area_index("Processes", "可重复流程和 runbook。", []), machine=True),
+        FileSpec("wiki/references/index.md", area_index("References", "整理后的参考资料索引。", []), machine=True),
+        FileSpec("projects/index.md", area_index("Projects", "项目级上下文、决策、action projection 和输出索引。", []), machine=True),
+        FileSpec("daily/index.md", area_index("Daily", "日期维度 digest、计划和复盘。", []), machine=True),
+        FileSpec("outputs/index.md", area_index("Outputs", "reports、briefs、specs、decks 和 assets。", ["reports", "briefs", "specs", "decks", "assets"]), machine=True),
+        FileSpec("schemas/index.md", area_index("Schemas", "Memova V2 文件树与 OKF schema 约定。", []), machine=True),
+        FileSpec(
+            "schemas/README.md",
+            markdown(
+                """# Schemas
+
+Schemas 目录保存 Memova V2 文件树、OKF-compatible 文档、meeting packet、
+capture packet、import packet、activity event、promotion、citation 和 output 的约定。
+
+这些 Markdown schema 是给人和 agent 读取的稳定契约；真正的运行时状态仍以
+`_memova/manifest.json`、`_memova/root.json`、`_memova/tree_manifest.json`、
+`_memova/source_index.json` 和 `_memova/promotion_index.json` 为准。
+"""
+            ),
+            machine=True,
+        ),
+        FileSpec("archive/index.md", area_index("Archive", "inactive 或被替代但仍需保留的内容。", []), machine=True),
         FileSpec(
             "_memova/manifest.json",
             json.dumps(input_root_manifest(setup, now=now, relative_path=relative_path), indent=2, ensure_ascii=False)
@@ -534,13 +764,29 @@ def input_root_file_specs(
             machine=True,
         ),
         FileSpec(
-            "_memova/input_root.json",
+            "_memova/root.json",
             json.dumps(
                 {
-                    "schema_version": "memova_input_root_v1",
+                    "schema_version": "memova_root_v2",
                     "updated_at": now,
                     "relative_path": relative_path,
-                    "meeting_packet_root": "meetings",
+                    "packet_roots": {
+                        "meeting": "inbox/meetings",
+                        "capture": "inbox/captures",
+                        "import": "inbox/imports",
+                        "activity": "inbox/activity",
+                    },
+                    "path_policies": {
+                        "meeting_packet": {
+                            "version": "date_sharded_v1",
+                            "template": "YYYY/MM/YYYY-MM-DD-<slug>-<meeting_id_short>",
+                        },
+                        "activity_event": {
+                            "version": "date_sharded_v1",
+                            "template": "YYYY/MM/YYYY-MM-DD-<event_type>-<event_id_short>",
+                        },
+                    },
+                    "okf_compatible_roots": ["wiki", "projects", "daily", "outputs", "schemas"],
                     "packet_format_version": "memova_meeting_packet_v1",
                     "packet_core_files": [
                         "README.md",
@@ -560,14 +806,29 @@ def input_root_file_specs(
             machine=True,
         ),
         FileSpec(
+            "_memova/tree_manifest.json",
+            json.dumps(
+                {
+                    "schema_version": "memova_tree_manifest_v1",
+                    "updated_at": now,
+                    "required_directories": sorted(NEW_VAULT_DIRS),
+                    "required_files": INPUT_ROOT_REQUIRED_FILES,
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+            + "\n",
+            machine=True,
+        ),
+        FileSpec(
             "_memova/sync_state.json",
             json.dumps(
                 {
-                    "schema_version": "memova_input_sync_state_v1",
+                    "schema_version": "memova_root_sync_state_v1",
                     "updated_at": now,
                     "last_successful_sync_at": None,
-                    "meeting_packets": {},
                     "conflicts": [],
+                    "cloud_mirror": {"enabled": False, "last_revision": None},
                 },
                 indent=2,
                 ensure_ascii=False,
@@ -579,10 +840,25 @@ def input_root_file_specs(
             "_memova/source_index.json",
             json.dumps(
                 {
-                    "schema_version": "memova_input_source_index_v1",
+                    "schema_version": "memova_source_index_v1",
                     "updated_at": now,
                     "meetings": [],
-                    "assets": [],
+                    "captures": [],
+                    "imports": [],
+                    "activity": [],
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+            + "\n",
+            machine=True,
+        ),
+        FileSpec(
+            "_memova/promotion_index.json",
+            json.dumps(
+                {
+                    "schema_version": "memova_promotion_index_v1",
+                    "updated_at": now,
                     "promotions": [],
                 },
                 indent=2,
@@ -591,8 +867,24 @@ def input_root_file_specs(
             + "\n",
             machine=True,
         ),
+        FileSpec(
+            "_memova/repair_state.json",
+            json.dumps(
+                {
+                    "schema_version": "memova_repair_state_v1",
+                    "updated_at": now,
+                    "status": "ok",
+                    "issues": [],
+                    "last_validation": None,
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+            + "\n",
+            machine=True,
+        ),
     ]
-    files.extend(FileSpec(path, content, machine=True) for path, content in input_root_schema_specs().items())
+    files.extend(FileSpec(path, content, machine=True) for path, content in schema_specs.items())
     if prefix:
         return [FileSpec(f"{prefix}/{spec.path}", spec.content, spec.machine) for spec in files]
     return files
@@ -600,19 +892,17 @@ def input_root_file_specs(
 
 def input_root_readme(*, relative_path: str) -> str:
     return markdown(
-        f"""# Memova Raw Input Root
+        f"""# Memova Knowledge Base
 
-This folder is the Memova-owned raw input layer for a user-owned knowledge base. Its relative path
-is `{relative_path}`.
+This folder is the Memova-managed Knowledge Base V2 root. Its relative path in the selected vault is
+`{relative_path}`.
 
-This root uses **Memova Inbox Packet Format v1**. It is an LLM Wiki-compatible inbox/staging layer,
-not the user's long-term wiki. Memova writes meeting packets here; the user's own workflow or a
-future approved Memova compiler can later promote stable information into `wiki/`, `projects/`,
-`daily/`, or other long-term folders.
+Memova writes source evidence into `inbox/` first, then later promotion workflows can write durable,
+source-cited knowledge into `wiki/`, `projects/`, `daily/`, or `outputs/`.
 
 ## What Memova Writes
 
-Meeting packets are written under `meetings/YYYY/MM/YYYY-MM-DD-<slug>-<meeting_id>/`.
+Meeting packets are written under `inbox/meetings/YYYY/MM/YYYY-MM-DD-<slug>-<meeting_id>/`.
 Each packet is source evidence plus Memova's processed note for one meeting:
 
 ```text
@@ -635,12 +925,10 @@ long-term knowledge. `assets/` stores binary files through stable asset ids.
 
 ## What Memova Does Not Write
 
-- Memova does not organize `wiki/`, `projects/`, `daily/`, or other downstream knowledge folders in
-  V1.
 - Memova does not save audio files by default. Audio provenance is recorded in `packet.json` and
   `assets/manifest.json` when relevant.
-- Memova does not turn meeting content into long-term memory without a later user-confirmed
-  extraction workflow.
+- Memova does not turn meeting content into long-term memory without source references and a later
+  user-confirmed extraction workflow.
 
 ## How Agents Should Use This Folder
 
@@ -649,22 +937,21 @@ project updates, action lists, or summaries from these packets, it should cite t
 the specific source section or JSON pointer it used. Keep packet source files stable so future
 compilers can re-run from the same evidence.
 
-See `INDEX.md` for the packet index, `AGENTS.md` for operating rules, and `schemas/*.schema.md` for
-the file contracts.
+See `index.md` for the root index, `AGENTS.md` for operating rules, and `schemas/*.schema.md` for
+the file contracts. `promotion.json` remains the packet-level promotion state for meeting packets.
 """
     )
 
 
 def input_root_agents(*, relative_path: str) -> str:
     return markdown(
-        f"""# Agent Rules For Memova Raw Input
+        f"""# Agent Rules For Memova Knowledge Base
 
-Scope: this file applies to the Memova raw input root at `{relative_path}` and every meeting packet
-inside it.
+Scope: this file applies to the Memova managed root at `{relative_path}`.
 
 ## Core Rules
 
-- Treat this folder as source evidence, not curated long-term knowledge.
+- Treat `inbox/` as source evidence and staging, not curated long-term knowledge.
 - Do not rewrite `sources.md`, `packet.json`, asset files, or source metadata unless the user
   explicitly asks for a repair or migration.
 - `note.md` is processed inbox output. It is useful context, but it is not long-term memory until an
@@ -695,7 +982,7 @@ When creating or updating downstream wiki/project/daily files:
 
 - preserve the original packet files;
 - include source links such as
-  `inbox/memova/meetings/2026/05/2026-05-21-example-meeting-<meeting_id>/sources.md#transcript`;
+  `inbox/meetings/2026/05/2026-05-21-example-meeting-<meeting_id>/sources.md#transcript`;
 - distinguish confirmed meeting facts from model inference;
 - keep uncertain OCR, ASR corrections, and failed imports marked as uncertain;
 - update `promotion.json` only when a promotion workflow has explicitly succeeded;
@@ -710,6 +997,63 @@ ASR drafts, and all source evidence over model inference.
     )
 
 
+def root_index() -> str:
+    return markdown(
+        """---
+type: Index
+title: Memova Knowledge Base
+description: Memova V2 managed knowledge-base root.
+tags: [memova, knowledge-base]
+memova:
+  schema_version: memova_okf_extension_v1
+  status: active
+---
+
+# Memova Knowledge Base
+
+This is the OKF-compatible Memova Knowledge Base V2 root.
+
+## Areas
+
+- `inbox/`: source packets, captures, imports, and activity events.
+- `wiki/`: reusable source-cited long-term knowledge.
+- `projects/`: project context, decisions, action projection, and output index.
+- `daily/`: date-based digest.
+- `outputs/`: reports, briefs, specs, decks, and assets.
+- `schemas/`: human and agent-readable schema notes.
+"""
+    )
+
+
+def area_index(title: str, description: str, children: list[str]) -> str:
+    child_lines = "\n".join(f"- `{child}/`" for child in children) if children else "- No pages yet."
+    return markdown(
+        f"""---
+type: Index
+title: {title}
+description: {description}
+tags: [memova]
+memova:
+  schema_version: memova_okf_extension_v1
+  status: active
+---
+
+# {title}
+
+{description}
+
+This index is part of the Memova Knowledge Base V2 managed root. Keep it lightweight and use it as a
+navigation surface rather than a place for uncited facts. When pages are added here, they should either
+point back to an inbox source packet or clearly state that the content is still a draft awaiting
+promotion.
+
+## Children
+
+{child_lines}
+"""
+    )
+
+
 def input_root_index() -> str:
     return markdown(
         """# Memova Inbox Index
@@ -719,13 +1063,13 @@ This index is the stable entry point for Memova meeting packets.
 Meeting packets live under:
 
 ```text
-meetings/YYYY/MM/YYYY-MM-DD-<slug>-<meeting_id>/
+inbox/meetings/YYYY/MM/YYYY-MM-DD-<slug>-<meeting_id>/
 ```
 
 ## recent meeting packets
 
-Memova and iOS may append lightweight links here in a later version. For V1, use the date-partitioned
-`meetings/` folder and each packet's `manifest.json` to discover synced meetings.
+Memova and iOS may append lightweight links here in a later version. For now, use the date-partitioned
+`inbox/meetings/` folder and each packet's `manifest.json` to discover synced meetings.
 
 ## Packet Format
 
@@ -749,11 +1093,17 @@ Read `schemas/meeting_packet.schema.md` for the full contract.
 
 def input_root_schema_specs() -> dict[str, str]:
     return {
-        "schemas/meeting_packet.schema.md": meeting_packet_schema(),
-        "schemas/manifest.schema.md": manifest_schema(),
-        "schemas/packet.schema.md": packet_schema(),
-        "schemas/asset.schema.md": asset_schema(),
+        "schemas/okf-concept.schema.md": markdown("# OKF Concept Schema\n\nOKF-compatible pages use YAML frontmatter with `type`, `title`, `description`, tags, links, Related, and Citations."),
+        "schemas/memova-root.schema.md": markdown("# Memova Root Schema\n\n`Memova/` is the V2 managed root. `_memova/manifest.json`, `root.json`, and `tree_manifest.json` define identity and path policy."),
+        "schemas/meeting-packet.schema.md": meeting_packet_schema(),
+        "schemas/capture-packet.schema.md": markdown("# Capture Packet Schema\n\nCapture packets live under `inbox/captures/`."),
+        "schemas/import-packet.schema.md": markdown("# Import Packet Schema\n\nImport packets live under `inbox/imports/` and preserve original files before digest/promotion."),
+        "schemas/activity-event.schema.md": markdown("# Activity Event Schema\n\nActivity events live under `inbox/activity/` and capture user edits or product actions."),
         "schemas/promotion.schema.md": promotion_schema(),
+        "schemas/project.schema.md": markdown("# Project Schema\n\nProject pages keep context, decisions, action projection, outputs, and log files."),
+        "schemas/daily.schema.md": markdown("# Daily Schema\n\nDaily pages are date-based digests, not the source of long-term project/wiki truth."),
+        "schemas/output.schema.md": markdown("# Output Schema\n\nOutputs include reports, briefs, specs, decks, and asset index pages."),
+        "schemas/citation.schema.md": markdown("# Citation Schema\n\nImportant claims must cite source packets with `memova.source_refs` or `# Citations`."),
     }
 
 
@@ -764,7 +1114,7 @@ def meeting_packet_schema() -> str:
 This schema describes one Memova meeting packet under:
 
 ```text
-meetings/YYYY/MM/YYYY-MM-DD-<slug>-<meeting_id>/
+inbox/meetings/YYYY/MM/YYYY-MM-DD-<slug>-<meeting_id>/
 ```
 
 The packet is raw input plus stable Memova processing output. It is designed to be copied into a
@@ -885,7 +1235,8 @@ def promotion_schema() -> str:
         """# Promotion Schema
 
 `promotion.json` tracks whether information from an inbox packet has been promoted into long-term
-wiki/project/action/memory surfaces.
+wiki/project/action/memory surfaces. `_memova/promotion_index.json` is the root-level promotion_index
+used for quick discovery across packets and downstream targets.
 
 Required fields:
 
@@ -909,261 +1260,51 @@ this file without rewriting the full `packet.json`.
     )
 
 
-def root_file_specs(setup: dict[str, Any], *, now: str) -> list[FileSpec]:
-    return [
-        FileSpec(
-            "README.md",
-            root_readme(now=now),
-            machine=True,
-        ),
-        FileSpec(
-            "AGENTS.md",
-            root_agents(),
-            machine=True,
-        ),
-        FileSpec(
-            "inbox/README.md",
-            root_folder_readme(
-                title="Inbox",
-                body=(
-                    "Low-friction input area. Memova writes its raw meeting packets under "
-                    "`inbox/memova/`. Other inbox files can belong to the user or other tools."
-                ),
-            ),
-            machine=True,
-        ),
-        FileSpec(
-            "sources/README.md",
-            root_folder_readme(
-                title="Sources",
-                body=(
-                    "Reserved for user-managed or future agent-managed source material outside the "
-                    "Memova raw meeting input root. Memova V1 does not write here."
-                ),
-            ),
-            machine=True,
-        ),
-        FileSpec(
-            "wiki/README.md",
-            root_folder_readme(
-                title="Wiki",
-                body=(
-                    "Reserved for curated long-term knowledge pages. Pages here should cite source "
-                    "packets or other evidence. Memova V1 does not auto-create wiki pages."
-                ),
-            ),
-            machine=True,
-        ),
-        FileSpec(
-            "projects/README.md",
-            root_folder_readme(
-                title="Projects",
-                body=(
-                    "Reserved for project-specific summaries, decisions, actions, and outputs that "
-                    "the user or a later confirmed agent workflow derives from sources."
-                ),
-            ),
-            machine=True,
-        ),
-        FileSpec(
-            "daily/README.md",
-            root_folder_readme(
-                title="Daily",
-                body=(
-                    "Reserved for daily notes, plans, and reviews. Memova V1 does not write daily "
-                    "notes automatically."
-                ),
-            ),
-            machine=True,
-        ),
-        FileSpec(
-            "outputs/README.md",
-            root_folder_readme(
-                title="Outputs",
-                body=(
-                    "Reserved for finished artifacts such as reports, specs, articles, decks, or "
-                    "other deliverables derived from the knowledge base."
-                ),
-            ),
-            machine=True,
-        ),
-        FileSpec(
-            "archive/README.md",
-            root_folder_readme(
-                title="Archive",
-                body=(
-                    "Reserved for inactive material. Archive content should stay searchable but "
-                    "should not drive current project context unless explicitly selected."
-                ),
-            ),
-            machine=True,
-        ),
-        FileSpec(
-            "schemas/README.md",
-            root_folder_readme(
-                title="Schemas",
-                body=(
-                    "Reserved for user-level or future vault-level schemas. The active Memova V1 "
-                    "raw input schemas live in `inbox/memova/schemas/`."
-                ),
-            ),
-            machine=True,
-        ),
-        FileSpec(
-            "_memova/manifest.json",
-            json.dumps(root_manifest(setup, now=now), indent=2, ensure_ascii=False) + "\n",
-            machine=True,
-        ),
-        FileSpec(
-            "_memova/vault_mapping.json",
-            json.dumps(
-                {
-                    "schema_version": "memova_vault_mapping_v1",
-                    "updated_at": now,
-                    "memova_input_root": INPUT_ROOT_RELATIVE_PATH,
-                    "semantic_roots": {
-                        "inbox": "inbox",
-                        "memova_input_root": INPUT_ROOT_RELATIVE_PATH,
-                        "sources": "sources",
-                        "wiki": "wiki",
-                        "projects": "projects",
-                        "daily": "daily",
-                        "outputs": "outputs",
-                        "archive": "archive",
-                        "_memova": "_memova",
-                    },
-                },
-                indent=2,
-                ensure_ascii=False,
-            )
-            + "\n",
-            machine=True,
-        ),
-        FileSpec(
-            "_memova/sync_state.json",
-            json.dumps(
-                {
-                    "schema_version": "memova_vault_sync_state_v1",
-                    "updated_at": now,
-                    "last_successful_sync_at": None,
-                    "conflicts": [],
-                },
-                indent=2,
-                ensure_ascii=False,
-            )
-            + "\n",
-            machine=True,
-        ),
-    ]
-
-
-def root_readme(*, now: str) -> str:
-    return markdown(
-        f"""# Memova Vault
-
-This is a user-owned Memova knowledge base initialized by Codex for Memova.
-
-Memova V1 writes complete raw meeting packets only under `inbox/memova/`. The other folders are
-intentionally empty starter surfaces for the user, Obsidian, Codex, Claude Code, Cursor, or future
-Memova compiler workflows.
-
-## Structure
-
-```text
-inbox/
-  memova/
-    INDEX.md
-    meetings/
-    schemas/
-    _memova/
-sources/
-wiki/
-projects/
-daily/
-outputs/
-archive/
-schemas/
-_memova/
-```
-
-## Ownership Model
-
-- `inbox/memova/` is the Memova raw input root.
-- `sources/`, `wiki/`, `projects/`, `daily/`, `outputs/`, `archive/`, and root `schemas/` are
-  user-owned surfaces.
-- `_memova/` contains machine-readable setup and sync metadata.
-
-## V1 Scope
-
-Memova captures and compiles meeting source material, then syncs that source material into the raw
-input root. It does not automatically classify meetings into projects, update long-term wiki pages,
-or create durable memories in V1.
-
-Agents should use `inbox/memova/` as evidence. Any durable wiki/project/action output created later
-should cite the original meeting packet path and source file.
-
-Created by Memova setup on {now}.
-"""
-    )
-
-
-def root_agents() -> str:
-    return markdown(
-        """# Agent Rules For This Memova Vault
-
-These rules apply to the whole vault. More specific rules for Memova raw meeting packets live in
-`inbox/memova/AGENTS.md`.
-
-## Core Rules
-
-- Treat `inbox/memova/` as source evidence, not curated long-term memory.
-- Do not reorganize or rename user-authored folders without explicit user approval.
-- Do not move raw Memova packets out of `inbox/memova/meetings/` unless the user requests a
-  migration.
-- No memory without source. Durable wiki/project pages must cite the source packet and source file.
-- No action without evidence. Action candidates must reference meeting evidence.
-- No external write without confirmation.
-
-## Recommended Agent Flow
-
-1. Read `inbox/memova/README.md` and `inbox/memova/AGENTS.md`.
-2. Use `inbox/memova/schemas/*.schema.md` to understand packet contracts.
-3. Read packet `manifest.json` before reading packet content.
-4. Create derived wiki/project/daily/output files only after the user asks for that workflow.
-5. Preserve original raw source packets for future reprocessing.
-"""
-    )
-
-
-def root_folder_readme(*, title: str, body: str) -> str:
-    return markdown(
-        f"""# {title}
-
-{body}
-
-This folder is part of the Memova LLM wiki skeleton. In V1, Memova's automatic writes are limited
-to the raw input root at `inbox/memova/`.
-"""
-    )
-
-
 def build_dirs(setup: dict[str, Any]) -> list[str]:
-    if is_existing_vault_setup(setup):
-        return list(INPUT_ROOT_DIRS)
+    if setup_template_version(setup) == V3_TEMPLATE_VERSION:
+        operations = setup_operations(setup) or {}
+        return [
+            str(item["relative_path"])
+            for item in operations.get("directories") or []
+            if isinstance(item, dict) and strict_relative_path(item.get("relative_path"))
+        ]
     return list(NEW_VAULT_DIRS)
 
 
 def build_file_specs(setup: dict[str, Any], *, target_root: Path, now: str | None = None) -> list[FileSpec]:
+    if setup_template_version(setup) == V3_TEMPLATE_VERSION:
+        operations = setup_operations(setup) or {}
+        specs: list[FileSpec] = []
+        for item in operations.get("files") or []:
+            if not isinstance(item, dict):
+                continue
+            relative_path = strict_relative_path(item.get("relative_path"))
+            content = item.get("content")
+            if relative_path is None or not isinstance(content, str):
+                continue
+            specs.append(
+                FileSpec(
+                    path=relative_path,
+                    content=content,
+                    machine=bool(item.get("machine_managed", True)),
+                    role=str(item.get("role") or "memova_v3_setup_file"),
+                    content_type=str(item.get("content_type") or "text/markdown"),
+                    write_mode=str(item.get("write_mode") or "skip_if_exists"),
+                    sha256=str(item.get("sha256") or hashlib.sha256(content.encode("utf-8")).hexdigest()),
+                    byte_size=int(item.get("byte_size") or len(content.encode("utf-8"))),
+                    memova_uri=str(item["memova_uri"]) if item.get("memova_uri") else None,
+                    expected_existing_sha256=(
+                        str(item["expected_existing_sha256"])
+                        if item.get("expected_existing_sha256")
+                        else None
+                    ),
+                    preserve_if_modified=bool(item.get("preserve_if_modified", True)),
+                )
+            )
+        return specs
     now = now or utc_now_iso()
     relative_path = memova_input_root_relative_path(setup, target_root)
-    if is_existing_vault_setup(setup):
-        return input_root_file_specs(setup, now=now, relative_path=relative_path)
-    return root_file_specs(setup, now=now) + input_root_file_specs(
-        setup,
-        now=now,
-        relative_path=INPUT_ROOT_RELATIVE_PATH,
-        prefix=INPUT_ROOT_RELATIVE_PATH,
-    )
+    return input_root_file_specs(setup, now=now, relative_path=relative_path)
 
 
 def create_plan(
@@ -1181,7 +1322,8 @@ def create_plan(
     nonempty = exists and any(target_root.iterdir())
     under_icloud = path_under_icloud(target_root)
     warnings: list[str] = []
-    errors: list[str] = []
+    package_errors = setup_package_errors(setup)
+    errors: list[str] = list(package_errors)
     source_vault_paths = extract_source_vault_paths(setup)
     suggested_existing_vault_target = None
     suggested_new_vault_target_path = None
@@ -1200,7 +1342,10 @@ def create_plan(
         errors.append("Target root already exists and is not empty.")
     if mode == "create_new_vault":
         desired_folder = new_vault_folder_name(setup)
-        suggested = suggested_new_vault_target(setup)
+        # iCloud discovery is macOS-specific and can legitimately return no existing root on
+        # Windows/Linux or a fresh Mac. Planning still knows the user-selected parent directory,
+        # so provide a deterministic sibling suggestion instead of dropping the recovery target.
+        suggested = suggested_new_vault_target(setup) or target_root.parent / desired_folder
         suggested_new_vault_target_path = str(suggested) if suggested is not None else None
         if safe_component(target_root.name) != desired_folder:
             hint = f" Use {suggested_new_vault_target_path}." if suggested_new_vault_target_path else ""
@@ -1216,8 +1361,8 @@ def create_plan(
                 suggested_existing_input_target(setup, source_vault_paths[0]),
             )
             errors.append(
-                "For connect_existing_vault, target root must be a Memova input-root child folder "
-                "inside the supplied existing vault path."
+                "For connect_existing_vault, target root must be the root-level Memova managed "
+                "sub-knowledge-base folder inside the supplied existing vault path."
             )
         else:
             exact_sources = [source for source in containing_sources if resolved(source) == target_resolved]
@@ -1227,15 +1372,17 @@ def create_plan(
                 )
                 errors.append(
                     "For connect_existing_vault, target root cannot be the existing vault root "
-                    f"itself. Use a Memova input-root child folder such as "
+                    f"itself. Use the root-level Memova managed folder such as "
                     f"{suggested_existing_vault_target}."
                 )
 
-    dirs = build_dirs(setup)
-    files = build_file_specs(setup, target_root=target_root)
+    dirs = [] if package_errors else build_dirs(setup)
+    files = [] if package_errors else build_file_specs(setup, target_root=target_root)
     operations: list[dict[str, Any]] = []
     for directory in dirs:
         path = safe_join(target_root, directory)
+        if path.exists() and not path.is_dir():
+            errors.append(f"Required directory path is occupied by a non-directory item: {directory}")
         operations.append(
             {
                 "op": "mkdir",
@@ -1247,10 +1394,17 @@ def create_plan(
     for spec in files:
         path = safe_join(target_root, spec.path)
         exists_file = path.exists()
-        should_overwrite = bool(
-            spec.machine and (overwrite_machine_files or is_setup_identity_file(spec.path))
+        if exists_file and not path.is_file():
+            errors.append(f"Required file path is occupied by a non-file item: {spec.path}")
+        status, current_sha256 = planned_file_status(
+            path,
+            spec,
+            overwrite_machine_files=overwrite_machine_files,
         )
-        status = "overwrite" if exists_file and should_overwrite else "skip" if exists_file else "create"
+        if status == "preserve_modified":
+            warnings.append(
+                f"Preserving locally modified file because its hash differs from the backend expectation: {spec.path}"
+            )
         operations.append(
             {
                 "op": "write_file",
@@ -1259,18 +1413,23 @@ def create_plan(
                 "status": status,
                 "machine_file": spec.machine,
                 "bytes": len(spec.content.encode("utf-8")),
+                "sha256": spec.sha256 or hashlib.sha256(spec.content.encode("utf-8")).hexdigest(),
+                "write_mode": spec.write_mode,
+                "preserve_if_modified": spec.preserve_if_modified,
+                "expected_existing_sha256": spec.expected_existing_sha256,
+                "current_sha256": current_sha256,
             },
         )
 
     relative_path = memova_input_root_relative_path(setup, target_root)
-    target_kind = "memova_input_root" if mode == "connect_existing_vault" else "memova_vault"
+    target_kind = "memova_managed_root" if mode == "connect_existing_vault" else "memova_vault"
     plan_target_root = str(resolved(target_root))
     plan = {
         "schema_version": "memova_vault_operation_plan_v1",
         "target_root": plan_target_root,
         "setup_mode": mode,
         "storage_target": storage_target,
-        "vault_template_version": setup.get("vault_template_version") or TEMPLATE_VERSION,
+        "vault_template_version": setup_template_version(setup),
         "target_kind": target_kind,
         "under_detected_icloud_root": under_icloud,
         "target_exists": exists,
@@ -1288,6 +1447,39 @@ def create_plan(
     }
     plan["ios_folder_binding_hints"] = ios_folder_binding_hints(plan)
     return plan
+
+
+def planned_file_status(
+    path: Path,
+    spec: FileSpec,
+    *,
+    overwrite_machine_files: bool,
+) -> tuple[str, str | None]:
+    if not path.exists() or not path.is_file():
+        return "create", None
+    current_sha256 = hashlib.sha256(path.read_bytes()).hexdigest()
+    if spec.write_mode == "replace_machine_file" and spec.machine:
+        return "overwrite", current_sha256
+    if (
+        spec.preserve_if_modified
+        and spec.expected_existing_sha256
+        and current_sha256 != spec.expected_existing_sha256
+    ):
+        return "preserve_modified", current_sha256
+    if setup_spec_replaces_existing(spec, overwrite_machine_files=overwrite_machine_files):
+        return "overwrite", current_sha256
+    return "skip", current_sha256
+
+
+def setup_spec_replaces_existing(spec: FileSpec, *, overwrite_machine_files: bool) -> bool:
+    if spec.write_mode == "replace":
+        return True
+    if spec.write_mode == "replace_machine_file" and spec.machine:
+        return True
+    return bool(
+        spec.machine
+        and (overwrite_machine_files or is_setup_identity_file(spec.path))
+    )
 
 
 def ios_folder_binding_hints(plan: dict[str, Any]) -> dict[str, Any]:
@@ -1404,6 +1596,7 @@ def apply_plan(plan: dict[str, Any], setup: dict[str, Any], *, overwrite_machine
     created_files: list[str] = []
     skipped_files: list[str] = []
     overwritten_files: list[str] = []
+    written_files: list[dict[str, Any]] = []
 
     for operation in plan["operations"]:
         path = Path(operation["path"])
@@ -1416,13 +1609,17 @@ def apply_plan(plan: dict[str, Any], setup: dict[str, Any], *, overwrite_machine
             continue
         spec = specs_by_path[operation["relative_path"]]
         path.parent.mkdir(parents=True, exist_ok=True)
-        should_overwrite = bool(
-            spec.machine and (overwrite_machine_files or is_setup_identity_file(spec.path))
-        )
-        if path.exists() and not should_overwrite:
+        if operation.get("status") in {"skip", "preserve_modified"}:
             skipped_files.append(operation["relative_path"])
             continue
         path.write_text(spec.content, encoding="utf-8")
+        written_files.append(
+            {
+                "relative_path": operation["relative_path"],
+                "sha256": hashlib.sha256(spec.content.encode("utf-8")).hexdigest(),
+                "byte_size": len(spec.content.encode("utf-8")),
+            }
+        )
         if operation["status"] == "overwrite":
             overwritten_files.append(operation["relative_path"])
         else:
@@ -1446,86 +1643,667 @@ def apply_plan(plan: dict[str, Any], setup: dict[str, Any], *, overwrite_machine
         "created_files": created_files,
         "skipped_files": skipped_files,
         "overwritten_files": overwritten_files,
+        "written_files": written_files,
         "identity_validation": setup_identity_validation(target_root, setup),
     }
 
 
-def validate_vault(path: Path) -> dict[str, Any]:
+def validate_vault(path: Path, setup: dict[str, Any] | None = None) -> dict[str, Any]:
     root = expand_path(str(path))
-    is_new_vault = safe_join(root, f"{INPUT_ROOT_RELATIVE_PATH}/_memova/manifest.json").is_file()
+    manifest, _manifest_error = read_json_file(safe_join(root, "_memova/manifest.json"))
+    detected_template = (manifest or {}).get("vault_template_version")
+    requested_template = setup_template_version(setup) if setup else None
+    template_version = requested_template or detected_template or V2_TEMPLATE_VERSION
+    if template_version == V3_TEMPLATE_VERSION:
+        return validate_v3_vault(root, setup=setup)
+    return validate_v2_vault(root)
+
+
+def validate_v3_vault(path: Path, setup: dict[str, Any] | None = None) -> dict[str, Any]:
+    root = expand_path(str(path))
+    manifest_path = safe_join(root, "_memova/manifest.json")
+    manifest, manifest_error = read_json_file(manifest_path)
+    tree_manifest, tree_manifest_error = read_json_file(safe_join(root, "_memova/tree_manifest.json"))
+    issues: list[dict[str, Any]] = []
+    missing_directories: list[str] = []
+    missing_files: list[str] = []
+    blocked_directories: list[str] = []
+    blocked_files: list[str] = []
+    machine_json_issues: list[dict[str, Any]] = []
+
+    setup_errors = setup_package_errors(setup) if setup else []
+    for message in setup_errors:
+        issues.append(
+            validation_issue(
+                "v3_setup_package_invalid",
+                "error",
+                "",
+                message,
+                "blocked",
+            )
+        )
+
+    if manifest_error:
+        issues.append(
+            validation_issue(
+                "root_manifest_invalid",
+                "error",
+                "_memova/manifest.json",
+                f"V3 root manifest is missing or invalid: {manifest_error}",
+                "blocked",
+            )
+        )
+    elif (manifest or {}).get("vault_template_version") != V3_TEMPLATE_VERSION:
+        issues.append(
+            validation_issue(
+                "root_manifest_template_mismatch",
+                "error",
+                "_memova/manifest.json",
+                "Root manifest does not declare memova_knowledge_base_v3.",
+                "blocked",
+            )
+        )
+
+    expected_dirs, expected_files, expected_specs = v3_validation_expectations(
+        setup=setup,
+        tree_manifest=tree_manifest,
+    )
+    if tree_manifest_error and not setup:
+        issues.append(
+            validation_issue(
+                "tree_manifest_invalid",
+                "error",
+                "_memova/tree_manifest.json",
+                f"V3 tree manifest is missing or invalid: {tree_manifest_error}",
+                "blocked",
+            )
+        )
+
+    for relative_path in expected_dirs:
+        target = safe_join(root, relative_path)
+        if target.exists() and not target.is_dir():
+            blocked_directories.append(relative_path)
+            issues.append(
+                validation_issue(
+                    "required_directory_blocked_by_file",
+                    "error",
+                    relative_path,
+                    "Required Memova V3 directory path is occupied by a non-directory item.",
+                    "blocked",
+                )
+            )
+        elif not target.is_dir():
+            missing_directories.append(relative_path)
+            issues.append(
+                validation_issue(
+                    "required_directory_missing",
+                    "error",
+                    relative_path,
+                    "Required Memova V3 directory is missing.",
+                    "auto" if setup else "blocked",
+                    repair_action="create_directory" if setup else None,
+                )
+            )
+
+    for relative_path in expected_files:
+        target = safe_join(root, relative_path)
+        if target.exists() and not target.is_file():
+            blocked_files.append(relative_path)
+            issues.append(
+                validation_issue(
+                    "required_file_blocked_by_non_file",
+                    "error",
+                    relative_path,
+                    "Required Memova V3 file path is occupied by a non-file item.",
+                    "blocked",
+                )
+            )
+            continue
+        if not target.is_file():
+            missing_files.append(relative_path)
+            issues.append(
+                validation_issue(
+                    "required_file_missing",
+                    "error",
+                    relative_path,
+                    "Required Memova V3 file is missing.",
+                    "auto" if setup else "blocked",
+                    repair_action="create_file" if setup else None,
+                )
+            )
+            continue
+    for relative_path, expected_schema_version in V3_MACHINE_JSON_SCHEMA_VERSIONS.items():
+        target = safe_join(root, relative_path)
+        if not target.is_file():
+            continue
+        data, error = read_json_file(target)
+        if error or (data or {}).get("schema_version") != expected_schema_version:
+            issue = {
+                "relative_path": relative_path,
+                "code": "machine_json_invalid" if error else "machine_json_schema_mismatch",
+                "expected": expected_schema_version,
+                "actual": (data or {}).get("schema_version") if not error else None,
+                "error": error,
+            }
+            if not any(
+                existing.get("relative_path") == relative_path
+                and existing.get("code") == issue["code"]
+                for existing in machine_json_issues
+            ):
+                machine_json_issues.append(issue)
+                issues.append(
+                    validation_issue(
+                        str(issue["code"]),
+                        "error",
+                        relative_path,
+                        "Required machine JSON does not match the Memova V3 contract.",
+                        "auto" if setup and relative_path in expected_specs else "blocked",
+                        repair_action=(
+                            "replace_machine_file"
+                            if setup and relative_path in expected_specs
+                            else None
+                        ),
+                        details={key: value for key, value in issue.items() if key != "relative_path"},
+                    )
+                )
+
+    blocked_reasons = [
+        issue["message"]
+        for issue in issues
+        if issue.get("severity") == "error" and issue.get("repairability") == "blocked"
+    ]
+    error_count = len([issue for issue in issues if issue.get("severity") == "error"])
+    status = "blocked" if blocked_reasons else "repair_required" if error_count else "ok"
+    health = "blocked" if blocked_reasons else "repairable" if error_count else "healthy"
+    repair_package = v3_validation_repair_package(
+        setup=setup,
+        expected_specs=expected_specs,
+        missing_directories=missing_directories,
+        missing_files=missing_files,
+        machine_json_issues=machine_json_issues,
+        blocked_reasons=blocked_reasons,
+    )
+    return {
+        "schema_version": V3_VALIDATION_RESULT_SCHEMA_VERSION,
+        "status": status,
+        "health": health,
+        "path": str(resolved(root)),
+        "target_kind": (
+            "memova_managed_root"
+            if (manifest or {}).get("setup_mode") == "connect_existing_vault"
+            else "memova_vault"
+        ),
+        "vault_template_version": V3_TEMPLATE_VERSION,
+        "memova_input_root_path": str(resolved(root)),
+        "memova_input_root_relative_path": (manifest or {}).get(
+            "memova_input_root_relative_path",
+            ".",
+        ),
+        "missing_directories": missing_directories,
+        "missing_files": missing_files,
+        "blocked_directories": blocked_directories,
+        "blocked_files": blocked_files,
+        "machine_json_issues": machine_json_issues,
+        "issues": issues,
+        "repair_package": repair_package,
+        "vault_manifest_id": (manifest or {}).get("manifest_id"),
+        "input_root_manifest_id": (manifest or {}).get("input_root_manifest_id"),
+        "manifest_id": (manifest or {}).get("manifest_id"),
+        "manifest_error": manifest_error,
+        "tree_manifest_error": tree_manifest_error,
+        "summary": {
+            "issue_count": len(issues),
+            "error_count": error_count,
+            "blocked_issue_count": len(blocked_reasons),
+            "validation_source": "backend_setup_operations" if setup else "local_v3_manifests",
+            "blob_mirror_validation": "not_in_scope",
+        },
+    }
+
+
+def v3_validation_expectations(
+    *,
+    setup: dict[str, Any] | None,
+    tree_manifest: dict[str, Any] | None,
+) -> tuple[list[str], list[str], dict[str, FileSpec]]:
+    if setup:
+        specs = build_file_specs(setup, target_root=Path("."))
+        return build_dirs(setup), [spec.path for spec in specs], {spec.path: spec for spec in specs}
+    tree_manifest = tree_manifest or {}
+    directories = []
+    files = []
+    for item in tree_manifest.get("required_directories") or []:
+        relative_path = strict_relative_path(item.get("relative_path")) if isinstance(item, dict) else None
+        if relative_path:
+            directories.append(relative_path)
+    for item in tree_manifest.get("required_files") or []:
+        relative_path = strict_relative_path(item.get("relative_path")) if isinstance(item, dict) else None
+        if relative_path:
+            files.append(relative_path)
+    return directories, files, {}
+
+
+def v3_validation_repair_package(
+    *,
+    setup: dict[str, Any] | None,
+    expected_specs: dict[str, FileSpec],
+    missing_directories: list[str],
+    missing_files: list[str],
+    machine_json_issues: list[dict[str, Any]],
+    blocked_reasons: list[str],
+) -> dict[str, Any] | None:
+    repair_paths = set(missing_files)
+    repair_paths.update(
+        str(item.get("relative_path"))
+        for item in machine_json_issues
+        if item.get("relative_path") in expected_specs
+    )
+    if not missing_directories and not repair_paths and not blocked_reasons:
+        return None
+    if setup is None:
+        status = "not_available"
+        package_blocked_reasons = [
+            *blocked_reasons,
+            "Current V3 setup or repair operations are required; the plugin will not reconstruct V3 files locally.",
+        ]
+    else:
+        status = "not_available" if blocked_reasons else "available"
+        package_blocked_reasons = blocked_reasons
+    files = [
+        validation_file_operation(
+            expected_specs[relative_path],
+            replace=relative_path not in missing_files,
+        )
+        for relative_path in sorted(repair_paths)
+        if relative_path in expected_specs
+    ]
+    return {
+        "schema_version": V3_REPAIR_PACKAGE_SCHEMA_VERSION,
+        "status": status,
+        "generated_at": utc_now_iso(),
+        "target_kind": "memova_managed_root",
+        "memova_root_relative_path": ".",
+        "directories": [
+            {
+                "relative_path": relative_path,
+                "role": "memova_root_structure_v3",
+                "write_mode": "create",
+            }
+            for relative_path in missing_directories
+        ] if setup else [],
+        "files": files if setup else [],
+        "blocked_reasons": package_blocked_reasons,
+        "safety_policy": {
+            "scope": "backend_supplied_memova_managed_root_v3_operations_only",
+            "never_repairs": [
+                "user_modified_non_machine_files",
+                "files_not_present_in_backend_setup_operations",
+                "cloud_or_blob_mirror_state",
+            ],
+        },
+    }
+
+
+def validate_v2_vault(path: Path) -> dict[str, Any]:
+    root = expand_path(str(path))
+    has_v2_root_manifest = safe_join(root, "_memova/manifest.json").is_file()
+    is_new_vault = has_v2_root_manifest and root.name != INPUT_ROOT_FOLDER_NAME
     missing_roots: list[str] = []
     missing_machine_files: list[str] = []
+    blocked_roots: list[str] = []
+    blocked_files: list[str] = []
     invalid_required_files: list[dict[str, Any]] = []
-    input_root = safe_join(root, INPUT_ROOT_RELATIVE_PATH) if is_new_vault else root
+    machine_json_issues: list[dict[str, Any]] = []
+    input_root = root
 
-    if is_new_vault:
+    if has_v2_root_manifest:
         for root_path in NEW_VAULT_REQUIRED_ROOTS:
             target = safe_join(root, root_path.rstrip("/"))
-            if not target.exists():
+            if root_path.endswith("/") and target.exists() and not target.is_dir():
+                blocked_roots.append(root_path)
+            elif not target.exists():
                 missing_roots.append(root_path)
         invalid_required_files.extend(validate_doc_content(root, NEW_VAULT_DOC_CHECKS, min_chars=120))
-        for relative_path in (
-            "_memova/manifest.json",
-            "_memova/vault_mapping.json",
-            "_memova/sync_state.json",
-        ):
-            if not safe_join(root, relative_path).is_file():
-                missing_machine_files.append(relative_path)
 
     for relative_path in INPUT_ROOT_REQUIRED_FILES:
-        if not safe_join(input_root, relative_path).is_file():
-            missing_machine_files.append(
-                f"{INPUT_ROOT_RELATIVE_PATH}/{relative_path}" if is_new_vault else relative_path,
-            )
+        target = safe_join(input_root, relative_path)
+        if target.exists() and not target.is_file():
+            blocked_files.append(relative_path)
+        elif not target.is_file():
+            missing_machine_files.append(relative_path)
     input_doc_issues = validate_doc_content(input_root, INPUT_ROOT_DOC_CHECKS, min_chars=240)
-    if is_new_vault:
-        invalid_required_files.extend(
-            {
-                **issue,
-                "relative_path": f"{INPUT_ROOT_RELATIVE_PATH}/{issue['relative_path']}",
-            }
-            for issue in input_doc_issues
-        )
-    else:
-        invalid_required_files.extend(input_doc_issues)
+    invalid_required_files.extend(input_doc_issues)
 
     manifest_path = safe_join(input_root, "_memova/manifest.json")
     manifest: dict[str, Any] | None = None
     manifest_error: str | None = None
     if manifest_path.exists():
-        try:
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
-            manifest_error = str(exc)
+        manifest, manifest_error = read_json_file(manifest_path)
 
-    status = "ok"
-    if missing_roots or missing_machine_files or invalid_required_files or manifest_error:
-        status = "fail"
+    for relative_path, expected_schema_version in MACHINE_JSON_SCHEMA_VERSIONS.items():
+        target = safe_join(input_root, relative_path)
+        if not target.is_file():
+            continue
+        data, error = read_json_file(target)
+        if error:
+            machine_json_issues.append(
+                {
+                    "relative_path": relative_path,
+                    "code": "machine_json_invalid",
+                    "error": error,
+                }
+            )
+            continue
+        actual_schema_version = (data or {}).get("schema_version")
+        if actual_schema_version != expected_schema_version:
+            machine_json_issues.append(
+                {
+                    "relative_path": relative_path,
+                    "code": "machine_json_schema_mismatch",
+                    "expected": expected_schema_version,
+                    "actual": actual_schema_version,
+                }
+            )
+
+    issues = validation_issues(
+        missing_roots=missing_roots,
+        missing_machine_files=missing_machine_files,
+        invalid_required_files=invalid_required_files,
+        machine_json_issues=machine_json_issues,
+        blocked_roots=blocked_roots,
+        blocked_files=blocked_files,
+    )
+    blocked_reasons = [
+        issue["message"]
+        for issue in issues
+        if issue.get("severity") == "error" and issue.get("repairability") == "blocked"
+    ]
+    error_count = len([issue for issue in issues if issue.get("severity") == "error"])
+    if blocked_reasons:
+        status = "blocked"
+        health = "blocked"
+    elif error_count:
+        status = "repair_required"
+        health = "repairable"
+    else:
+        status = "ok"
+        health = "healthy"
+    repair_package = validation_repair_package(
+        root,
+        target_kind="memova_vault" if is_new_vault else "memova_managed_root",
+        missing_roots=missing_roots,
+        missing_machine_files=missing_machine_files,
+        machine_json_issues=machine_json_issues,
+        invalid_required_files=invalid_required_files,
+        blocked_roots=blocked_roots,
+        blocked_files=blocked_files,
+        blocked_reasons=blocked_reasons,
+    )
 
     return {
-        "schema_version": "memova_vault_validation_v1",
+        "schema_version": VALIDATION_RESULT_SCHEMA_VERSION,
+        "legacy_schema_version": "memova_vault_validation_v1",
         "status": status,
+        "legacy_status": "ok" if status == "ok" else "fail",
+        "health": health,
         "path": str(resolved(root)),
-        "target_kind": "memova_vault" if is_new_vault else "memova_input_root",
+        "target_kind": "memova_vault" if is_new_vault else "memova_managed_root",
         "memova_input_root_path": str(resolved(input_root)),
-        "memova_input_root_relative_path": INPUT_ROOT_RELATIVE_PATH
-        if is_new_vault
-        else manifest.get("memova_input_root_relative_path", ".")
+        "memova_input_root_relative_path": manifest.get("memova_input_root_relative_path", ".")
         if manifest
         else ".",
         "missing_roots": missing_roots,
         "missing_machine_files": missing_machine_files,
+        "blocked_roots": blocked_roots,
+        "blocked_files": blocked_files,
         "invalid_required_files": invalid_required_files,
-        "vault_manifest_id": manifest_id_from_root(root) if is_new_vault else None,
-        "input_root_manifest_id": manifest.get("manifest_id") if manifest else None,
+        "machine_json_issues": machine_json_issues,
+        "issues": issues,
+        "repair_package": repair_package,
+        "vault_manifest_id": manifest.get("manifest_id") if manifest else None,
+        "input_root_manifest_id": manifest.get("input_root_manifest_id") if manifest else None,
         "manifest_id": manifest.get("manifest_id") if manifest else None,
         "manifest_error": manifest_error,
+        "summary": {
+            "issue_count": len(issues),
+            "error_count": error_count,
+            "blocked_issue_count": len(blocked_reasons),
+            "blob_mirror_validation": "not_in_scope",
+            "observation_root": "memova_managed_root_relative_paths",
+        },
     }
+
+
+def validation_issues(
+    *,
+    missing_roots: list[str],
+    missing_machine_files: list[str],
+    invalid_required_files: list[dict[str, Any]],
+    machine_json_issues: list[dict[str, Any]],
+    blocked_roots: list[str],
+    blocked_files: list[str],
+) -> list[dict[str, Any]]:
+    issues: list[dict[str, Any]] = []
+    for relative_path in missing_roots:
+        if relative_path.endswith("/"):
+            issues.append(
+                validation_issue(
+                    "required_directory_missing",
+                    "error",
+                    relative_path.rstrip("/"),
+                    "Required Memova V2 directory is missing.",
+                    "auto",
+                    repair_action="create_directory",
+                )
+            )
+    for relative_path in missing_machine_files:
+        issues.append(
+            validation_issue(
+                "required_file_missing",
+                "error",
+                relative_path,
+                "Required Memova V2 file is missing.",
+                "auto",
+                repair_action="create_file",
+            )
+        )
+    for relative_path in blocked_roots:
+        issues.append(
+            validation_issue(
+                "required_directory_blocked_by_file",
+                "error",
+                relative_path.rstrip("/"),
+                "Required Memova V2 directory path is occupied by a non-directory item.",
+                "blocked",
+            )
+        )
+    for relative_path in blocked_files:
+        issues.append(
+            validation_issue(
+                "required_file_blocked_by_non_file",
+                "error",
+                relative_path,
+                "Required Memova V2 file path is occupied by a non-file item.",
+                "blocked",
+            )
+        )
+    for item in machine_json_issues:
+        issues.append(
+            validation_issue(
+                str(item.get("code") or "machine_json_invalid"),
+                "error",
+                str(item.get("relative_path") or ""),
+                "Required machine JSON does not match the Memova V2 contract.",
+                "auto",
+                repair_action="replace_machine_file",
+                details={key: value for key, value in item.items() if key != "relative_path"},
+            )
+        )
+    for item in invalid_required_files:
+        issues.append(
+            validation_issue(
+                "setup_doc_invalid",
+                "error",
+                str(item.get("relative_path") or ""),
+                "Memova-managed setup document is missing required contract text.",
+                "needs_overwrite_approval",
+                details=item,
+            )
+        )
+    return issues
+
+
+def validation_issue(
+    code: str,
+    severity: str,
+    relative_path: str,
+    message: str,
+    repairability: str,
+    *,
+    repair_action: str | None = None,
+    details: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    return {
+        "code": code,
+        "severity": severity,
+        "relative_path": relative_path,
+        "message": message,
+        "repairability": repairability,
+        "repair_action": repair_action,
+        "details": details or {},
+    }
+
+
+def validation_repair_package(
+    root: Path,
+    *,
+    target_kind: str,
+    missing_roots: list[str],
+    missing_machine_files: list[str],
+    machine_json_issues: list[dict[str, Any]],
+    invalid_required_files: list[dict[str, Any]],
+    blocked_roots: list[str],
+    blocked_files: list[str],
+    blocked_reasons: list[str],
+) -> dict[str, Any] | None:
+    if not (
+        missing_roots
+        or missing_machine_files
+        or machine_json_issues
+        or invalid_required_files
+        or blocked_roots
+        or blocked_files
+    ):
+        return None
+    blocked_file_set = set(blocked_files)
+    directories = [
+        {
+            "relative_path": relative_path.rstrip("/"),
+            "role": "memova_root_structure",
+            "write_mode": "create",
+        }
+        for relative_path in missing_roots
+        if relative_path.endswith("/") and relative_path not in blocked_roots
+    ]
+    repair_setup = {
+        "schema_version": SETUP_SCHEMA_VERSION,
+        "setup_session_id": "local-validation",
+        "workspace_id": None,
+        "setup_mode": "create_new_vault" if target_kind == "memova_vault" else "connect_existing_vault",
+        "storage_target": "icloud_drive",
+        "vault_template_version": TEMPLATE_VERSION,
+    }
+    specs_by_path = {
+        spec.path: spec for spec in build_file_specs(repair_setup, target_root=root)
+    }
+    repair_file_paths = set(missing_machine_files)
+    repair_file_paths.update(
+        str(item.get("relative_path"))
+        for item in machine_json_issues
+        if item.get("relative_path")
+    )
+    files = [
+        validation_file_operation(specs_by_path[relative_path], replace=relative_path not in missing_machine_files)
+        for relative_path in sorted(repair_file_paths)
+        if relative_path in specs_by_path and relative_path not in blocked_file_set
+    ]
+    if blocked_reasons:
+        status = "not_available"
+    elif directories or files:
+        status = "available"
+    else:
+        status = "not_available"
+    return {
+        "schema_version": REPAIR_PACKAGE_SCHEMA_VERSION,
+        "status": status,
+        "generated_at": utc_now_iso(),
+        "target_kind": target_kind,
+        "memova_root_relative_path": ".",
+        "directories": directories,
+        "files": files,
+        "blocked_reasons": blocked_reasons,
+        "warnings": [
+            "Some setup documents require explicit overwrite approval."
+            for _item in invalid_required_files
+        ],
+        "safety_policy": {
+            "scope": "memova_managed_root_v2_structure_only",
+            "safe_repairs": [
+                "create_missing_required_directories",
+                "create_missing_required_files_from_setup_contract",
+                "replace_invalid_machine_json_from_setup_contract",
+            ],
+            "never_repairs": [
+                "inbox_packet_source_files",
+                "user_created_wiki_or_project_content",
+                "cloud_or_blob_mirror_state",
+                "manifest_identity_mismatches",
+            ],
+        },
+    }
+
+
+def validation_file_operation(spec: FileSpec, *, replace: bool) -> dict[str, Any]:
+    content_bytes = spec.content.encode("utf-8")
+    return {
+        "relative_path": spec.path,
+        "role": spec.role or validation_file_role(spec.path),
+        "content_type": spec.content_type or (
+            "application/json" if spec.path.endswith(".json") else "text/markdown"
+        ),
+        "encoding": "utf-8",
+        "write_mode": "replace_machine_file" if replace or spec.path.startswith("_memova/") else "skip_if_exists",
+        "sha256": hashlib.sha256(content_bytes).hexdigest(),
+        "byte_size": len(content_bytes),
+        "content": spec.content,
+        "machine_managed": spec.machine,
+        "memova_uri": spec.memova_uri,
+        "expected_existing_sha256": spec.expected_existing_sha256,
+        "preserve_if_modified": spec.preserve_if_modified,
+    }
+
+
+def validation_file_role(relative_path: str) -> str:
+    if relative_path == "index.md":
+        return "root_index"
+    if relative_path == "README.md":
+        return "root_readme"
+    if relative_path == "AGENTS.md":
+        return "root_agents"
+    if relative_path == "log.md":
+        return "root_log"
+    if relative_path.startswith("schemas/"):
+        return "schema"
+    if relative_path.startswith("_memova/"):
+        return Path(relative_path).stem
+    if relative_path.endswith("index.md"):
+        return "area_index"
+    return "setup_doc"
 
 
 def setup_identity_validation(path: Path, setup: dict[str, Any]) -> dict[str, Any]:
     root = expand_path(str(path))
-    validation = validate_vault(root)
+    validation = validate_vault(root, setup=setup)
     setup_session_id = setup.get("setup_session_id")
     expected_vault_manifest_id = manifest_id(setup)
     expected_input_root_manifest_id = input_root_manifest_id(setup)
@@ -1563,24 +2341,15 @@ def setup_identity_validation(path: Path, setup: dict[str, Any]) -> dict[str, An
         )
     else:
         input_manifest = input_manifest or {}
-        expect(
-            "manifest_id",
-            expected_input_root_manifest_id,
-            input_manifest.get("manifest_id"),
-            path_label=str(input_manifest_path),
-        )
+        actual_input_manifest_id = input_manifest.get("input_root_manifest_id") or input_manifest.get("manifest_id")
+        expect("input_root_manifest_id", expected_input_root_manifest_id, actual_input_manifest_id, path_label=str(input_manifest_path))
         expect(
             "setup_session_id",
             setup_session_id,
             input_manifest.get("setup_session_id"),
             path_label=str(input_manifest_path),
         )
-        expect(
-            "vault_manifest_id",
-            expected_vault_manifest_id,
-            input_manifest.get("vault_manifest_id"),
-            path_label=str(input_manifest_path),
-        )
+        expect("manifest_id", expected_vault_manifest_id, input_manifest.get("manifest_id"), path_label=str(input_manifest_path))
 
     if target_kind == "memova_vault":
         root_manifest_path = safe_join(root, "_memova/manifest.json")
@@ -1621,7 +2390,7 @@ def setup_identity_validation(path: Path, setup: dict[str, Any]) -> dict[str, An
             else validation.get("vault_manifest_id")
         ),
         "actual_input_root_manifest_id": (
-            input_manifest.get("manifest_id")
+            input_manifest.get("input_root_manifest_id") or input_manifest.get("manifest_id")
             if isinstance(input_manifest, dict)
             else validation.get("input_root_manifest_id")
         ),

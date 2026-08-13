@@ -1,5 +1,5 @@
 {
-  "description": "Content-free activity hints for the opt-in Memova conversation Collector.",
+  "description": "Optional content-free activity audit markers. Background sync is scheduler-driven.",
   "hooks": {
     "UserPromptSubmit": [
       {

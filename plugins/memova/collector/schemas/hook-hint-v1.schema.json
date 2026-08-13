@@ -12,5 +12,5 @@
     "turn_id": {"type": ["string", "null"], "maxLength": 256},
     "observed_at": {"type": "string", "format": "date-time"}
   },
-  "description": "A content-free latency hint. It must never contain prompt, response, tool, file, or terminal content."
+  "description": "An optional content-free activity audit marker. It is not a sync trigger and must never contain prompt, response, tool, file, or terminal content."
 }

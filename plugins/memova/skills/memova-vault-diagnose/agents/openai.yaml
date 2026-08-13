@@ -1,7 +1,15 @@
 interface:
   display_name: "Memova Vault Diagnose"
-  short_description: "Validate or repair a Memova vault/input root."
-  default_prompt: "Diagnose your Memova vault."
+  short_description: "Validate or repair a Memova V2/V3 managed root."
+  default_prompt: "Use $memova-vault-diagnose to diagnose my Memova vault."
 
 policy:
   allow_implicit_invocation: false
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "memova"
+      description: "Memova OAuth MCP server for current V3 setup and repair operations."
+      transport: "streamable_http"
+      url: "https://api.memova.ai/mcp"

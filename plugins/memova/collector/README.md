@@ -1,9 +1,9 @@
 # Memova Codex Conversation Collector M0-M4
 
 This plugin-bundled directory implements the local, version-neutral foundation for Memova Codex
-conversation sync. The current local development target is `1.2.0`; it adds the strict V2 archive
-batch with privacy-safe project context to the previously completed `1.1.0` Collector line, whose
-public-plugin baseline was `1.0.0`.
+conversation sync. The current local development target is `1.3.0`; it retains the strict V2
+archive batch and adds backend-driven Knowledge V3 compatibility, scoped MCP pairing guidance, and
+a bounded three-task acceptance procedure on top of the `1.2.0` Collector line.
 
 ## Implemented scope
 
@@ -29,14 +29,16 @@ public-plugin baseline was `1.0.0`.
 - **V2 project context:** after MCP pairing, keep the backend-issued, non-authorizing
   owner/workspace repository HMAC key beside OAuth tokens in the OS credential store. A repository
   remote becomes a stable HMAC fingerprint across that owner's paired devices; repositories without
-  a usable remote use a device-local opaque identity. The batch may include that fingerprint, a
-  display name, branch, and repository-relative working path. Never upload the HMAC key, absolute
+  a usable remote use a device-local opaque identity. Fresh setup sends only that identity by
+  default; full mode may also include a display name, branch, and repository-relative working path.
+  Never upload the HMAC key, absolute
   cwd, repository remote URL/credentials/query, or commit SHA. Project/Note/Meeting/Action/etc.
   links remain backend-owned graph relations, not Collector-side projection fields.
 
-Project context is a separate setup choice and defaults to off. Enabling full-history archive does
-not implicitly enable this additional metadata class; use `--include-project-context` only after
-showing and accepting its disclosure. Disabling it does not affect archive sync.
+Fresh setup defaults to privacy-minimal repository identity. Use `--include-project-context` only
+after showing and accepting the disclosure for full observations, or `--disable-project-context`
+to send no repository context. Existing consent is not silently expanded. The chosen mode does not
+affect archive sync.
 
 The mock sink remains available for deterministic development. The `rest` sink is the M4
 production-shaped path and performs network traffic only after explicit consent and pairing.
@@ -58,8 +60,8 @@ content, and requires both `--acknowledge-local-read` and
 `--allow-experimental-app-server`.
 
 The bundled Hooks never read prompt/response fields or `transcript_path`. They write only event,
-session id, turn id, and timestamp under `$PLUGIN_DATA`. Hooks are optional latency hints; the
-periodic scheduler remains the correctness mechanism.
+session id, turn id, and timestamp under `$PLUGIN_DATA`. In 1.3.0 these are optional local audit
+markers and are not consumed by the Collector. The periodic scheduler is the background mechanism.
 
 ## Consumer-neutral archive boundary
 
@@ -82,7 +84,7 @@ python3 -m memova_collector setup \
   --state-dir /secure/local/memova-collector \
   --accept-policy
 
-# Optional, separate project-context opt-in:
+# Optional full project observations (minimal identity is the fresh default):
 python3 -m memova_collector setup \
   --state-dir /secure/local/memova-collector \
   --accept-policy \
@@ -107,6 +109,17 @@ python3 -m memova_collector sync-once \
   --allow-experimental-app-server \
   --sink rest \
   --api-base https://api.memova.ai
+
+# First production-shaped acceptance run, restricted to exactly three approved tasks:
+python3 -m memova_collector sync-once \
+  --state-dir /secure/local/memova-collector \
+  --live \
+  --allow-experimental-app-server \
+  --sink rest \
+  --api-base https://api.memova.ai \
+  --thread-id "<approved_codex_task_id_1>" \
+  --thread-id "<approved_codex_task_id_2>" \
+  --thread-id "<approved_codex_task_id_3>"
 
 python3 -m memova_collector status \
   --state-dir /secure/local/memova-collector

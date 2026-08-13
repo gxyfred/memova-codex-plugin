@@ -58,21 +58,31 @@ class SyncEngine:
         sink: BatchSink,
         consent_id: str,
         device_id: str,
+        thread_ids: set[str] | None = None,
     ) -> None:
         self.source = source
         self.ledger = ledger
         self.sink = sink
         self.consent_id = consent_id
         self.device_id = device_id
+        self.thread_ids = {value for value in (thread_ids or set()) if value} or None
         self.delivery_target = str(getattr(sink, "target", "mock"))
         fingerprint_secret = self.ledger.get_metadata("repository_fingerprint_secret")
         if fingerprint_secret is None:
             fingerprint_secret = str(uuid.uuid4())
             self.ledger.set_metadata("repository_fingerprint_secret", fingerprint_secret)
         self.project_fingerprint_secret = fingerprint_secret
-        self.project_context_enabled = (
-            self.ledger.get_metadata("project_context_enabled") == "true"
-        )
+        stored_project_context_mode = self.ledger.get_metadata("project_context_mode")
+        if stored_project_context_mode not in {"disabled", "minimal", "full"}:
+            # Preserve existing installations exactly: their older boolean opt-in must not be
+            # silently expanded during an upgrade.
+            stored_project_context_mode = (
+                "full"
+                if self.ledger.get_metadata("project_context_enabled") == "true"
+                else "disabled"
+            )
+        self.project_context_mode = stored_project_context_mode
+        self.project_context_enabled = self.project_context_mode != "disabled"
         fingerprint_key_reader = getattr(sink, "repository_fingerprint_key", None)
         self.workspace_repository_fingerprint_key = (
             fingerprint_key_reader()
@@ -83,6 +93,17 @@ class SyncEngine:
     def _flush_outbox(self) -> int:
         acknowledged = 0
         for batch in self.ledger.pending_batches(delivery_target=self.delivery_target):
+            if self.thread_ids is not None:
+                batch_thread_ids = {
+                    str(thread.get("external_thread_id") or "")
+                    for thread in batch.get("threads") or []
+                }
+                unrelated = sorted(batch_thread_ids - self.thread_ids)
+                if unrelated:
+                    raise RuntimeError(
+                        "Bounded sync refused to upload an existing outbox batch containing "
+                        f"unselected threads: {unrelated}"
+                    )
             try:
                 ack = self.sink.send(batch)
                 self.ledger.acknowledge_batch(batch, ack)
@@ -107,7 +128,7 @@ class SyncEngine:
         for archived in (False, True):
             for metadata in self.source.list_threads(archived=archived):
                 thread_id = _metadata_thread_id(metadata)
-                if thread_id:
+                if thread_id and (self.thread_ids is None or thread_id in self.thread_ids):
                     listed[thread_id] = (metadata, archived)
 
         diagnostics: Counter[str] = Counter()
@@ -139,6 +160,7 @@ class SyncEngine:
                 workspace_repository_fingerprint_key=(
                     self.workspace_repository_fingerprint_key
                 ),
+                project_context_mode=self.project_context_mode,
             )
             read_count += 1
             diagnostics.update(thread_diagnostics)
@@ -176,4 +198,5 @@ class SyncEngine:
             "staged_batch_count": len(batches),
             "acknowledged_batch_count": acknowledged,
             "diagnostics": dict(diagnostics),
+            "bounded_thread_ids": sorted(self.thread_ids) if self.thread_ids is not None else None,
         }

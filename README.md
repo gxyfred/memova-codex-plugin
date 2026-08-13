@@ -8,17 +8,19 @@ This plugin bundles:
 - the `memova-menu` skill for a lightweight `@memova` workflow menu,
 - the `memova-workflow` skill for reviewing and running existing Codex automation tasks,
 - the `memova-vault-setup` skill for iCloud-first Memova knowledge-base setup,
-- the `memova-vault-diagnose` skill for validating and repairing a Memova vault/input root,
+- the `memova-vault-diagnose` skill for validating and repairing a Memova V2/V3 managed root,
 - the explicit-only `memova-conversation-sync` skill for managing the user-scoped Collector,
-- content-free optional Hooks and three-platform background-scheduler definitions,
+- optional content-free Hook audit markers and three-platform background-scheduler definitions,
 - Memova starter prompts and plugin presentation metadata.
 
-The `1.2.0` development line contains the consent-gated Codex conversation Collector under
+The `1.3.0` development line contains the consent-gated Codex conversation Collector under
 `plugins/memova/collector/`. M4 adds one-login MCP pairing with a separate device-bound Collector
 credential, OS credential storage, an idempotent Memova REST sink with durable server ACK, and
 an owner/workspace-scoped non-authorizing repository HMAC key used only for privacy-safe project
 context. It also supports thread/device/all deletion plus retain-until-deleted controls. The optional
-15-minute macOS launchd, Windows Task
+1.3.0 also executes Knowledge Base V3 setup strictly from backend-supplied operations and adds a
+three-task bounded sync procedure for controlled real-history acceptance. The optional
+5-minute macOS launchd, Windows Task
 Scheduler, or Linux systemd user task activates only after consent, live preview, and OAuth gates.
 No production deployment is enabled by this repository change.
 
@@ -41,9 +43,29 @@ codex plugin marketplace add git@github.com:gxyfred/memova-codex-plugin.git
 This repo does not contain Memova user data or OAuth tokens. Runtime Collector tokens are stored
 only in the user's OS credential store, separately from the MCP login.
 
+## Release Coordination
+
+The plugin repository's `main` branch is treated as the installable/updateable plugin line. Do not
+merge knowledge-base setup, validator, or repair-flow changes into plugin `main` until the matching
+backend contract has already landed on the Memova backend `main` branch and is ready for the
+app/plugin clients that will consume it.
+
+During backend development, keep these plugin changes on a separate `codex/` feature branch. This
+prevents a plugin update from exposing a local file-tree or validation contract before the backend
+API and iOS handoff are ready.
+
+The 1.3.0 development branch is `codex/memova-plugin-1.3.0`. It preserves V2 compatibility while
+using backend-issued `setup_operations` as the only file-content authority for V3.
+
 ## Requirements
 
 - Codex CLI or Codex app installed and signed in.
+- Python 3.11 or newer available as `python3` (or `py -3` on Windows). The Collector scheduler runs
+  the same interpreter used during installation; there is no bundled Python runtime.
+- A supported Codex App Server for live conversation reads. Capability preflight fails closed before
+  reading tasks when the local protocol is incompatible.
+- macOS Keychain, Windows Credential Manager, or Linux Secret Service (`secret-tool`) for Collector
+  OAuth. There is no plaintext credential fallback.
 - A Memova account.
 - Access to this GitHub repository.
 - Network access to `https://api.memova.ai/mcp` and `https://api.memova.ai/v1/external-conversations`
@@ -88,7 +110,7 @@ Codex can expose its tools. The plugin normally starts this login automatically 
 setup or automation workflow needs Memova MCP and the local server is `Not logged in`. It runs:
 
 ```bash
-codex mcp login memova --scopes notes.read,actions.read,actions.write,automation.read,automation.write
+codex mcp login memova --scopes notes.read,actions.read,actions.write,automation.read,automation.write,knowledge.read,knowledge.write
 ```
 
 and attempts to open one browser authorization URL. The user still approves Memova OAuth in the
@@ -112,7 +134,7 @@ If the helper cannot start `codex` because of WindowsApps or sandbox permissions
 login command directly in Windows Terminal or PowerShell:
 
 ```powershell
-codex mcp login memova --scopes notes.read,actions.read,actions.write,automation.read,automation.write
+codex mcp login memova --scopes notes.read,actions.read,actions.write,automation.read,automation.write,knowledge.read,knowledge.write
 ```
 
 You can verify the state with:
@@ -200,17 +222,20 @@ Codex will:
 
 1. Pull the ready setup package from Memova through MCP.
 2. Discover likely iCloud Drive and existing vault locations on the Mac.
-3. Inspect an existing vault lightly if the setup package or user provides a path, then suggest the
-   best raw-input folder such as `Inbox`, `00_Inbox`, `Sources`, or `Resources`.
+3. Inspect an existing vault lightly if the setup package or user provides a path, then target the
+   root-level `Memova/` managed sub-knowledge-base.
 4. Build a dry-run file operation plan.
 5. Ask before writing files.
-6. Create either a new empty Memova vault skeleton with `inbox/memova/`, or only a scoped Memova
-   input root inside the approved existing vault folder.
-7. Write non-empty README, AGENTS, schema, manifest, and sync-state files that explain the raw-input
-   contract for humans, iOS, and agents. The input root uses Memova Inbox Packet Format v1.
+6. Create the V2 or V3 root requested by the current setup package, either as a new vault or a
+   scoped `Memova/` managed root inside the approved existing vault root. V3 directories, contents,
+   hashes, byte sizes, write modes, and preservation rules come only from backend
+   `setup_operations`; the plugin does not hardcode the V3 tree.
+7. Write the backend/plugin contract files for humans, iOS, and agents. Meeting packets still use
+   Memova Inbox Packet Format v1
+   under `inbox/meetings/`.
    Existing user files are not overwritten, but setup identity manifests are refreshed when the user
    reuses an old Memova directory so iOS sees the current setup session ids.
-8. Validate the Memova input-root manifest, setup identity, setup documentation, schema files, and
+8. Validate the Memova managed-root manifest, setup identity, setup documentation, schema files, and
    required metadata files.
 9. Report success or failure back to Memova through MCP, including
    `memova_input_root_relative_path`.
@@ -266,17 +291,16 @@ new vault folder name. For example `desired_input_folder_name: "Test111"` maps t
 ~/Library/Mobile Documents/com~apple~CloudDocs/Test111
 ```
 
-If the user connects an old Obsidian or Markdown vault, Codex preserves the user's structure. It
-lightly scans for the best raw-input folder and creates only a scoped Memova input root after user
-approval, for example:
+If the user connects an old Obsidian or Markdown vault, Codex preserves the user's structure and
+creates only a root-level `Memova/` managed sub-knowledge-base after user approval, for example:
 
 ```text
-~/Library/Mobile Documents/com~apple~CloudDocs/Existing Obsidian Vault/00_Inbox/Memova
+~/Library/Mobile Documents/com~apple~CloudDocs/Existing Obsidian Vault/Memova
 ```
 
-After Codex creates the vault/input root, the iOS app should ask the user to select the same folder
+After Codex creates the vault/managed root, the iOS app should ask the user to select the same folder
 or an ancestor folder through Files. The setup result includes `ios_folder_binding_hints`, so iOS
-can use iCloud-relative manifest paths and the expected input-root manifest id to find the right
+can use iCloud-relative manifest paths and the expected manifest ids to find the right
 folder after authorization. Do not rely on the Mac absolute path inside iOS; the manifest identifies
 the binding.
 
@@ -284,8 +308,8 @@ Example new-vault hints:
 
 ```json
 {
-  "icloud_relative_input_root_path": "Test111/inbox/memova",
-  "input_root_manifest_relative_path": "Test111/inbox/memova/_memova/manifest.json",
+  "icloud_relative_input_root_path": "Test111",
+  "input_root_manifest_relative_path": "Test111/_memova/manifest.json",
   "expected_input_root_manifest_id": "memova-input-root-..."
 }
 ```
@@ -298,80 +322,97 @@ The actual file-tree implementation lives in:
 plugins/memova/skills/memova-vault-setup/scripts/memova_vault_lib.py
 ```
 
-For a new vault, Codex creates an empty Memova vault skeleton and the Memova input root. The folder
-name shown here is illustrative; a setup package can request a different new-vault folder such as
-`Test111`.
+For a V2 setup, the compatibility tree below is created locally. The folder name is illustrative; a
+setup package can request a different name such as `Test111`. For V3, treat the backend package's
+`vault_contract.memova_managed_root.setup_operations` as canonical; this README intentionally does
+not duplicate a V3 file tree that could drift from the backend contract.
 
 ```text
 Memova Vault/
+  index.md
   README.md
   AGENTS.md
+  log.md
   inbox/
+    index.md
     README.md
-    memova/
-      README.md
-      AGENTS.md
-      INDEX.md
-      schemas/
-        meeting_packet.schema.md
-        manifest.schema.md
-        packet.schema.md
-        asset.schema.md
-        promotion.schema.md
-      meetings/
-      _memova/
-        manifest.json
-        input_root.json
-        sync_state.json
-        source_index.json
-  sources/
-    README.md
+    meetings/
+    captures/
+    imports/
+    activity/
   wiki/
-    README.md
+    index.md
+    people/
+    organizations/
+    topics/
+    decisions/
+    processes/
+    references/
   projects/
-    README.md
+    index.md
   daily/
-    README.md
+    index.md
   outputs/
-    README.md
+    index.md
+    reports/
+    briefs/
+    specs/
+    decks/
+    assets/
   archive/
-    README.md
+    index.md
   schemas/
+    index.md
     README.md
+    okf-concept.schema.md
+    memova-root.schema.md
+    meeting-packet.schema.md
+    promotion.schema.md
   _memova/
     manifest.json
-    vault_mapping.json
+    root.json
+    tree_manifest.json
     sync_state.json
+    source_index.json
+    promotion_index.json
+    repair_state.json
 ```
 
-For an existing vault, Codex creates only the approved Memova input root, usually something like:
+For an existing vault, Codex creates only the root-level Memova managed root:
 
 ```text
 Existing User Vault/
-  00_Inbox/
-    Memova/
-      README.md
-      AGENTS.md
-      INDEX.md
-      schemas/
-        meeting_packet.schema.md
-        manifest.schema.md
-        packet.schema.md
-        asset.schema.md
-        promotion.schema.md
+  Memova/
+    index.md
+    README.md
+    AGENTS.md
+    inbox/
       meetings/
-      _memova/
-        manifest.json
-        input_root.json
-        sync_state.json
-        source_index.json
+      captures/
+      imports/
+      activity/
+    wiki/
+    projects/
+    daily/
+    outputs/
+    schemas/
+    archive/
+    _memova/
+      manifest.json
+      root.json
+      tree_manifest.json
+      sync_state.json
+      source_index.json
+      promotion_index.json
+      repair_state.json
 ```
 
-Memova V1 writes raw meeting packets only under the Memova input root. It does not classify
-meetings into projects, update wiki pages, or reorganize an existing knowledge base.
+Memova writes raw meeting packets only under `inbox/meetings/` in the managed root. It does not
+classify meetings into projects, update wiki pages, or reorganize an existing knowledge base during
+setup.
 
 Setup does not pre-create concrete meeting packet folders. After meetings end, the iOS app writes
-packets under `meetings/YYYY/MM/YYYY-MM-DD-<slug>-<meeting_id>/` using the backend sync package.
+packets under `inbox/meetings/YYYY/MM/YYYY-MM-DD-<slug>-<meeting_id>/` using the backend sync package.
 The setup README, AGENTS, INDEX, and schema files describe that future packet shape:
 `README.md`, `manifest.json`, `sources.md`, `note.md`, `packet.json`, `promotion.json`, and
 `assets/manifest.json` plus optional binary assets.
@@ -387,19 +428,67 @@ run:
 
 Codex will ask for the Mac path if needed, then use deterministic helper scripts to inspect and
 validate the folder. The diagnosis checks required Memova README/AGENTS/schema files, manifests,
-machine state files, input-root relative paths, and lightweight raw-input folder candidates. If
+machine state files, managed-root relative paths, and lightweight `Memova/` binding candidates. If
 files are missing, Codex can show a repair plan, but it must ask before writing anything.
 If older setup docs exist but are empty or too thin, Codex can repair them only after explicit user
 approval with `--overwrite-machine-files`; raw meeting packet files are still not overwritten by
 that repair mode.
 
-The underlying script can be run directly during development:
+The underlying script can be run directly during development. V3 repair requires a current backend
+setup/repair package; without one, diagnosis remains read-only and refuses to invent repair files:
 
 ```bash
 python3 plugins/memova/skills/memova-vault-setup/scripts/diagnose_memova_vault.py \
-  --path "/path/to/Memova Vault or input root" \
+  --path "/path/to/Memova Vault or managed root" \
+  --setup-json "/tmp/memova-setup.json" \
   --repair-plan
 ```
+
+## Set Up Private Codex Conversation Sync
+
+Conversation sync is explicit-only. Installing or updating the plugin does not read task history,
+authorize Memova, upload content, or activate a scheduler. Start with:
+
+```text
+@memova Set up private Codex conversation sync.
+```
+
+The staged flow installs an immutable user-scoped Collector runtime, records collection consent,
+runs a local zero-content-retention preview, obtains a separate device-bound Collector credential
+through an MCP pairing grant, and only then offers a 5-minute OS scheduler. The archive includes
+complete user-visible user/assistant messages, including intermediate commentary; it excludes
+system/developer prompts, hidden reasoning, tool/terminal/file payloads, binaries, and subagent
+traces. Visible messages may themselves contain sensitive text and are not silently rewritten.
+
+Each scheduled run lists active and archived task metadata, reads only changed tasks, sends only
+new/edited/deleted items, and advances its target-scoped checkpoint only after a durable backend
+ACK. It does not resend the full history on every interval.
+
+For the first production-shaped acceptance run, 1.3.0 supports an exact three-task boundary:
+
+```bash
+python3 "<installed-launcher>" sync-once \
+  --state-dir "<state-dir>" \
+  --live \
+  --allow-experimental-app-server \
+  --sink rest \
+  --api-base https://api.memova.ai \
+  --thread-id "<approved-codex-task-id-1>" \
+  --thread-id "<approved-codex-task-id-2>" \
+  --thread-id "<approved-codex-task-id-3>"
+```
+
+This mode reads/checkpoints only the three approved tasks and refuses pending outbox batches
+containing other tasks. Running it against production still requires a separate explicit approval because it
+uploads real conversation content. Bundled Hooks are optional content-free audit markers only; in
+1.3.0 they do not trigger collection. The scheduler is the background mechanism.
+
+The Collector ends at the consumer-neutral raw archive. Knowledge V3 and Personal Manual are
+independent backend consumers with their own processing, status, and lifecycle handling; a durable
+archive ACK does not by itself mean either consumer has finished. Knowledge V3 requires one
+continuous-processing authorization plus a separate one-time finite budget confirmation for the
+initial historical backfill. Later ordinary incrementals run automatically under backend safety
+limits.
 
 ## What The Menu And Workflow Do
 

@@ -10,12 +10,13 @@
 | Collector | Locally | SQLite outbox/checkpoints | Memova REST | Yes |
 | OS credential store | No | OAuth token record | No itself | Yes |
 | OS scheduler | No itself | User-scoped definition | No itself | For unattended sync |
-| Memova archive | Receives selected visible text; privacy-safe project context only after separate opt-in | Raw archive/ACK/audit | HTTPS | Yes |
+| Memova archive | Receives selected visible text; privacy-minimal repository identity by default on fresh setup, or optional full project observations | Raw archive/ACK/audit | HTTPS | Yes |
 | Personal Manual consumer | Independently reads archive snapshots | Own claims/evidence/HTML | Backend-internal | No for archive |
 | Knowledge V3 consumer | Independently reads archive snapshots | Own projection state | Backend-internal | No for archive |
 
 Hooks ignore transcript paths, prompts, and assistant text. They persist only event/session/turn ids
-and time. Their spool is bounded and disposable.
+and time. Their spool is bounded and disposable. In 1.3.0 the Collector does not consume this spool;
+Hooks are optional audit markers, not sync triggers. The scheduler is the background mechanism.
 
 ## Local state and credentials
 
@@ -30,8 +31,9 @@ not encryption; keep the directory out of source control/cloud shares. OAuth tok
 in macOS Keychain, Windows Credential Manager, or Linux Secret Service. There is no plaintext
 fallback.
 
-The V2 batch may also include a repository fingerprint, repository display name, captured branch,
-and repository-relative working path. MCP pairing returns a non-authorizing owner/workspace HMAC
+The V2 batch may include a repository fingerprint. Full mode also includes repository display name,
+captured branch, and repository-relative working path. MCP pairing returns a non-authorizing
+owner/workspace HMAC
 key that is stored only beside OAuth tokens in the OS credential store; it is never written to the
 SQLite ledger, status output, logs, or an archive batch. A credential-free canonical remote is
 HMACed locally so the same owner can explicitly bind the same repository across paired devices.
@@ -39,9 +41,11 @@ Local-only repositories and non-pairing fallback use a device-local opaque ident
 never sends the absolute working directory, repository remote URL, embedded credentials/query
 strings, or commit SHA.
 
-Project context defaults to disabled and needs a separate explicit setup choice. Existing archive
-consent does not silently expand to this metadata class during an upgrade. With it disabled, full
-history and incremental archive sync continue normally and omit the entire context object.
+Fresh setup defaults to `privacy_minimal_repository_identity_v1`, which sends only the fingerprint
+and identity kind. Full `privacy_safe_repository_context_v1` is a separate explicit choice and adds
+display name, branch, and relative path. Disabled sends no context. Existing archive consent does
+not silently expand to a new mode during an upgrade. In every mode, explicit repository-to-Project
+binding remains backend-owned and auditable; names are never guessed into a binding.
 
 ## Incremental and idempotent delivery
 
@@ -49,6 +53,18 @@ List active/archived metadata every run. Full-read only tasks whose update/archi
 for the REST target. Compare stable item ids and content hashes to select new, edited, and deleted
 messages. Persist batches in an outbox; advance checkpoints only after a matching server ACK. A
 target-scoped local-export ACK cannot suppress the first REST upload.
+
+The OS scheduler runs the Collector every 5 minutes by default. Each run still lists metadata but
+reads and uploads only changed tasks. After archive ACK, Knowledge V3 is a separate backend
+consumer: one explicit authorization enables continuous incrementals, while the historical
+backfill has its own no-model preflight and one-time finite budget confirmation. Normal archive
+events coalesce after 60 seconds of quiet with a 10-minute maximum wait; sync-now can bypass that
+quiet window. Ordinary incrementals never require repeated user budget approval.
+
+The first production-shaped acceptance run uses exactly three explicitly approved task ids. It
+reads and advances checkpoints only for that selection and refuses mixed pending outbox batches.
+No scheduler or unbounded REST sync may run before its durable ACK, preventing an initial smoke
+test from silently broadening the upload scope.
 
 ## Archive, retention, deletion, and independent consumers
 

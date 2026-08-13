@@ -50,6 +50,7 @@ def extract_thread(
     archived: bool | None = None,
     project_fingerprint_secret: str | None = None,
     workspace_repository_fingerprint_key: str | None = None,
+    project_context_mode: str = "disabled",
 ) -> tuple[dict[str, Any], dict[str, int]]:
     """Extract only user-visible text messages from a ThreadRead response."""
 
@@ -129,8 +130,15 @@ def extract_thread(
     }
     project_context = build_project_context(
         thread,
-        fingerprint_secret=project_fingerprint_secret,
-        workspace_fingerprint_key=workspace_repository_fingerprint_key,
+        fingerprint_secret=(
+            project_fingerprint_secret if project_context_mode != "disabled" else None
+        ),
+        workspace_fingerprint_key=(
+            workspace_repository_fingerprint_key
+            if project_context_mode != "disabled"
+            else None
+        ),
+        include_observations=project_context_mode == "full",
     )
     if project_context is not None:
         result["project_context"] = project_context
