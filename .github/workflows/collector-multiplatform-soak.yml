@@ -27,6 +27,8 @@ jobs:
             device_id: windows-github-hosted
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
+    env:
+      SOAK_CYCLES: ${{ inputs.cycles || '12' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -62,7 +64,7 @@ jobs:
         shell: pwsh
         run: |
           $env:PYTHONPATH = "plugins/memova/collector"
-          python plugins/memova/collector/scripts/run_multiplatform_soak.py --cycles "${{ inputs.cycles }}" --interval-seconds 1 --device-id "${{ matrix.device_id }}"
+          python plugins/memova/collector/scripts/run_multiplatform_soak.py --cycles "$env:SOAK_CYCLES" --interval-seconds 1 --device-id "${{ matrix.device_id }}"
 
       - name: Run native Linux restart soak with Secret Service
         if: runner.os == 'Linux'
@@ -72,7 +74,7 @@ jobs:
             export PYTHONPATH=plugins/memova/collector
             printf %s "temporary-runner-keyring" | gnome-keyring-daemon --unlock >/dev/null
             python plugins/memova/collector/scripts/run_multiplatform_soak.py \
-              --cycles "${{ inputs.cycles }}" \
+              --cycles "$SOAK_CYCLES" \
               --interval-seconds 1 \
               --device-id "${{ matrix.device_id }}"
           '
