@@ -4,6 +4,7 @@ from collections import Counter
 from typing import Any
 
 from .contracts import ALLOWED_ITEM_TYPES, EXCLUDED_ITEM_TYPES, sha256_json
+from .project_context import build_project_context
 
 
 def _thread_source_kind(thread: dict[str, Any]) -> str:
@@ -47,6 +48,8 @@ def extract_thread(
     thread: dict[str, Any],
     *,
     archived: bool | None = None,
+    project_fingerprint_secret: str | None = None,
+    workspace_repository_fingerprint_key: str | None = None,
 ) -> tuple[dict[str, Any], dict[str, int]]:
     """Extract only user-visible text messages from a ThreadRead response."""
 
@@ -124,12 +127,20 @@ def extract_thread(
         "archived": bool(thread.get("archived") if archived is None else archived),
         "messages": messages,
     }
+    project_context = build_project_context(
+        thread,
+        fingerprint_secret=project_fingerprint_secret,
+        workspace_fingerprint_key=workspace_repository_fingerprint_key,
+    )
+    if project_context is not None:
+        result["project_context"] = project_context
     result["thread_hash"] = sha256_json(
         {
             "external_thread_id": thread_id,
             "title": result["title"],
             "updated_at": result["updated_at"],
             "archived": result["archived"],
+            "project_context": project_context,
             "messages": messages,
         },
     )

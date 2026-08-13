@@ -1,8 +1,9 @@
 # Memova Codex Conversation Collector M0-M4
 
 This plugin-bundled directory implements the local, version-neutral foundation for Memova Codex
-conversation sync. The release target is `1.1.0`, based on the user-confirmed Codex public release
-baseline `1.0.0`.
+conversation sync. The current local development target is `1.2.0`; it adds the strict V2 archive
+batch with privacy-safe project context to the previously completed `1.1.0` Collector line, whose
+public-plugin baseline was `1.0.0`.
 
 ## Implemented scope
 
@@ -25,6 +26,17 @@ baseline `1.0.0`.
   single-use PKCE pairing grant; exchange it for a separate device-bound Collector credential kept
   only in the OS credential store; register device consent; deliver target-scoped incremental
   batches to Memova REST; require a matching durable ACK; and expose thread/device/all deletion.
+- **V2 project context:** after MCP pairing, keep the backend-issued, non-authorizing
+  owner/workspace repository HMAC key beside OAuth tokens in the OS credential store. A repository
+  remote becomes a stable HMAC fingerprint across that owner's paired devices; repositories without
+  a usable remote use a device-local opaque identity. The batch may include that fingerprint, a
+  display name, branch, and repository-relative working path. Never upload the HMAC key, absolute
+  cwd, repository remote URL/credentials/query, or commit SHA. Project/Note/Meeting/Action/etc.
+  links remain backend-owned graph relations, not Collector-side projection fields.
+
+Project context is a separate setup choice and defaults to off. Enabling full-history archive does
+not implicitly enable this additional metadata class; use `--include-project-context` only after
+showing and accepting its disclosure. Disabling it does not affect archive sync.
 
 The mock sink remains available for deterministic development. The `rest` sink is the M4
 production-shaped path and performs network traffic only after explicit consent and pairing.
@@ -69,6 +81,12 @@ python3 -m memova_collector policy
 python3 -m memova_collector setup \
   --state-dir /secure/local/memova-collector \
   --accept-policy
+
+# Optional, separate project-context opt-in:
+python3 -m memova_collector setup \
+  --state-dir /secure/local/memova-collector \
+  --accept-policy \
+  --include-project-context
 
 python3 -m memova_collector preview \
   --state-dir /secure/local/memova-collector \

@@ -13,10 +13,12 @@ This plugin bundles:
 - content-free optional Hooks and three-platform background-scheduler definitions,
 - Memova starter prompts and plugin presentation metadata.
 
-The `1.1.0` development line contains M0-M4 of the consent-gated Codex conversation Collector under
+The `1.2.0` development line contains the consent-gated Codex conversation Collector under
 `plugins/memova/collector/`. M4 adds one-login MCP pairing with a separate device-bound Collector
 credential, OS credential storage, an idempotent Memova REST sink with durable server ACK, and
-thread/device/all deletion plus retain-until-deleted controls. The optional 15-minute macOS launchd, Windows Task
+an owner/workspace-scoped non-authorizing repository HMAC key used only for privacy-safe project
+context. It also supports thread/device/all deletion plus retain-until-deleted controls. The optional
+15-minute macOS launchd, Windows Task
 Scheduler, or Linux systemd user task activates only after consent, live preview, and OAuth gates.
 No production deployment is enabled by this repository change.
 

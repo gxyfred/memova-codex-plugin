@@ -10,7 +10,7 @@
 | Collector | Locally | SQLite outbox/checkpoints | Memova REST | Yes |
 | OS credential store | No | OAuth token record | No itself | Yes |
 | OS scheduler | No itself | User-scoped definition | No itself | For unattended sync |
-| Memova archive | Receives selected visible text | Raw archive/ACK/audit | HTTPS | Yes |
+| Memova archive | Receives selected visible text; privacy-safe project context only after separate opt-in | Raw archive/ACK/audit | HTTPS | Yes |
 | Personal Manual consumer | Independently reads archive snapshots | Own claims/evidence/HTML | Backend-internal | No for archive |
 | Knowledge V3 consumer | Independently reads archive snapshots | Own projection state | Backend-internal | No for archive |
 
@@ -29,6 +29,19 @@ SQLite can contain pending visible conversation batches until ACK. Restrictive f
 not encryption; keep the directory out of source control/cloud shares. OAuth tokens must exist only
 in macOS Keychain, Windows Credential Manager, or Linux Secret Service. There is no plaintext
 fallback.
+
+The V2 batch may also include a repository fingerprint, repository display name, captured branch,
+and repository-relative working path. MCP pairing returns a non-authorizing owner/workspace HMAC
+key that is stored only beside OAuth tokens in the OS credential store; it is never written to the
+SQLite ledger, status output, logs, or an archive batch. A credential-free canonical remote is
+HMACed locally so the same owner can explicitly bind the same repository across paired devices.
+Local-only repositories and non-pairing fallback use a device-local opaque identity. The Collector
+never sends the absolute working directory, repository remote URL, embedded credentials/query
+strings, or commit SHA.
+
+Project context defaults to disabled and needs a separate explicit setup choice. Existing archive
+consent does not silently expand to this metadata class during an upgrade. With it disabled, full
+history and incremental archive sync continue normally and omit the entire context object.
 
 ## Incremental and idempotent delivery
 

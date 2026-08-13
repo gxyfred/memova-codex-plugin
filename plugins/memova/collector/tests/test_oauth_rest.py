@@ -85,6 +85,7 @@ class OAuthAndRestTests(unittest.TestCase):
         self.assertTrue(status["connected"])
         self.assertNotIn("access_token", status)
         self.assertNotIn("refresh_token", status)
+        self.assertNotIn("repository_fingerprint_key", status)
 
     def test_prepare_pairing_keeps_verifier_secret_and_returns_only_public_fields(self) -> None:
         store = MemoryCredentialStore()
@@ -138,6 +139,7 @@ class OAuthAndRestTests(unittest.TestCase):
                     "refresh_token": "collector-refresh",
                     "expires_in": 3600,
                     "scope": "conversations.read conversations.write conversations.delete",
+                    "repository_fingerprint_key": "a" * 64,
                 },
             ),
         ]
@@ -157,6 +159,7 @@ class OAuthAndRestTests(unittest.TestCase):
         stored = json.loads(store.get(oauth.account) or "{}")
         self.assertEqual(stored["access_token"], "collector-access")
         self.assertEqual(stored["device_id"], "device-0001")
+        self.assertEqual(stored["repository_fingerprint_key"], "a" * 64)
         self.assertNotIn("pairing_grant", stored)
         self.assertNotIn("pairing_verifier", stored)
 

@@ -13,6 +13,43 @@ from memova_collector.ledger import Ledger
 
 
 class CliTests(unittest.TestCase):
+    def test_project_context_requires_explicit_setup_opt_in(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            state_dir = Path(temp_dir) / "state"
+            disclosure = io.StringIO()
+            with redirect_stdout(disclosure):
+                result = main(
+                    [
+                        "setup",
+                        "--state-dir",
+                        str(state_dir),
+                        "--include-project-context",
+                    ]
+                )
+            disclosed = json.loads(disclosure.getvalue())
+            self.assertEqual(result, 2)
+            self.assertTrue(disclosed["project_context_requested"])
+            self.assertEqual(
+                disclosed["policy"]["included"]["project_context"],
+                "privacy_safe_repository_context_v1",
+            )
+
+            configured = io.StringIO()
+            with redirect_stdout(configured):
+                result = main(
+                    [
+                        "setup",
+                        "--state-dir",
+                        str(state_dir),
+                        "--accept-policy",
+                        "--include-project-context",
+                    ]
+                )
+            self.assertEqual(result, 0)
+            self.assertTrue(json.loads(configured.getvalue())["project_context_enabled"])
+            with Ledger(state_dir / "collector.sqlite3") as ledger:
+                self.assertEqual(ledger.get_metadata("project_context_enabled"), "true")
+
     def test_status_is_read_only_when_state_is_missing(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             state_dir = Path(temp_dir) / "missing-state"

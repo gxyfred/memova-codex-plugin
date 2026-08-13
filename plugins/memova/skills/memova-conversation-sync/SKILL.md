@@ -39,6 +39,13 @@ Capability inspection must not call `thread/list` or `thread/read`. Report:
 - Exclude system/developer prompts, hidden reasoning, tool calls/results, terminal output,
   file-change payloads/bodies, binary attachments, and subagent traces.
 - Visible messages can contain secrets; do not claim automatic redaction.
+- V2 adds a repository fingerprint, display name, branch, and repository-relative working path so
+  Knowledge V3 can attach claims to existing objects. MCP pairing stores a non-authorizing
+  owner/workspace HMAC key only in the OS credential record: usable remotes produce a stable HMAC
+  fingerprint, while local-only repositories use a device-local opaque identity. Never send that
+  key, absolute paths, repository remote URLs/credentials/query strings, or commit SHAs.
+- Project context is a separate explicit setup opt-in and defaults off. Do not add
+  `--include-project-context` merely because archive consent was accepted.
 - Hooks are optional content-free latency hints. Scheduler polling remains authoritative.
 - Each run lists metadata, reads only changed tasks, and sends only new/edited/deleted items.
 - Server ACK is required before the REST checkpoint advances. Retries reuse the same outbox batch
@@ -67,9 +74,13 @@ Show the complete policy. Installation is not collection consent. After explicit
   device's archive, all Codex data, or the Memova account.
 - State that pause, disconnect, and uninstall stop future collection but do not delete archived
   data.
+- Separately offer privacy-safe project context. Explain its exact fields and exclusions above.
+  Add `--include-project-context` only if the user explicitly accepts this second choice; otherwise
+  omit it and leave project context disabled.
 
 ```bash
-python3 "<launcher>" setup --state-dir "<state_dir>" --accept-policy
+python3 "<launcher>" setup --state-dir "<state_dir>" --accept-policy \
+  [--include-project-context]
 ```
 
 ### 3. Run and record the live preview
