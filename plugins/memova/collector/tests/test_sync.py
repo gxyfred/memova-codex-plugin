@@ -41,6 +41,57 @@ class SyncTests(unittest.TestCase):
                 self.assertEqual(second_sink.received, [])
                 self.assertEqual(ledger.status()["acknowledged_item_count"], 7)
 
+    def test_project_context_is_omitted_until_explicitly_enabled(self) -> None:
+        class ContextSource:
+            def list_threads(self, *, archived: bool):
+                if archived:
+                    return []
+                return [
+                    {
+                        "id": "context-thread",
+                        "updatedAt": 1,
+                        "source": {"kind": "cli"},
+                        "cwd": "/private/example/repo",
+                        "gitInfo": {
+                            "originUrl": "https://example.test/private/repo.git",
+                        },
+                    }
+                ]
+
+            def read_thread(self, thread_id: str):
+                return {
+                    "id": thread_id,
+                    "updatedAt": 1,
+                    "source": {"kind": "cli"},
+                    "cwd": "/private/example/repo",
+                    "gitInfo": {
+                        "originUrl": "https://example.test/private/repo.git",
+                    },
+                    "turns": [
+                        {
+                            "id": "turn-1",
+                            "items": [
+                                {
+                                    "type": "userMessage",
+                                    "id": "item-1",
+                                    "content": [{"type": "text", "text": "A decision"}],
+                                }
+                            ],
+                        }
+                    ],
+                }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with Ledger(Path(temp_dir) / "disabled.sqlite3") as ledger:
+                disabled_sink = MockSink()
+                self._engine(ContextSource(), ledger, disabled_sink).run_once()
+                self.assertNotIn("project_context", disabled_sink.received[0]["threads"][0])
+            with Ledger(Path(temp_dir) / "enabled.sqlite3") as ledger:
+                ledger.set_metadata("project_context_enabled", "true")
+                enabled_sink = MockSink()
+                self._engine(ContextSource(), ledger, enabled_sink).run_once()
+                self.assertIn("project_context", enabled_sink.received[0]["threads"][0])
+
     def test_changed_thread_sends_only_new_edited_and_deleted_items(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             with Ledger(Path(temp_dir) / "ledger.sqlite3") as ledger:

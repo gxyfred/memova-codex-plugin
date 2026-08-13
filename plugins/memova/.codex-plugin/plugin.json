@@ -1,6 +1,6 @@
 {
   "name": "memova",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Run Memova workflows, set up user-owned knowledge inputs, and manage opt-in Codex conversation sync.",
   "author": {
     "name": "Memova",
@@ -26,7 +26,7 @@
   "interface": {
     "displayName": "Memova",
     "shortDescription": "Open Memova setup, tasks, vault diagnosis, and conversation sync.",
-    "longDescription": "Connect Codex to Memova through OAuth MCP for knowledge-base and automation workflows. Use @memova starter prompts and bundled skills to open a Memova menu, set up or diagnose an iCloud-first user-owned Memova raw-input root, review and run existing automation tasks, and explicitly configure the M4 Codex conversation Collector. Version 1.1.0 uses one-login MCP pairing to issue a separate device-bound Collector credential and supports incremental neutral-archive sync with thread, device, and all-data deletion.",
+    "longDescription": "Connect Codex to Memova through OAuth MCP for knowledge-base and automation workflows. Use @memova starter prompts and bundled skills to open a Memova menu, set up or diagnose an iCloud-first user-owned Memova raw-input root, review and run existing automation tasks, and explicitly configure the Codex conversation Collector. Version 1.2.0 uses one-login MCP pairing to issue a separate device-bound Collector credential, offers a separate opt-in for privacy-safe repository context used by Knowledge V3, and supports incremental neutral-archive sync with thread, device, and all-data deletion.",
     "developerName": "Memova",
     "category": "Productivity",
     "capabilities": [

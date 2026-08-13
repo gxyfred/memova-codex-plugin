@@ -4,6 +4,7 @@ import base64
 import hashlib
 import ipaddress
 import json
+import re
 import secrets
 import sys
 import time
@@ -15,10 +16,13 @@ from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Callable
 
+from .contracts import COLLECTOR_VERSION
 from .credentials import CredentialStore, decode_secret, encode_secret, system_credential_store
 
 TOKEN_SCHEMA_VERSION = "memova_collector_oauth_token_v1"
 DEFAULT_SCOPES = "conversations.read conversations.write conversations.delete"
+# OAuth client identity stays stable across runtime upgrades so existing device
+# credentials do not require a reconnect merely because Collector bytes changed.
 COLLECTOR_CLIENT_ID = "memova-codex-collector-1.1.0"
 PAIRING_DISCLOSURE_VERSION = "codex-full-history-archive-v1"
 
@@ -32,7 +36,10 @@ def _json_request(
     token: str | None = None,
     timeout: float = 30,
 ) -> tuple[int, dict[str, Any]]:
-    headers = {"Accept": "application/json", "User-Agent": "memova-codex-collector/1.1.0"}
+    headers = {
+        "Accept": "application/json",
+        "User-Agent": f"memova-codex-collector/{COLLECTOR_VERSION}",
+    }
     data = None
     if payload is not None:
         data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -317,6 +324,13 @@ class CollectorOAuthClient:
                 "code_verifier": str(pending["pairing_verifier"]),
             },
         )
+        repository_fingerprint_key = str(
+            issued.get("repository_fingerprint_key") or ""
+        )
+        if re.fullmatch(r"[0-9a-f]{64}", repository_fingerprint_key) is None:
+            raise RuntimeError(
+                "Memova pairing did not return a valid repository fingerprint key."
+            )
         token_record = {
             "schema_version": TOKEN_SCHEMA_VERSION,
             "api_base": self.api_base,
@@ -331,6 +345,7 @@ class CollectorOAuthClient:
             "expires_at": self.clock() + int(issued.get("expires_in") or 3600),
             "device_id": device_id,
             "paired_via_mcp": True,
+            "repository_fingerprint_key": repository_fingerprint_key,
         }
         try:
             self.store.set(self.account, encode_secret(token_record))
@@ -369,6 +384,11 @@ class CollectorOAuthClient:
         if not token:
             raise RuntimeError("Stored Collector authorization has no access token.")
         return str(token)
+
+    def repository_fingerprint_key(self) -> str | None:
+        record = self._load(required=False)
+        value = str(record.get("repository_fingerprint_key") or "")
+        return value if re.fullmatch(r"[0-9a-f]{64}", value) is not None else None
 
     def disconnect(self) -> dict[str, Any]:
         record = self._load(required=False)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from collections import Counter
 from typing import Any
 
@@ -64,6 +65,20 @@ class SyncEngine:
         self.consent_id = consent_id
         self.device_id = device_id
         self.delivery_target = str(getattr(sink, "target", "mock"))
+        fingerprint_secret = self.ledger.get_metadata("repository_fingerprint_secret")
+        if fingerprint_secret is None:
+            fingerprint_secret = str(uuid.uuid4())
+            self.ledger.set_metadata("repository_fingerprint_secret", fingerprint_secret)
+        self.project_fingerprint_secret = fingerprint_secret
+        self.project_context_enabled = (
+            self.ledger.get_metadata("project_context_enabled") == "true"
+        )
+        fingerprint_key_reader = getattr(sink, "repository_fingerprint_key", None)
+        self.workspace_repository_fingerprint_key = (
+            fingerprint_key_reader()
+            if self.project_context_enabled and callable(fingerprint_key_reader)
+            else None
+        )
 
     def _flush_outbox(self) -> int:
         acknowledged = 0
@@ -111,7 +126,20 @@ class SyncEngine:
             full_thread.setdefault("createdAt", metadata.get("createdAt"))
             full_thread.setdefault("title", metadata.get("title") or metadata.get("name"))
             full_thread.setdefault("source", metadata.get("source"))
-            extracted, thread_diagnostics = extract_thread(full_thread, archived=archived)
+            full_thread.setdefault("cwd", metadata.get("cwd"))
+            full_thread.setdefault("gitInfo", metadata.get("gitInfo"))
+            extracted, thread_diagnostics = extract_thread(
+                full_thread,
+                archived=archived,
+                project_fingerprint_secret=(
+                    self.project_fingerprint_secret
+                    if self.project_context_enabled
+                    else None
+                ),
+                workspace_repository_fingerprint_key=(
+                    self.workspace_repository_fingerprint_key
+                ),
+            )
             read_count += 1
             diagnostics.update(thread_diagnostics)
             delta = self.ledger.diff_thread(

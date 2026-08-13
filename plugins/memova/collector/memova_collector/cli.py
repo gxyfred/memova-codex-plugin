@@ -114,7 +114,15 @@ def command_setup(args: argparse.Namespace) -> int:
                     "you delete a thread, this device's archive, all Codex data, or your "
                     "Memova account. Pause, disconnect, and uninstall do not delete it."
                 ),
-                "policy": default_collection_policy(),
+                "project_context_notice": (
+                    "Optional project context sends only a repository fingerprint, display name, "
+                    "branch, and repository-relative working path. It never sends the HMAC key, "
+                    "absolute cwd, remote URL, credentials, query string, or commit SHA."
+                ),
+                "project_context_requested": bool(args.include_project_context),
+                "policy": default_collection_policy(
+                    include_project_context=bool(args.include_project_context),
+                ),
             },
         )
         return 2
@@ -128,6 +136,7 @@ def command_setup(args: argparse.Namespace) -> int:
         consent_id=args.consent_id or f"consent-{uuid.uuid4()}",
         device_id=args.device_id or f"device-{uuid.uuid4()}",
         memova_account_hint=args.memova_account_hint,
+        include_project_context=bool(args.include_project_context),
     )
     (state_dir / "consent.json").write_text(
         json.dumps(consent, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
@@ -142,6 +151,10 @@ def command_setup(args: argparse.Namespace) -> int:
         ledger.set_metadata("device_id", consent["device_id"])
         ledger.set_metadata("paused", "false")
         ledger.set_metadata("mode", "m4_ready_not_connected")
+        ledger.set_metadata(
+            "project_context_enabled",
+            "true" if args.include_project_context else "false",
+        )
     _print_json(
         {
             "status": "configured_for_m4",
@@ -154,6 +167,7 @@ def command_setup(args: argparse.Namespace) -> int:
             "hooks_trusted": None,
             "remote_upload_enabled": False,
             "retention_mode": "until_user_or_account_deletion",
+            "project_context_enabled": bool(args.include_project_context),
             "next_action": "preview_then_connect",
         },
     )
@@ -258,6 +272,9 @@ def command_status(args: argparse.Namespace) -> int:
         payload["mode"] = metadata.get("mode") or "local_m3_not_scheduled"
         payload["preview_completed"] = bool(metadata.get("preview_completed_at"))
         payload["preview_source"] = metadata.get("preview_source")
+        payload["project_context_enabled"] = (
+            metadata.get("project_context_enabled") == "true"
+        )
     else:
         payload = {
             "thread_checkpoint_count": 0,
@@ -270,6 +287,7 @@ def command_status(args: argparse.Namespace) -> int:
             "mode": "unconfigured",
             "preview_completed": False,
             "preview_source": None,
+            "project_context_enabled": False,
         }
     payload["schema_version"] = STATUS_SCHEMA_VERSION
     lock = read_lock(_state_dir(args) / "sync.lock")
@@ -504,6 +522,11 @@ def build_parser() -> argparse.ArgumentParser:
     setup.add_argument("--consent-id")
     setup.add_argument("--device-id")
     setup.add_argument("--memova-account-hint")
+    setup.add_argument(
+        "--include-project-context",
+        action="store_true",
+        help="Explicitly include privacy-safe repository context in v2 archive batches.",
+    )
     setup.set_defaults(handler=command_setup)
 
     connect = subparsers.add_parser("connect")

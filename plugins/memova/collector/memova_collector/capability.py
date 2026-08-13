@@ -17,6 +17,8 @@ REQUIRED_PROTOCOL_MARKERS = (
     "includeTurns",
     "userMessage",
     "agentMessage",
+    "cwd",
+    "gitInfo",
 )
 
 

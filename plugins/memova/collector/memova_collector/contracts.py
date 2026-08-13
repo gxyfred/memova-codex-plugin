@@ -5,8 +5,8 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
-COLLECTOR_VERSION = "1.1.0"
-BATCH_SCHEMA_VERSION = "memova_external_conversation_batch_v1"
+COLLECTOR_VERSION = "1.2.0"
+BATCH_SCHEMA_VERSION = "memova_external_conversation_batch_v2"
 ACK_SCHEMA_VERSION = "memova_external_conversation_batch_ack_v1"
 CONSENT_SCHEMA_VERSION = "memova_conversation_sync_consent_v1"
 STATUS_SCHEMA_VERSION = "memova_conversation_sync_status_v1"
@@ -46,7 +46,7 @@ def sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
-def default_collection_policy() -> dict[str, Any]:
+def default_collection_policy(*, include_project_context: bool = False) -> dict[str, Any]:
     """The fail-closed M0 policy shown during consent and enforced locally."""
 
     return {
@@ -57,6 +57,11 @@ def default_collection_policy() -> dict[str, Any]:
             "agent_message_phases": ["commentary", "final_answer", "unknown"],
             "thread_sets": ["active", "archived"],
             "content": ["user_visible_text"],
+            "project_context": (
+                "privacy_safe_repository_context_v1"
+                if include_project_context
+                else "disabled"
+            ),
         },
         "excluded": {
             "item_types": sorted(EXCLUDED_ITEM_TYPES),
@@ -71,6 +76,9 @@ def default_collection_policy() -> dict[str, Any]:
                 "binary_attachments",
                 "subagent_traces",
                 "secrets_detected_outside_user_visible_messages",
+                "absolute_working_paths",
+                "repository_remote_urls",
+                "repository_commit_shas",
             ],
         },
         "controls": [
@@ -99,6 +107,7 @@ def build_consent_record(
     device_id: str,
     memova_account_hint: str | None = None,
     accepted_at: str | None = None,
+    include_project_context: bool = False,
 ) -> dict[str, Any]:
     return {
         "schema_version": CONSENT_SCHEMA_VERSION,
@@ -107,7 +116,9 @@ def build_consent_record(
         "accepted_at": accepted_at or utc_now(),
         "status": "active",
         "memova_account_hint": memova_account_hint,
-        "policy": default_collection_policy(),
+        "policy": default_collection_policy(
+            include_project_context=include_project_context,
+        ),
         "retention_mode": "until_user_or_account_deletion",
     }
 

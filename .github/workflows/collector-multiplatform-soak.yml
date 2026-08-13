@@ -1,0 +1,80 @@
+name: Collector multiplatform synthetic soak
+
+on:
+  push:
+    branches:
+      - codex/collector-multiplatform-soak
+  workflow_dispatch:
+    inputs:
+      cycles:
+        description: Restart/idempotency cycles per native device
+        required: true
+        default: "12"
+
+permissions:
+  contents: read
+
+jobs:
+  collector-soak:
+    name: ${{ matrix.device_id }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            device_id: linux-github-hosted
+          - os: windows-latest
+            device_id: windows-github-hosted
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      SOAK_CYCLES: ${{ inputs.cycles || '12' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Linux native credential-store dependencies
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes dbus-x11 gnome-keyring libsecret-tools
+
+      - name: Run Collector unit and contract tests (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = "plugins/memova/collector"
+          python -m unittest discover -s plugins/memova/collector/tests -v
+          python -m compileall -q plugins/memova/collector plugins/memova/hooks plugins/memova/skills/memova-conversation-sync/scripts
+
+      - name: Run Collector unit and contract tests (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          export PYTHONPATH=plugins/memova/collector
+          python -m unittest discover -s plugins/memova/collector/tests -v
+          python -m compileall -q plugins/memova/collector plugins/memova/hooks plugins/memova/skills/memova-conversation-sync/scripts
+
+      - name: Run native Windows restart soak
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = "plugins/memova/collector"
+          python plugins/memova/collector/scripts/run_multiplatform_soak.py --cycles "$env:SOAK_CYCLES" --interval-seconds 1 --device-id "${{ matrix.device_id }}"
+
+      - name: Run native Linux restart soak with Secret Service
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          dbus-run-session -- bash -euo pipefail -c '
+            export PYTHONPATH=plugins/memova/collector
+            printf %s "temporary-runner-keyring" | gnome-keyring-daemon --unlock >/dev/null
+            python plugins/memova/collector/scripts/run_multiplatform_soak.py \
+              --cycles "$SOAK_CYCLES" \
+              --interval-seconds 1 \
+              --device-id "${{ matrix.device_id }}"
+          '

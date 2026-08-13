@@ -95,6 +95,9 @@ class RestSink:
     def delete(self, payload: dict[str, Any]) -> dict[str, Any]:
         return self._request("POST", "/v1/external-conversations/deletions", payload)
 
+    def repository_fingerprint_key(self) -> str | None:
+        return self.oauth.repository_fingerprint_key()
+
     def _request(
         self,
         method: str,
