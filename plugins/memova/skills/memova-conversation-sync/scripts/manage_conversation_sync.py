@@ -29,6 +29,28 @@ from memova_collector.scheduler import (  # noqa: E402
     normalize_system,
 )
 
+MIN_PYTHON = (3, 11)
+
+
+def _runtime_dependency_report() -> dict[str, Any]:
+    return {
+        "python_executable": sys.executable,
+        "python_version": platform.python_version(),
+        "minimum_python_version": ".".join(str(item) for item in MIN_PYTHON),
+        "python_supported": sys.version_info >= MIN_PYTHON,
+        "python_runtime_bundled": False,
+        "scheduler_uses_current_python": True,
+        "codex_app_server_required_for_live_collection": True,
+    }
+
+
+def _require_supported_python() -> None:
+    if sys.version_info < MIN_PYTHON:
+        raise RuntimeError(
+            "Memova Collector 1.3.0 requires Python 3.11 or newer. "
+            f"Current interpreter: {platform.python_version()} ({sys.executable})."
+        )
+
 
 def _platform_name(requested: str | None = None) -> str:
     if requested:
@@ -242,6 +264,7 @@ def command_plan(args: argparse.Namespace) -> int:
             "scheduler_definition_written": scheduler is not None,
             "scheduler_active": bool(scheduler and scheduler.get("active")),
             "readiness": _readiness(paths),
+            "runtime_dependencies": _runtime_dependency_report(),
             "remote_upload_enabled": False,
             "next_action": (
                 "none" if _runtime_is_current(paths, bundled) else "install_or_update_runtime"
@@ -544,6 +567,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
+        _require_supported_python()
         return int(args.handler(args))
     except (RuntimeError, OSError, ValueError, json.JSONDecodeError) as exc:
         _print_json({"status": "error", "error": str(exc)})

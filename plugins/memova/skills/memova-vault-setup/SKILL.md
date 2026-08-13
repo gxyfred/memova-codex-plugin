@@ -1,6 +1,6 @@
 ---
 name: memova-vault-setup
-description: Use when the user explicitly invokes Memova to set up, create, inspect, or connect a user-owned Memova raw-input root from Codex, especially after an iOS setup session has been marked ready for Codex.
+description: Use when the user explicitly invokes Memova to set up, create, inspect, or connect a user-owned Memova managed knowledge-base root from Codex, especially after an iOS setup session has been marked ready for Codex.
 ---
 
 # Memova Vault Setup
@@ -11,8 +11,9 @@ because a prompt mentions Obsidian, iCloud, or notes.
 
 ## Operating Rules
 
-- Treat the Memova MCP setup package as the source of truth for setup mode, storage target, and
-  path hints. Preferences are not collected in inbox-first V1.
+- Treat the Memova MCP setup package as the source of truth for template version, setup mode,
+  storage target, path hints, and V3 filesystem operations. V2 remains supported for existing
+  setup sessions; V3 is never reconstructed from plugin-hardcoded templates.
 - Do not plan or create local setup files if the Memova MCP setup package cannot be retrieved. A
   missing MCP tool, failed OAuth flow, empty pending setup list, or invalid setup package is a hard
   stop, not permission to fall back to local defaults.
@@ -29,26 +30,30 @@ because a prompt mentions Obsidian, iCloud, or notes.
 - Use the helper scripts in this skill for path discovery, vault inspection, file creation, and
   validation instead of hand-writing large file trees. Resolve `scripts/...` paths relative to this
   skill directory.
-- Default to iCloud Drive on Mac for V1. Google Drive and OneDrive are deferred.
+- Default to iCloud Drive on Mac. Google Drive and OneDrive are deferred.
 - Never write outside the user-approved target directory.
 - Do not overwrite existing user files by default. Create missing files and record skipped files.
-  The exception is Memova setup identity manifests (`_memova/manifest.json` and the input-root
-  `_memova/manifest.json`): when a user reuses a Memova directory for a new setup session, these
-  files must be refreshed to the current MCP setup package before reporting success.
-- For `create_new_vault`, create a new Memova vault with an empty LLM Wiki skeleton and a writable
-  Memova input root at `inbox/memova/`.
-- For `connect_existing_vault`, preserve the user's existing vault root and create only a scoped
-  Memova input root inside the user-confirmed raw-input folder, such as
-  `<existing vault>/00_Inbox/Memova`. Do not create Memova `wiki/`, `projects/`, `daily/`, or other
-  top-level roots inside an existing vault.
-- The setup output must be self-describing. The helper creates non-empty `README.md`, `AGENTS.md`,
-  and `schemas/*.schema.md` files that explain the Memova raw-input contract, future meeting packet
-  shape, evidence rules, and agent update rules. Do not replace these with empty placeholders.
+  The exception is Memova setup identity manifests (`_memova/manifest.json`): when a user reuses a
+  Memova directory for a new setup session, this file must be refreshed to the current MCP setup
+  package before reporting success.
+- For `create_new_vault`, create the exact V2 or V3 root requested by the current setup package. The
+  target folder itself is the Memova managed root.
+- For `connect_existing_vault`, preserve the user's existing vault root and create only a root-level
+  Memova managed sub-knowledge-base at `<existing vault>/Memova`. Do not write into or reorganize the
+  user's other vault folders.
+- The setup output must be self-describing. V2 uses the plugin's compatibility templates. V3 uses
+  only the backend-provided `vault_contract.memova_managed_root.setup_operations`, including file
+  contents, hashes, byte sizes, write modes, and preservation rules. Do not replace these with empty
+  placeholders or locally invented V3 files.
 - These setup docs and schemas are Memova-managed setup files. Existing files are skipped by
   default; overwrite them only with explicit user approval and `--overwrite-machine-files`, for
   example when repairing docs created by an older plugin version.
-- Setup should create the `meetings/` root but must not pre-create concrete meeting packet folders;
-  iOS writes those later after each meeting.
+- Local validation dispatches by the setup/manifest template version. V2 reports
+  `memova_kb_v2_validation_result_v1`; V3 reports `memova_kb_v3_validation_result_v1`. Both use
+  `ok`, `repair_required`, or `blocked`. V3 repair requires current backend-supplied setup/repair
+  operations; never synthesize V3 repair contents locally.
+- Setup should create `inbox/meetings/` but must not pre-create concrete meeting packet folders; iOS
+  writes those later after each meeting.
 - Ask for explicit user approval before creating files, writing into an existing vault, or using a
   non-iCloud target for an iCloud setup.
 - Never store secrets, OAuth tokens, raw credentials, or full private note contents in progress
@@ -117,9 +122,8 @@ When the user asks to set up their Memova knowledge base:
      the discovery output's `recommended_new_vault`. If the setup package includes
      `target_path_hints.desired_input_folder_name`, that value names the new vault folder, for
      example `<iCloud>/Test111`.
-   - For `connect_existing_vault`, the target root is the final Memova input-root folder, usually a
-     child of the user's existing raw-input folder such as `<existing vault>/00_Inbox/Memova`.
-     Never target the existing vault root itself.
+   - For `connect_existing_vault`, the target root is the final Memova managed-root folder:
+     `<existing vault>/Memova`. Never target the existing vault root itself.
 
    ```bash
    python3 scripts/create_memova_vault.py plan \
@@ -127,9 +131,11 @@ When the user asks to set up their Memova knowledge base:
      --target-root "<approved-target-path>"
    ```
 
-9. Summarize the plan: target path, setup mode, target kind, non-iCloud warning if any,
+9. Confirm `vault_template_version` is V2 or V3. For V3, stop if the package lacks valid
+   `setup_operations` or if any content hash/byte count fails validation. Then summarize the plan:
+   target path, setup mode, target kind, non-iCloud warning if any,
    directories to create, files to create, files to skip, the self-describing setup docs/schemas to
-   create, and the Memova input-root relative path.
+   create, and the Memova managed-root relative path.
 10. Ask for approval. Only after approval, run:
 
    ```bash
@@ -156,7 +162,7 @@ When the user asks to set up their Memova knowledge base:
 13. Call `complete_knowledge_base_setup` with a small result summary:
     `manifest_id`, `vault_manifest_id`, `input_root_manifest_id`,
     `memova_input_root_relative_path`, `selected_by`, `target_path_summary`,
-    `ios_folder_binding_hints`, `created_file_count`, `created_dir_count`,
+    `ios_folder_binding_hints`, `created_file_count`, `created_dir_count`, `written_files`,
     `skipped_file_count`, `validation_status`, and `identity_validation`.
 14. Mark this Mac as setup-complete for future non-setup workflow reminders:
 
@@ -181,8 +187,8 @@ When the user asks to set up their Memova knowledge base:
   `~/Library/Mobile Documents/com~apple~CloudDocs/Test111`.
 - If no desired folder name is present, the default new-vault target is:
   `~/Library/Mobile Documents/com~apple~CloudDocs/Memova Vault`
-- Do not assume iOS and Mac expose the same absolute path. The shared identity is the Memova input
-  root manifest, not the path string.
+- Do not assume iOS and Mac expose the same absolute path. The shared identity is the Memova
+  `_memova/manifest.json`, not the path string.
 - Include `ios_folder_binding_hints` from the helper result when completing setup. iOS uses these
   hints to ask the user for one Files folder authorization, then automatically resolve likely
   manifest paths relative to the authorized folder.
@@ -197,11 +203,11 @@ End with:
 - target path summary,
 - manifest id,
 - input root manifest id,
-- Memova input-root relative path,
-- iOS authorization hint summary, especially the iCloud relative input-root path when available,
+- Memova managed-root relative path,
+- iOS authorization hint summary, especially the iCloud relative managed-root path when available,
 - created/skipped counts,
 - validation result,
 - backend completion result. If `complete_knowledge_base_setup` was not called and did not
   succeed, explicitly say "backend setup is incomplete" and do not say setup is complete,
-- what the iOS app should do next: authorize the same vault/input-root folder through Files and
-  verify the Memova input-root `_memova/manifest.json`.
+- what the iOS app should do next: authorize the same vault/managed-root folder through Files and
+  verify the Memova `_memova/manifest.json`.

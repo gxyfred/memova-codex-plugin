@@ -14,9 +14,18 @@ import webbrowser
 from typing import Any
 
 SERVER_NAME = "memova"
-SCOPES = "notes.read,actions.read,actions.write,automation.read,automation.write"
+BASE_SCOPES = (
+    "notes.read",
+    "actions.read",
+    "actions.write",
+    "automation.read",
+    "automation.write",
+    "knowledge.read",
+    "knowledge.write",
+)
+CONVERSATION_CONNECT_SCOPE = "conversations.connect"
 AUTHORIZE_URL_RE = re.compile(r"https://\S+")
-LOGIN_COMMAND = ["codex", "mcp", "login", SERVER_NAME, "--scopes", SCOPES]
+SCOPE_RE = re.compile(r"^[a-z][a-z0-9_.:-]*$")
 
 
 def main() -> int:
@@ -29,16 +38,57 @@ def main() -> int:
         help="Only report the current MCP auth state.",
     )
     parser.add_argument(
+        "--include-conversation-connect",
+        action="store_true",
+        help="Request the conversations.connect MCP scope used for Collector pairing.",
+    )
+    parser.add_argument(
+        "--reauthorize",
+        action="store_true",
+        help=(
+            "Run OAuth even when Codex reports an existing Memova login. Required to guarantee "
+            "a newly requested scope because `codex mcp list` does not expose granted scopes."
+        ),
+    )
+    parser.add_argument(
         "--timeout-seconds",
         type=int,
         default=300,
         help="Maximum seconds to wait for browser OAuth approval.",
     )
     args = parser.parse_args()
+    if args.check_only and args.reauthorize:
+        parser.error("--check-only and --reauthorize cannot be combined")
 
-    before = _mcp_status()
-    if before.get("auth") == "OAuth":
-        _write_json({"status": "already_logged_in", "before": before, "after": before})
+    requested_scopes = list(BASE_SCOPES)
+    if args.include_conversation_connect:
+        requested_scopes.append(CONVERSATION_CONNECT_SCOPE)
+    login_command = build_login_command(requested_scopes)
+
+    before = _mcp_status(login_command)
+    if before.get("auth") == "OAuth" and not args.reauthorize:
+        scope_verification = (
+            "unverified_existing_login"
+            if args.include_conversation_connect
+            else "not_required_for_base_login_check"
+        )
+        _write_json(
+            {
+                "status": (
+                    "already_logged_in_scope_unverified"
+                    if args.include_conversation_connect
+                    else "already_logged_in"
+                ),
+                "before": before,
+                "after": before,
+                "requested_scopes": requested_scopes,
+                "scope_verification": scope_verification,
+                "reauthorization_required_to_guarantee_scopes": bool(
+                    args.include_conversation_connect
+                ),
+                "manual_login_command": " ".join(login_command),
+            }
+        )
         return 0
     if not before.get("listed"):
         _write_json({"status": "missing_mcp_server", "before": before})
@@ -47,14 +97,57 @@ def main() -> int:
         _write_json({"status": "not_logged_in", "before": before})
         return 1
 
-    login = _run_login(timeout_seconds=max(1, args.timeout_seconds))
-    after = _mcp_status()
-    status = "login_completed" if after.get("auth") == "OAuth" else "login_incomplete"
-    _write_json({"status": status, "before": before, "after": after, **login})
-    return 0 if status == "login_completed" else 1
+    login = _run_login(
+        login_command=login_command,
+        timeout_seconds=max(1, args.timeout_seconds),
+    )
+    after = _mcp_status(login_command)
+    login_completed = after.get("auth") == "OAuth" and login.get("login_returncode") == 0
+    status = (
+        "login_completed_scope_requested"
+        if login_completed and args.include_conversation_connect
+        else "login_completed"
+        if login_completed
+        else "login_incomplete"
+    )
+    _write_json(
+        {
+            "status": status,
+            "before": before,
+            "after": after,
+            "requested_scopes": requested_scopes,
+            "scope_verification": (
+                "requested_by_login_command_not_introspectable"
+                if login_completed and args.include_conversation_connect
+                else "base_login_completed"
+                if login_completed
+                else "not_verified"
+            ),
+            **login,
+        }
+    )
+    return 0 if login_completed else 1
 
 
-def _mcp_status() -> dict[str, Any]:
+def build_login_command(scopes: list[str]) -> list[str]:
+    normalized: list[str] = []
+    for scope in scopes:
+        value = str(scope).strip()
+        if not SCOPE_RE.fullmatch(value):
+            raise ValueError(f"Invalid MCP OAuth scope: {scope!r}")
+        if value not in normalized:
+            normalized.append(value)
+    return [
+        "codex",
+        "mcp",
+        "login",
+        SERVER_NAME,
+        "--scopes",
+        ",".join(normalized),
+    ]
+
+
+def _mcp_status(login_command: list[str]) -> dict[str, Any]:
     try:
         result = subprocess.run(
             ["codex", "mcp", "list"],
@@ -70,7 +163,7 @@ def _mcp_status() -> dict[str, Any]:
             "returncode": None,
             "raw": "",
             "error": f"{type(exc).__name__}: {exc}",
-            "manual_login_command": " ".join(LOGIN_COMMAND),
+            "manual_login_command": " ".join(login_command),
         }
     output = result.stdout or ""
     status: dict[str, Any] = {
@@ -93,10 +186,10 @@ def _mcp_status() -> dict[str, Any]:
     return status
 
 
-def _run_login(*, timeout_seconds: int) -> dict[str, Any]:
+def _run_login(*, login_command: list[str], timeout_seconds: int) -> dict[str, Any]:
     try:
         process = subprocess.Popen(
-            LOGIN_COMMAND,
+            login_command,
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -108,7 +201,7 @@ def _run_login(*, timeout_seconds: int) -> dict[str, Any]:
             "opened_authorization_url": False,
             "timed_out": False,
             "login_error": f"{type(exc).__name__}: {exc}",
-            "manual_login_command": " ".join(LOGIN_COMMAND),
+            "manual_login_command": " ".join(login_command),
             "recovery_hint": (
                 "Run the manual_login_command in Windows Terminal/PowerShell or a normal shell, "
                 "finish OAuth in the browser, then restart Codex or open a new thread."

@@ -13,7 +13,7 @@ from memova_vault_lib import (
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Validate a Memova inbox-first vault/input root.")
+    parser = argparse.ArgumentParser(description="Validate a Memova Knowledge Base V2 or V3 managed root.")
     parser.add_argument("--path", required=True)
     parser.add_argument(
         "--setup-json",
@@ -30,12 +30,21 @@ def main() -> int:
     args = parser.parse_args()
 
     root = expand_path(args.path)
-    result = validate_vault(root)
+    setup = None
+    setup_load_error = None
+    if args.setup_json:
+        try:
+            setup = load_setup_json(args.setup_json, required=True)
+        except Exception as exc:  # noqa: BLE001 - surface setup package problems as JSON.
+            setup_load_error = exc
+    result = validate_vault(root, setup=setup)
     completion_blockers: list[str] = []
 
     if args.setup_json:
         try:
-            setup = load_setup_json(args.setup_json, required=True)
+            if setup_load_error:
+                raise setup_load_error
+            assert setup is not None
             identity_validation = setup_identity_validation(root, setup)
         except Exception as exc:  # noqa: BLE001 - surface setup package problems as JSON.
             identity_validation = {

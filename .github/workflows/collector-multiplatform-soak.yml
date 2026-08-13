@@ -3,7 +3,27 @@ name: Collector multiplatform synthetic soak
 on:
   push:
     branches:
-      - codex/collector-multiplatform-soak
+      - main
+      - "codex/**"
+    paths:
+      - ".github/workflows/collector-multiplatform-soak.yml"
+      - "plugins/memova/collector/**"
+      - "plugins/memova/hooks/**"
+      - "plugins/memova/scripts/**"
+      - "plugins/memova/skills/memova-conversation-sync/**"
+      - "plugins/memova/skills/memova-vault-setup/**"
+      - "plugins/memova/skills/memova-vault-diagnose/**"
+      - "plugins/memova/.codex-plugin/plugin.json"
+  pull_request:
+    paths:
+      - ".github/workflows/collector-multiplatform-soak.yml"
+      - "plugins/memova/collector/**"
+      - "plugins/memova/hooks/**"
+      - "plugins/memova/scripts/**"
+      - "plugins/memova/skills/memova-conversation-sync/**"
+      - "plugins/memova/skills/memova-vault-setup/**"
+      - "plugins/memova/skills/memova-vault-diagnose/**"
+      - "plugins/memova/.codex-plugin/plugin.json"
   workflow_dispatch:
     inputs:
       cycles:
@@ -50,6 +70,7 @@ jobs:
           $env:PYTHONPATH = "plugins/memova/collector"
           python -m unittest discover -s plugins/memova/collector/tests -v
           python -m compileall -q plugins/memova/collector plugins/memova/hooks plugins/memova/skills/memova-conversation-sync/scripts
+          python plugins/memova/skills/memova-vault-setup/scripts/setup_fixture_harness.py
 
       - name: Run Collector unit and contract tests (Linux)
         if: runner.os == 'Linux'
@@ -58,6 +79,7 @@ jobs:
           export PYTHONPATH=plugins/memova/collector
           python -m unittest discover -s plugins/memova/collector/tests -v
           python -m compileall -q plugins/memova/collector plugins/memova/hooks plugins/memova/skills/memova-conversation-sync/scripts
+          python plugins/memova/skills/memova-vault-setup/scripts/setup_fixture_harness.py
 
       - name: Run native Windows restart soak
         if: runner.os == 'Windows'

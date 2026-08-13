@@ -10,7 +10,7 @@ from typing import Any
 SCHEDULER_ID = "ai.memova.codex-conversation-collector"
 WINDOWS_TASK_NAME = "Memova Codex Conversation Collector"
 MINIMUM_INTERVAL_SECONDS = 300
-DEFAULT_INTERVAL_SECONDS = 900
+DEFAULT_INTERVAL_SECONDS = 300
 
 
 def normalize_system(value: str) -> str:

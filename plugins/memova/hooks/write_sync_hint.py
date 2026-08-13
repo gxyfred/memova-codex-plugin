@@ -76,7 +76,7 @@ def main() -> int:
                     },
                 )
     except (OSError, UnicodeError, json.JSONDecodeError, ValueError):
-        # Hints only reduce latency. Hook failure must never block or alter the Codex turn.
+        # Audit markers are optional. Hook failure must never block or alter the Codex turn.
         pass
     sys.stdout.write('{"continue":true}\n')
     return 0

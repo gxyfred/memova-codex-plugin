@@ -4,7 +4,12 @@ import json
 import unittest
 from pathlib import Path
 
-from memova_collector.contracts import BATCH_SCHEMA_VERSION, COLLECTOR_VERSION, build_batch
+from memova_collector.contracts import (
+    BATCH_SCHEMA_VERSION,
+    COLLECTOR_VERSION,
+    build_batch,
+    default_collection_policy,
+)
 
 
 class ContractTests(unittest.TestCase):
@@ -29,8 +34,26 @@ class ContractTests(unittest.TestCase):
         )
 
         self.assertEqual(BATCH_SCHEMA_VERSION, "memova_external_conversation_batch_v2")
-        self.assertEqual(COLLECTOR_VERSION, "1.2.0")
+        self.assertEqual(COLLECTOR_VERSION, "1.3.0")
         self.assertEqual(batch["schema_version"], BATCH_SCHEMA_VERSION)
+
+    def test_project_context_policy_has_explicit_three_level_modes(self) -> None:
+        self.assertEqual(
+            default_collection_policy()["included"]["project_context"],
+            "privacy_minimal_repository_identity_v1",
+        )
+        self.assertEqual(
+            default_collection_policy(project_context_mode="full")["included"][
+                "project_context"
+            ],
+            "privacy_safe_repository_context_v1",
+        )
+        self.assertEqual(
+            default_collection_policy(project_context_mode="disabled")["included"][
+                "project_context"
+            ],
+            "disabled",
+        )
 
 
 if __name__ == "__main__":

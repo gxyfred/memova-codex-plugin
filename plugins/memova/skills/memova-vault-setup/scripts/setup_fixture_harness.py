@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -18,6 +19,7 @@ from memova_vault_lib import (
     inspect_tree,
     raw_input_candidates,
     setup_identity_validation,
+    setup_package_errors,
     suggested_existing_input_target,
     validate_vault,
 )
@@ -56,9 +58,111 @@ def setup_package(
         "workspace_id": "fixture-workspace",
         "setup_mode": mode,
         "storage_target": "icloud_drive",
-        "vault_template_version": "memova_inbox_v1",
+        "vault_template_version": "memova_knowledge_base_v2",
         "source_path_hints": source_hints,
         "target_path_hints": target_path_hints or {},
+    }
+
+
+def v3_setup_package(*, session_id: str = "v3-fixture") -> dict[str, Any]:
+    machine_payloads = {
+        "_memova/manifest.json": {
+            "schema_version": "memova_root_manifest_v3",
+            "manifest_id": f"fixture-manifest-{session_id}",
+            "input_root_manifest_id": f"fixture-input-root-{session_id}",
+            "setup_session_id": session_id,
+            "workspace_id": "fixture-workspace",
+            "vault_template_version": "memova_knowledge_base_v3",
+            "setup_mode": "create_new_vault",
+            "storage_target": "icloud_drive",
+            "memova_input_root_relative_path": ".",
+            "ownership_scope": "memova_managed_root_v3",
+            "okf_version": "0.2",
+        },
+        "_memova/root.json": {"schema_version": "memova_root_v3"},
+        "_memova/cloud_state.json": {"schema_version": "memova_cloud_state_v1"},
+        "_memova/source_index.json": {"schema_version": "memova_source_index_v1"},
+        "_memova/sync_state.json": {"schema_version": "memova_root_sync_state_v1"},
+        "_memova/promotion_index.json": {"schema_version": "memova_promotion_index_v1"},
+        "_memova/graph_index.json": {"schema_version": "memova_graph_index_v1"},
+        "_memova/repair_state.json": {"schema_version": "memova_repair_state_v1"},
+    }
+    required_directories = ["_memova", "_memova/migrations", "inbox/agents", "wiki/memories"]
+    required_files = [*machine_payloads, "_memova/tree_manifest.json", "profile.md"]
+    machine_payloads["_memova/tree_manifest.json"] = {
+        "schema_version": "memova_tree_manifest_v2",
+        "template_version": "memova_knowledge_base_v3",
+        "okf_version": "0.2",
+        "required_directories": [
+            {"relative_path": path, "ownership": "memova", "write_policy": "create"}
+            for path in required_directories
+        ],
+        "required_files": [
+            {"relative_path": path, "ownership": "memova"}
+            for path in required_files
+        ],
+    }
+
+    files: list[dict[str, Any]] = []
+    for relative_path, payload in machine_payloads.items():
+        content = json.dumps(payload, indent=2, ensure_ascii=False) + "\n"
+        files.append(_v3_file_operation(relative_path, content, machine_managed=True))
+    files.append(
+        _v3_file_operation(
+            "profile.md",
+            "---\ntype: UserProfile\n---\n\n# Profile\n\nBackend-supplied V3 seed.\n",
+            machine_managed=False,
+            write_mode="skip_if_exists",
+        )
+    )
+    return {
+        "schema_version": "knowledge_base_setup_v1",
+        "setup_session_id": session_id,
+        "workspace_id": "fixture-workspace",
+        "setup_mode": "create_new_vault",
+        "storage_target": "icloud_drive",
+        "vault_template_version": "memova_knowledge_base_v3",
+        "source_path_hints": {},
+        "target_path_hints": {},
+        "vault_contract": {
+            "template": "memova_knowledge_base_v3",
+            "okf_version": "0.2",
+            "memova_managed_root": {
+                "setup_operations": {
+                    "directories": [
+                        {
+                            "relative_path": path,
+                            "role": "memova_root_structure_v3",
+                            "write_mode": "create",
+                        }
+                        for path in required_directories
+                    ],
+                    "files": files,
+                }
+            },
+        },
+    }
+
+
+def _v3_file_operation(
+    relative_path: str,
+    content: str,
+    *,
+    machine_managed: bool,
+    write_mode: str = "replace_machine_file",
+) -> dict[str, Any]:
+    content_bytes = content.encode("utf-8")
+    return {
+        "relative_path": relative_path,
+        "role": Path(relative_path).stem,
+        "content_type": "application/json" if relative_path.endswith(".json") else "text/markdown",
+        "encoding": "utf-8",
+        "write_mode": write_mode,
+        "sha256": hashlib.sha256(content_bytes).hexdigest(),
+        "byte_size": len(content_bytes),
+        "content": content,
+        "machine_managed": machine_managed,
+        "preserve_if_modified": True,
     }
 
 
@@ -70,6 +174,8 @@ def run_harness(output_root: Path | None = None, *, keep_artifacts: bool = False
         output_root.mkdir(parents=True, exist_ok=True)
 
     results = [
+        case_create_v3_from_backend_operations(output_root),
+        case_v3_contract_rejects_tampering(output_root),
         case_create_new_vault(output_root),
         case_create_new_vault_uses_desired_folder(output_root),
         case_connect_existing_inbox(output_root),
@@ -105,6 +211,140 @@ def run_harness(output_root: Path | None = None, *, keep_artifacts: bool = False
     return report
 
 
+def case_create_v3_from_backend_operations(root: Path) -> HarnessCaseResult:
+    target = root / "v3-icloud" / "Memova Vault"
+    setup = v3_setup_package()
+    plan = create_plan(
+        target_root=target,
+        setup=setup,
+        allow_non_icloud=True,
+        allow_existing_nonempty=False,
+    )
+    result = apply_plan(plan, setup)
+    validation = validate_vault(target, setup=setup)
+    issues = _issues_for_ok_plan(plan, result, validation)
+    if plan.get("vault_template_version") != "memova_knowledge_base_v3":
+        issues.append(
+            HarnessIssue(
+                "error",
+                "v3_template_not_selected",
+                "The V3 setup package did not select the V3 operation path.",
+            )
+        )
+    if result.get("vault_manifest_id") != "fixture-manifest-v3-fixture":
+        issues.append(
+            HarnessIssue(
+                "error",
+                "v3_backend_identity_not_used",
+                "The V3 plan must use backend-provided manifest identity.",
+                {"result": result.get("vault_manifest_id")},
+            )
+        )
+    sync_state_path = target / "_memova" / "sync_state.json"
+    sync_state = json.loads(sync_state_path.read_text(encoding="utf-8"))
+    sync_state["last_successful_sync_at"] = "2026-08-13T00:00:00Z"
+    sync_state_path.write_text(
+        json.dumps(sync_state, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    mutable_validation = validate_vault(target, setup=setup)
+    if mutable_validation.get("status") != "ok":
+        issues.append(
+            HarnessIssue(
+                "error",
+                "v3_mutable_machine_state_rejected",
+                "A schema-valid V3 sync-state update should not be compared to its setup seed hash.",
+                {"validation": mutable_validation},
+            )
+        )
+    profile_path = target / "profile.md"
+    profile_path.write_text("User-authored profile\n", encoding="utf-8")
+    second_plan = create_plan(
+        target_root=target,
+        setup=setup,
+        allow_non_icloud=True,
+        allow_existing_nonempty=True,
+    )
+    second_result = apply_plan(second_plan, setup)
+    if profile_path.read_text(encoding="utf-8") != "User-authored profile\n":
+        issues.append(
+            HarnessIssue(
+                "error",
+                "v3_user_file_overwritten",
+                "A skip_if_exists V3 user file was overwritten.",
+            )
+        )
+    if "profile.md" not in second_result.get("skipped_files", []):
+        issues.append(
+            HarnessIssue(
+                "error",
+                "v3_user_file_skip_not_reported",
+                "The preserved V3 user file was not reported as skipped.",
+            )
+        )
+    return HarnessCaseResult(
+        case_id="create_v3_from_backend_operations",
+        status="ok" if not _has_error(issues) else "fail",
+        target_root=str(target),
+        issues=issues,
+        details={
+            "plan_summary": plan.get("summary"),
+            "validation": validation,
+            "written_files": result.get("written_files"),
+        },
+    )
+
+
+def case_v3_contract_rejects_tampering(root: Path) -> HarnessCaseResult:
+    setup = v3_setup_package(session_id="tampered")
+    files = setup["vault_contract"]["memova_managed_root"]["setup_operations"]["files"]
+    files[0]["content"] += "tampered"
+    errors = setup_package_errors(setup)
+    invalid_plan = create_plan(
+        target_root=root / "v3-tampered-not-written",
+        setup=setup,
+        allow_non_icloud=True,
+    )
+    issues: list[HarnessIssue] = []
+    if not any("sha256 does not match content" in item for item in errors):
+        issues.append(
+            HarnessIssue(
+                "error",
+                "v3_tampered_hash_accepted",
+                "A tampered V3 backend operation was not rejected.",
+                {"errors": errors},
+            )
+        )
+    if not invalid_plan.get("errors") or invalid_plan.get("operations"):
+        issues.append(
+            HarnessIssue(
+                "error",
+                "v3_invalid_contract_planned_writes",
+                "An invalid V3 package must return a blocked plan with no filesystem operations.",
+                {"plan": invalid_plan},
+            )
+        )
+    unsupported = setup_package(mode="create_new_vault")
+    unsupported["vault_template_version"] = "memova_knowledge_base_v1"
+    unsupported_errors = setup_package_errors(unsupported)
+    if not any("vault_template_version" in item for item in unsupported_errors):
+        issues.append(
+            HarnessIssue(
+                "error",
+                "unsupported_template_accepted",
+                "An unsupported knowledge-base template version was not rejected.",
+                {"errors": unsupported_errors},
+            )
+        )
+    return HarnessCaseResult(
+        case_id="v3_contract_rejects_tampering",
+        status="ok" if not _has_error(issues) else "fail",
+        target_root=str(root / "v3-tampered-not-written"),
+        issues=issues,
+        details={"contract_errors": errors, "unsupported_errors": unsupported_errors},
+    )
+
+
 def case_create_new_vault(root: Path) -> HarnessCaseResult:
     target = root / "icloud" / "Memova Vault"
     setup = setup_package(mode="create_new_vault", session_id="create-new")
@@ -117,18 +357,18 @@ def case_create_new_vault(root: Path) -> HarnessCaseResult:
     result = apply_plan(plan, setup)
     validation = validate_vault(target)
     issues = _issues_for_ok_plan(plan, result, validation)
-    if validation.get("memova_input_root_relative_path") != "inbox/memova":
+    if validation.get("memova_input_root_relative_path") != ".":
         issues.append(
             HarnessIssue(
                 "error",
                 "wrong_new_vault_input_root",
-                "New vault setup should use inbox/memova as the Memova input root.",
+                "New vault setup should use the vault root as the Memova managed root.",
             )
         )
     _assert_ios_binding_hints(result, issues, expected_target_kind="memova_vault")
     _assert_new_vault_docs(target, issues)
-    _assert_input_root_docs(target / "inbox" / "memova", issues)
-    _assert_no_meeting_packets_created(target / "inbox" / "memova", issues)
+    _assert_input_root_docs(target, issues)
+    _assert_no_meeting_packets_created(target / "inbox", issues)
     return HarnessCaseResult(
         case_id="create_new_vault",
         status="ok" if not _has_error(issues) else "fail",
@@ -173,7 +413,7 @@ def case_create_new_vault_uses_desired_folder(root: Path) -> HarnessCaseResult:
                 "New vault setup should reject a target root that ignores desired_input_folder_name.",
             )
         )
-    if not str(wrong_plan.get("suggested_new_vault_target") or "").endswith("/Test111"):
+    if not _posix(wrong_plan.get("suggested_new_vault_target")).endswith("/Test111"):
         issues.append(
             HarnessIssue(
                 "error",
@@ -182,7 +422,7 @@ def case_create_new_vault_uses_desired_folder(root: Path) -> HarnessCaseResult:
                 {"suggested_new_vault_target": wrong_plan.get("suggested_new_vault_target")},
             )
         )
-    if not str(result.get("target_root") or "").endswith("/Test111"):
+    if not _posix(result.get("target_root")).endswith("/Test111"):
         issues.append(
             HarnessIssue(
                 "error",
@@ -193,8 +433,8 @@ def case_create_new_vault_uses_desired_folder(root: Path) -> HarnessCaseResult:
         )
     _assert_ios_binding_hints(result, issues, expected_target_kind="memova_vault")
     _assert_new_vault_docs(target, issues)
-    _assert_input_root_docs(target / "inbox" / "memova", issues)
-    _assert_no_meeting_packets_created(target / "inbox" / "memova", issues)
+    _assert_input_root_docs(target, issues)
+    _assert_no_meeting_packets_created(target / "inbox", issues)
     return HarnessCaseResult(
         case_id="create_new_vault_uses_desired_folder",
         status="ok" if not _has_error(issues) else "fail",
@@ -224,16 +464,16 @@ def case_connect_existing_inbox(root: Path) -> HarnessCaseResult:
     validation = validate_vault(target)
     inspection = inspect_tree(existing, max_depth=2, max_entries=100)
     issues = _issues_for_ok_plan(plan, result, validation)
-    if not str(target).endswith("00_Inbox/Memova"):
+    if not _posix(target).endswith("existing-inbox-vault/Memova"):
         issues.append(
             HarnessIssue(
                 "error",
                 "wrong_existing_inbox_target",
-                "Existing vault with 00_Inbox should target 00_Inbox/Memova.",
+                "Existing vault should target root-level Memova.",
                 {"target": str(target)},
             )
         )
-    _assert_ios_binding_hints(result, issues, expected_target_kind="memova_input_root")
+    _assert_ios_binding_hints(result, issues, expected_target_kind="memova_managed_root")
     _assert_existing_root_preserved(existing, before_children, issues)
     _assert_input_root_docs(target, issues)
     _assert_no_meeting_packets_created(target, issues)
@@ -265,25 +505,25 @@ def case_connect_existing_sources(root: Path) -> HarnessCaseResult:
     validation = validate_vault(target)
     candidates = raw_input_candidates(existing)
     issues = _issues_for_ok_plan(plan, result, validation)
-    if not str(target).endswith("Sources/Memova"):
+    if not _posix(target).endswith("existing-sources-vault/Memova"):
         issues.append(
             HarnessIssue(
                 "error",
                 "wrong_existing_sources_target",
-                "Existing vault with Sources should target Sources/Memova.",
+                "Existing vault with Sources should still target root-level Memova.",
                 {"target": str(target)},
             )
         )
-    if not candidates or candidates[0]["relative_path"] != "Sources":
+    if not any(candidate["relative_path"] == "Sources" for candidate in candidates):
         issues.append(
             HarnessIssue(
                 "error",
-                "sources_not_top_candidate",
-                "Raw-input candidate scoring should recognize Sources.",
+                "sources_candidate_missing",
+                "Raw-input candidate discovery should still recognize existing Sources even though V2 targets Memova.",
                 {"candidates": candidates},
             )
         )
-    _assert_ios_binding_hints(result, issues, expected_target_kind="memova_input_root")
+    _assert_ios_binding_hints(result, issues, expected_target_kind="memova_managed_root")
     _assert_existing_root_preserved(existing, before_children, issues)
     _assert_input_root_docs(target, issues)
     _assert_no_meeting_packets_created(target, issues)
@@ -319,12 +559,12 @@ def case_existing_vault_root_guard(root: Path) -> HarnessCaseResult:
             )
         )
     suggested = plan.get("suggested_existing_vault_target") or ""
-    if not suggested.endswith("Inbox/Memova"):
+    if not _posix(suggested).endswith("existing-root-guard-vault/Memova"):
         issues.append(
             HarnessIssue(
                 "error",
                 "missing_existing_root_suggestion",
-                "Guard should suggest a Memova child under the detected raw-input folder.",
+                "Guard should suggest a root-level Memova child.",
                 {"suggested_existing_vault_target": suggested},
             )
         )
@@ -351,7 +591,7 @@ def case_repair_missing_machine_file(root: Path) -> HarnessCaseResult:
         allow_existing_nonempty=True,
     )
     apply_plan(initial_plan, setup)
-    missing = target / "inbox" / "memova" / "_memova" / "sync_state.json"
+    missing = target / "_memova" / "sync_state.json"
     missing.unlink()
     broken = validate_vault(target)
     repair_plan = create_plan(
@@ -363,12 +603,42 @@ def case_repair_missing_machine_file(root: Path) -> HarnessCaseResult:
     result = apply_plan(repair_plan, setup)
     validation = validate_vault(target)
     issues = _issues_for_ok_plan(repair_plan, result, validation)
-    if broken["status"] != "fail":
+    if broken["status"] != "repair_required":
         issues.append(
             HarnessIssue(
                 "error",
                 "missing_file_not_detected",
                 "Validation should fail when a required machine file is missing.",
+            )
+        )
+    if broken.get("schema_version") != "memova_kb_v2_validation_result_v1":
+        issues.append(
+            HarnessIssue(
+                "error",
+                "missing_v2_validation_schema",
+                "Validation should use the V2 validator/repair contract schema.",
+                {"broken_validation": broken},
+            )
+        )
+    if "required_file_missing" not in {
+        item.get("code") for item in broken.get("issues", [])
+    }:
+        issues.append(
+            HarnessIssue(
+                "error",
+                "missing_file_issue_code_absent",
+                "Missing machine files should emit a required_file_missing issue.",
+                {"broken_validation": broken},
+            )
+        )
+    repair_package = broken.get("repair_package") or {}
+    if repair_package.get("status") != "available":
+        issues.append(
+            HarnessIssue(
+                "error",
+                "missing_file_repair_package_unavailable",
+                "Missing machine files should produce an available safe repair package.",
+                {"repair_package": repair_package},
             )
         )
     if validation["status"] != "ok":
@@ -403,7 +673,7 @@ def case_repair_thin_setup_doc(root: Path) -> HarnessCaseResult:
         allow_existing_nonempty=True,
     )
     apply_plan(initial_plan, setup)
-    thin_doc = target / "inbox" / "memova" / "README.md"
+    thin_doc = target / "README.md"
     thin_doc.write_text("placeholder\n", encoding="utf-8")
     broken = validate_vault(target)
     repair_plan = create_plan(
@@ -425,7 +695,30 @@ def case_repair_thin_setup_doc(root: Path) -> HarnessCaseResult:
                 {"broken_validation": broken},
             )
         )
-    if "inbox/memova/README.md" not in result.get("overwritten_files", []):
+    setup_doc_issues = [
+        issue
+        for issue in broken.get("issues", [])
+        if issue.get("code") == "setup_doc_invalid"
+    ]
+    if not setup_doc_issues or setup_doc_issues[0].get("repairability") != "needs_overwrite_approval":
+        issues.append(
+            HarnessIssue(
+                "error",
+                "thin_doc_repairability_wrong",
+                "Thin setup docs should require explicit overwrite approval in validation.",
+                {"broken_validation": broken},
+            )
+        )
+    if (broken.get("repair_package") or {}).get("status") != "not_available":
+        issues.append(
+            HarnessIssue(
+                "error",
+                "thin_doc_repair_package_should_wait_for_approval",
+                "Thin setup docs should not produce an overwrite repair package without approval.",
+                {"repair_package": broken.get("repair_package")},
+            )
+        )
+    if "README.md" not in result.get("overwritten_files", []):
         issues.append(
             HarnessIssue(
                 "error",
@@ -457,7 +750,7 @@ def case_reuse_existing_new_vault_refreshes_identity(root: Path) -> HarnessCaseR
         allow_existing_nonempty=True,
     )
     apply_plan(first_plan, first_setup)
-    user_packet = target / "inbox" / "memova" / "meetings" / "user-created-note.md"
+    user_packet = target / "inbox" / "meetings" / "user-created-note.md"
     user_packet.write_text("Existing user packet placeholder\n", encoding="utf-8")
 
     second_setup = setup_package(
@@ -477,7 +770,6 @@ def case_reuse_existing_new_vault_refreshes_identity(root: Path) -> HarnessCaseR
     issues = _issues_for_ok_plan(second_plan, result, validation)
     expected_overwrites = {
         "_memova/manifest.json",
-        "inbox/memova/_memova/manifest.json",
     }
     actual_overwrites = set(result.get("overwritten_files") or [])
     missing_overwrites = sorted(expected_overwrites - actual_overwrites)
@@ -783,7 +1075,7 @@ def _assert_existing_root_preserved(
     before_children: set[str],
     issues: list[HarnessIssue],
 ) -> None:
-    created = sorted(_root_children(existing) - before_children)
+    created = sorted((_root_children(existing) - before_children) - {"Memova"})
     if created:
         issues.append(
             HarnessIssue(
@@ -797,16 +1089,16 @@ def _assert_existing_root_preserved(
 
 def _assert_new_vault_docs(root: Path, issues: list[HarnessIssue]) -> None:
     required = {
-        "README.md": ["Memova Vault", "inbox/memova", "V1 Scope"],
+        "index.md": ["Memova Knowledge Base", "inbox", "wiki"],
+        "README.md": ["Memova Knowledge Base", "V2", "inbox/"],
         "AGENTS.md": ["No memory without source", "No external write without confirmation"],
-        "inbox/README.md": ["Inbox", "inbox/memova"],
-        "sources/README.md": ["Sources", "Memova V1"],
-        "wiki/README.md": ["Wiki", "curated long-term knowledge"],
-        "projects/README.md": ["Projects", "project-specific"],
-        "daily/README.md": ["Daily", "daily notes"],
-        "outputs/README.md": ["Outputs", "finished artifacts"],
-        "archive/README.md": ["Archive", "inactive material"],
-        "schemas/README.md": ["Schemas", "inbox/memova/schemas"],
+        "inbox/README.md": ["Inbox", "inbox/meetings"],
+        "wiki/index.md": ["Wiki", "source citation"],
+        "projects/index.md": ["Projects", "action projection"],
+        "daily/index.md": ["Daily", "digest"],
+        "outputs/index.md": ["Outputs", "reports"],
+        "archive/index.md": ["Archive", "inactive"],
+        "schemas/README.md": ["Schemas", "OKF"],
     }
     for relative_path, keywords in required.items():
         _assert_doc_contains(root, relative_path, keywords, issues, min_chars=120)
@@ -815,9 +1107,9 @@ def _assert_new_vault_docs(root: Path, issues: list[HarnessIssue]) -> None:
 def _assert_input_root_docs(root: Path, issues: list[HarnessIssue]) -> None:
     required = {
         "README.md": [
-            "Memova Raw Input Root",
-            "Memova Inbox Packet Format v1",
-            "meetings/YYYY/MM",
+            "Memova Knowledge Base",
+            "V2",
+            "inbox/",
             "sources.md",
             "promotion.json",
         ],
@@ -825,42 +1117,18 @@ def _assert_input_root_docs(root: Path, issues: list[HarnessIssue]) -> None:
             "Agent Rules",
             "No memory without source",
             "No action without evidence",
-            "Reading Order",
+            "inbox/",
         ],
-        "INDEX.md": [
-            "Memova Inbox Index",
-            "meetings/",
-            "recent meeting packets",
-        ],
-        "schemas/meeting_packet.schema.md": [
+        "schemas/meeting-packet.schema.md": [
             "Meeting Packet Schema",
             "sources.md",
             "note.md",
             "promotion.json",
         ],
-        "schemas/manifest.schema.md": [
-            "Manifest Schema",
-            "files",
-            "assets_summary",
-            "processing",
-        ],
-        "schemas/packet.schema.md": [
-            "Packet JSON Schema",
-            "sources",
-            "note",
-            "processing",
-        ],
-        "schemas/asset.schema.md": [
-            "Asset Manifest Schema",
-            "asset_id",
-            "role",
-            "source_ref",
-        ],
         "schemas/promotion.schema.md": [
             "Promotion Schema",
             "promotion_status",
-            "not_started",
-            "promoted_items",
+            "promotion_index",
         ],
     }
     for relative_path, keywords in required.items():
@@ -1004,11 +1272,15 @@ def _issues_for_ok_plan(
             HarnessIssue(
                 "error",
                 "validation_failed",
-                "Created Memova vault/input root should validate.",
+                "Created Memova vault or managed root should validate.",
                 {"validation": validation},
             )
         )
     return issues
+
+
+def _posix(value: Any) -> str:
+    return str(value or "").replace("\\", "/")
 
 
 def _has_error(issues: list[HarnessIssue]) -> bool:

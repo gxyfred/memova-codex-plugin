@@ -1,7 +1,7 @@
 interface:
   display_name: "Memova Workflow"
   short_description: "Run existing Memova automation tasks."
-  default_prompt: "Run latest note automation tasks."
+  default_prompt: "Use $memova-workflow to run my latest note automation tasks."
 
 policy:
   allow_implicit_invocation: false

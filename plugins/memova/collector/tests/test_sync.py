@@ -23,6 +23,51 @@ class SyncTests(unittest.TestCase):
             device_id="device-test-001",
         )
 
+    def test_bounded_sync_reads_and_checkpoints_only_selected_thread(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source = FixtureThreadSource(FIXTURES / "app-server-history-v1.json")
+            sink = MockSink()
+            with Ledger(Path(temp_dir) / "ledger.sqlite3") as ledger:
+                result = SyncEngine(
+                    source=source,
+                    ledger=ledger,
+                    sink=sink,
+                    consent_id="consent-test-001",
+                    device_id="device-test-001",
+                    thread_ids={"thread-active-001"},
+                ).run_once()
+
+                self.assertEqual(result["listed_thread_count"], 1)
+                self.assertEqual(result["read_thread_count"], 1)
+                self.assertEqual(result["bounded_thread_ids"], ["thread-active-001"])
+                self.assertEqual(source.read_ids, ["thread-active-001"])
+                self.assertEqual(ledger.status()["thread_checkpoint_count"], 1)
+                sent_ids = {
+                    thread["external_thread_id"]
+                    for batch in sink.received
+                    for thread in batch["threads"]
+                }
+                self.assertEqual(sent_ids, {"thread-active-001"})
+
+    def test_bounded_sync_refuses_unrelated_pending_outbox(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with Ledger(Path(temp_dir) / "ledger.sqlite3") as ledger:
+                with self.assertRaises(RuntimeError):
+                    self._engine(
+                        FixtureThreadSource(FIXTURES / "app-server-history-v1.json"),
+                        ledger,
+                        FailingSink(),
+                    ).run_once()
+                with self.assertRaisesRegex(RuntimeError, "unselected threads"):
+                    SyncEngine(
+                        source=FixtureThreadSource(FIXTURES / "app-server-history-v1.json"),
+                        ledger=ledger,
+                        sink=MockSink(),
+                        consent_id="consent-test-001",
+                        device_id="device-test-001",
+                        thread_ids={"thread-active-1"},
+                    ).run_once()
+
     def test_initial_sync_then_noop_is_incremental(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             with Ledger(Path(temp_dir) / "ledger.sqlite3") as ledger:
@@ -41,7 +86,7 @@ class SyncTests(unittest.TestCase):
                 self.assertEqual(second_sink.received, [])
                 self.assertEqual(ledger.status()["acknowledged_item_count"], 7)
 
-    def test_project_context_is_omitted_until_explicitly_enabled(self) -> None:
+    def test_existing_disabled_context_is_preserved_and_modes_are_explicit(self) -> None:
         class ContextSource:
             def list_threads(self, *, archived: bool):
                 if archived:
@@ -90,7 +135,15 @@ class SyncTests(unittest.TestCase):
                 ledger.set_metadata("project_context_enabled", "true")
                 enabled_sink = MockSink()
                 self._engine(ContextSource(), ledger, enabled_sink).run_once()
-                self.assertIn("project_context", enabled_sink.received[0]["threads"][0])
+                context = enabled_sink.received[0]["threads"][0]["project_context"]
+                self.assertIn("repository_display_name", context)
+            with Ledger(Path(temp_dir) / "minimal.sqlite3") as ledger:
+                ledger.set_metadata("project_context_enabled", "true")
+                ledger.set_metadata("project_context_mode", "minimal")
+                minimal_sink = MockSink()
+                self._engine(ContextSource(), ledger, minimal_sink).run_once()
+                context = minimal_sink.received[0]["threads"][0]["project_context"]
+                self.assertNotIn("repository_display_name", context)
 
     def test_changed_thread_sends_only_new_edited_and_deleted_items(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

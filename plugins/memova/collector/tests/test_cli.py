@@ -13,7 +13,7 @@ from memova_collector.ledger import Ledger
 
 
 class CliTests(unittest.TestCase):
-    def test_project_context_requires_explicit_setup_opt_in(self) -> None:
+    def test_project_context_defaults_minimal_and_full_mode_is_disclosed(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             state_dir = Path(temp_dir) / "state"
             disclosure = io.StringIO()
@@ -23,15 +23,14 @@ class CliTests(unittest.TestCase):
                         "setup",
                         "--state-dir",
                         str(state_dir),
-                        "--include-project-context",
                     ]
                 )
             disclosed = json.loads(disclosure.getvalue())
             self.assertEqual(result, 2)
-            self.assertTrue(disclosed["project_context_requested"])
+            self.assertEqual(disclosed["project_context_mode"], "minimal")
             self.assertEqual(
                 disclosed["policy"]["included"]["project_context"],
-                "privacy_safe_repository_context_v1",
+                "privacy_minimal_repository_identity_v1",
             )
 
             configured = io.StringIO()
@@ -42,13 +41,28 @@ class CliTests(unittest.TestCase):
                         "--state-dir",
                         str(state_dir),
                         "--accept-policy",
-                        "--include-project-context",
                     ]
                 )
             self.assertEqual(result, 0)
             self.assertTrue(json.loads(configured.getvalue())["project_context_enabled"])
             with Ledger(state_dir / "collector.sqlite3") as ledger:
                 self.assertEqual(ledger.get_metadata("project_context_enabled"), "true")
+                self.assertEqual(ledger.get_metadata("project_context_mode"), "minimal")
+
+            full_state = Path(temp_dir) / "full-state"
+            full = io.StringIO()
+            with redirect_stdout(full):
+                result = main(
+                    [
+                        "setup",
+                        "--state-dir",
+                        str(full_state),
+                        "--accept-policy",
+                        "--include-project-context",
+                    ]
+                )
+            self.assertEqual(result, 0)
+            self.assertEqual(json.loads(full.getvalue())["project_context_mode"], "full")
 
     def test_status_is_read_only_when_state_is_missing(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

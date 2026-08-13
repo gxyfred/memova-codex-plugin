@@ -16,6 +16,7 @@ def build_project_context(
     *,
     fingerprint_secret: str | None,
     workspace_fingerprint_key: str | None = None,
+    include_observations: bool = False,
 ) -> dict[str, Any] | None:
     """Build a useful context envelope without exporting paths or repository URLs."""
 
@@ -52,17 +53,18 @@ def build_project_context(
         "repository_identity_kind": repository_identity_kind,
         "memova_context_uris": [],
     }
-    display_name = remote_display_name or (
-        repository_root.name if repository_root is not None else None
-    )
-    if display_name:
-        context["repository_display_name"] = display_name[:200]
-    branch = _clean_text(git_info.get("branch"))
-    if branch:
-        context["branch"] = branch[:255]
-    working_path = _repository_relative_working_path(cwd, repository_root)
-    if working_path is not None:
-        context["working_path"] = working_path
+    if include_observations:
+        display_name = remote_display_name or (
+            repository_root.name if repository_root is not None else None
+        )
+        if display_name:
+            context["repository_display_name"] = display_name[:200]
+        branch = _clean_text(git_info.get("branch"))
+        if branch:
+            context["branch"] = branch[:255]
+        working_path = _repository_relative_working_path(cwd, repository_root)
+        if working_path is not None:
+            context["working_path"] = working_path
     return context
 
 

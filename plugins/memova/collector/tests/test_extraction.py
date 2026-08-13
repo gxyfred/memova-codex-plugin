@@ -55,24 +55,28 @@ class ExtractionTests(unittest.TestCase):
                 archived=False,
                 project_fingerprint_secret="device-private-secret",
                 workspace_repository_fingerprint_key="a" * 64,
+                project_context_mode="full",
             )
             replay, _ = extract_thread(
                 source,
                 archived=False,
                 project_fingerprint_secret="device-private-secret",
                 workspace_repository_fingerprint_key="a" * 64,
+                project_context_mode="full",
             )
             other_device, _ = extract_thread(
                 source,
                 archived=False,
                 project_fingerprint_secret="other-device-secret",
                 workspace_repository_fingerprint_key="a" * 64,
+                project_context_mode="full",
             )
             other_workspace, _ = extract_thread(
                 source,
                 archived=False,
                 project_fingerprint_secret="device-private-secret",
                 workspace_repository_fingerprint_key="b" * 64,
+                project_context_mode="full",
             )
 
         context = first["project_context"]
@@ -110,12 +114,37 @@ class ExtractionTests(unittest.TestCase):
                 source,
                 archived=False,
                 project_fingerprint_secret="device-private-secret",
+                project_context_mode="full",
             )
 
         context = thread["project_context"]
         self.assertEqual(context["repository_display_name"], "memova")
         self.assertEqual(context["working_path"], ".")
         self.assertNotIn("example.test", json.dumps(context))
+
+    def test_minimal_project_context_omits_repository_observations(self) -> None:
+        payload = json.loads((FIXTURES / "app-server-history-v1.json").read_text())
+        source = {
+            **payload["threads"]["thread-active-001"],
+            "cwd": "/private/example/repo",
+            "gitInfo": {
+                "branch": "feature/private-customer",
+                "originUrl": "https://example.test/private/repo.git",
+            },
+        }
+        thread, _ = extract_thread(
+            source,
+            archived=False,
+            project_fingerprint_secret="device-private-secret",
+            workspace_repository_fingerprint_key="a" * 64,
+            project_context_mode="minimal",
+        )
+
+        context = thread["project_context"]
+        self.assertEqual(context["repository_identity_kind"], "workspace_hmac_remote")
+        self.assertNotIn("repository_display_name", context)
+        self.assertNotIn("branch", context)
+        self.assertNotIn("working_path", context)
 
 
 if __name__ == "__main__":

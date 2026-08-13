@@ -18,7 +18,7 @@ from memova_vault_lib import (
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Diagnose and optionally repair a Memova vault/input root.")
+    parser = argparse.ArgumentParser(description="Diagnose and optionally repair a Memova Knowledge Base V2 or V3 managed root.")
     parser.add_argument("--path", required=True)
     parser.add_argument("--setup-json")
     parser.add_argument("--repair-plan", action="store_true")
@@ -34,7 +34,7 @@ def main() -> int:
 
     root = expand_path(args.path)
     setup = load_setup_json(args.setup_json)
-    validation = validate_vault(root)
+    validation = validate_vault(root, setup=setup or None)
     inspection = inspect_tree(root, max_depth=3, max_entries=500)
     diagnosis = diagnose(validation, inspection)
     report: dict[str, Any] = {
@@ -55,6 +55,26 @@ def main() -> int:
     }
 
     if args.repair_plan or args.apply_repair:
+        if (
+            validation.get("vault_template_version") == "memova_knowledge_base_v3"
+            and not setup
+            and validation.get("status") != "ok"
+        ):
+            report["status"] = "fail"
+            report["repair_error"] = (
+                "V3 repair requires the current backend setup or repair package. "
+                "The plugin will not reconstruct V3 files from hardcoded templates."
+            )
+            write_json(report)
+            return 1
+        if validation.get("vault_template_version") == "memova_knowledge_base_v3" and not setup:
+            report["repair_plan"] = {
+                "status": "not_required",
+                "vault_template_version": "memova_knowledge_base_v3",
+                "operations": [],
+            }
+            write_json(report)
+            return 0
         repair_setup = repair_setup_payload(setup, root, validation, inspection)
         plan = create_plan(
             target_root=root,
@@ -74,7 +94,7 @@ def main() -> int:
                     repair_setup,
                     overwrite_machine_files=args.overwrite_machine_files,
                 )
-                post_validation = validate_vault(root)
+                post_validation = validate_vault(root, setup=repair_setup)
                 report["repair_result"] = repair_result
                 report["post_repair_validation"] = post_validation
                 report["status"] = "ok" if post_validation["status"] == "ok" else "fail"
@@ -135,7 +155,7 @@ def diagnose(validation: dict[str, Any], inspection: dict[str, Any]) -> dict[str
             {
                 "severity": "info",
                 "code": "valid_memova_target",
-                "message": "This folder validates as a Memova vault or Memova input root.",
+                "message": "This folder validates as a Memova vault or managed root.",
             }
         )
     return {
@@ -161,7 +181,7 @@ def repair_setup_payload(
             "setup_session_id": "local-diagnosis",
             "workspace_id": None,
             "storage_target": "icloud_drive",
-            "vault_template_version": "memova_inbox_v1",
+            "vault_template_version": "memova_knowledge_base_v2",
             "source_path_hints": {},
             "target_path_hints": {},
         }
@@ -172,7 +192,7 @@ def repair_setup_payload(
 def infer_setup_mode(root: Path, validation: dict[str, Any], inspection: dict[str, Any]) -> str:
     if validation.get("target_kind") == "memova_vault":
         return "create_new_vault"
-    if validation.get("target_kind") == "memova_input_root":
+    if validation.get("target_kind") == "memova_managed_root":
         return "connect_existing_vault"
     if inspection.get("has_memova_vault_manifest") or (root / "inbox").exists():
         return "create_new_vault"

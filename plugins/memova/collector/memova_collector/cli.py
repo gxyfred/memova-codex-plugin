@@ -103,7 +103,16 @@ def command_policy(_: argparse.Namespace) -> int:
     return 0
 
 
+def _requested_project_context_mode(args: argparse.Namespace) -> str:
+    if bool(getattr(args, "disable_project_context", False)):
+        return "disabled"
+    if bool(getattr(args, "include_project_context", False)):
+        return "full"
+    return "minimal"
+
+
 def command_setup(args: argparse.Namespace) -> int:
+    project_context_mode = _requested_project_context_mode(args)
     if not args.accept_policy:
         _print_json(
             {
@@ -115,13 +124,16 @@ def command_setup(args: argparse.Namespace) -> int:
                     "Memova account. Pause, disconnect, and uninstall do not delete it."
                 ),
                 "project_context_notice": (
-                    "Optional project context sends only a repository fingerprint, display name, "
-                    "branch, and repository-relative working path. It never sends the HMAC key, "
-                    "absolute cwd, remote URL, credentials, query string, or commit SHA."
+                    "Fresh setup includes a privacy-minimal repository fingerprint by default so "
+                    "Memova can group tasks from the same repository. --include-project-context "
+                    "also sends its display name, branch, and repository-relative working path. "
+                    "Neither mode sends the HMAC key, absolute cwd, remote URL, credentials, "
+                    "query string, or commit SHA. --disable-project-context sends no repository "
+                    "context."
                 ),
-                "project_context_requested": bool(args.include_project_context),
+                "project_context_mode": project_context_mode,
                 "policy": default_collection_policy(
-                    include_project_context=bool(args.include_project_context),
+                    project_context_mode=project_context_mode,
                 ),
             },
         )
@@ -136,7 +148,7 @@ def command_setup(args: argparse.Namespace) -> int:
         consent_id=args.consent_id or f"consent-{uuid.uuid4()}",
         device_id=args.device_id or f"device-{uuid.uuid4()}",
         memova_account_hint=args.memova_account_hint,
-        include_project_context=bool(args.include_project_context),
+        project_context_mode=project_context_mode,
     )
     (state_dir / "consent.json").write_text(
         json.dumps(consent, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
@@ -153,8 +165,9 @@ def command_setup(args: argparse.Namespace) -> int:
         ledger.set_metadata("mode", "m4_ready_not_connected")
         ledger.set_metadata(
             "project_context_enabled",
-            "true" if args.include_project_context else "false",
+            "true" if project_context_mode != "disabled" else "false",
         )
+        ledger.set_metadata("project_context_mode", project_context_mode)
     _print_json(
         {
             "status": "configured_for_m4",
@@ -167,7 +180,8 @@ def command_setup(args: argparse.Namespace) -> int:
             "hooks_trusted": None,
             "remote_upload_enabled": False,
             "retention_mode": "until_user_or_account_deletion",
-            "project_context_enabled": bool(args.include_project_context),
+            "project_context_enabled": project_context_mode != "disabled",
+            "project_context_mode": project_context_mode,
             "next_action": "preview_then_connect",
         },
     )
@@ -194,6 +208,7 @@ def _run_sync(
         sink=sink,
         consent_id=str(consent["consent_id"]),
         device_id=str(consent["device_id"]),
+        thread_ids=set(args.thread_id or []),
     ).run_once()
 
 
@@ -272,8 +287,9 @@ def command_status(args: argparse.Namespace) -> int:
         payload["mode"] = metadata.get("mode") or "local_m3_not_scheduled"
         payload["preview_completed"] = bool(metadata.get("preview_completed_at"))
         payload["preview_source"] = metadata.get("preview_source")
-        payload["project_context_enabled"] = (
-            metadata.get("project_context_enabled") == "true"
+        payload["project_context_enabled"] = metadata.get("project_context_enabled") == "true"
+        payload["project_context_mode"] = metadata.get("project_context_mode") or (
+            "full" if payload["project_context_enabled"] else "disabled"
         )
     else:
         payload = {
@@ -288,6 +304,7 @@ def command_status(args: argparse.Namespace) -> int:
             "preview_completed": False,
             "preview_source": None,
             "project_context_enabled": False,
+            "project_context_mode": "disabled",
         }
     payload["schema_version"] = STATUS_SCHEMA_VERSION
     lock = read_lock(_state_dir(args) / "sync.lock")
@@ -522,10 +539,19 @@ def build_parser() -> argparse.ArgumentParser:
     setup.add_argument("--consent-id")
     setup.add_argument("--device-id")
     setup.add_argument("--memova-account-hint")
-    setup.add_argument(
+    project_context = setup.add_mutually_exclusive_group()
+    project_context.add_argument(
         "--include-project-context",
         action="store_true",
-        help="Explicitly include privacy-safe repository context in v2 archive batches.",
+        help=(
+            "Include repository display name, branch, and relative path in addition to the "
+            "default privacy-minimal repository identity."
+        ),
+    )
+    project_context.add_argument(
+        "--disable-project-context",
+        action="store_true",
+        help="Disable even the default privacy-minimal repository identity.",
     )
     setup.set_defaults(handler=command_setup)
 
@@ -558,6 +584,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_api_base(sync_once)
     sync_once.add_argument("--output")
+    sync_once.add_argument(
+        "--thread-id",
+        action="append",
+        default=[],
+        help=(
+            "Restrict this run to an exact Codex task id. Repeat for multiple tasks. "
+            "Bounded runs refuse unrelated pending outbox batches."
+        ),
+    )
     sync_once.set_defaults(handler=command_sync_once)
 
     status_parser = subparsers.add_parser("status")

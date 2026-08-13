@@ -1,7 +1,7 @@
 interface:
   display_name: "Memova Vault Setup"
-  short_description: "Create or connect a Memova raw-input root."
-  default_prompt: "Set up knowledge base."
+  short_description: "Create or connect a Memova V2/V3 managed knowledge-base root."
+  default_prompt: "Use $memova-vault-setup to set up my Memova knowledge base."
 
 policy:
   allow_implicit_invocation: false
