@@ -938,7 +938,7 @@ def case_reminder_mark_complete_requires_backend(root: Path) -> HarnessCaseResul
     ok_home = root / "reminder-home-ok"
     blocked = _run_json(
         [sys.executable, str(reminder_script), "--mark-complete", "--vault-path", str(target)],
-        env={**os.environ, "HOME": str(blocked_home)},
+        env=_isolated_home_env(blocked_home),
     )
     allowed = _run_json(
         [
@@ -951,7 +951,7 @@ def case_reminder_mark_complete_requires_backend(root: Path) -> HarnessCaseResul
             "--setup-session-id",
             "reminder-completed-session",
         ],
-        env={**os.environ, "HOME": str(ok_home)},
+        env=_isolated_home_env(ok_home),
     )
     allowed_state_path = (
         ok_home
@@ -1055,6 +1055,11 @@ def _run_json(
         stderr=completed.stderr,
         json=payload,
     )
+
+
+def _isolated_home_env(home: Path) -> dict[str, str]:
+    value = str(home)
+    return {**os.environ, "HOME": value, "USERPROFILE": value}
 
 
 def _seed_existing_vault(path: Path, directories: list[str]) -> None:
