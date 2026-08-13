@@ -1342,7 +1342,10 @@ def create_plan(
         errors.append("Target root already exists and is not empty.")
     if mode == "create_new_vault":
         desired_folder = new_vault_folder_name(setup)
-        suggested = suggested_new_vault_target(setup)
+        # iCloud discovery is macOS-specific and can legitimately return no existing root on
+        # Windows/Linux or a fresh Mac. Planning still knows the user-selected parent directory,
+        # so provide a deterministic sibling suggestion instead of dropping the recovery target.
+        suggested = suggested_new_vault_target(setup) or target_root.parent / desired_folder
         suggested_new_vault_target_path = str(suggested) if suggested is not None else None
         if safe_component(target_root.name) != desired_folder:
             hint = f" Use {suggested_new_vault_target_path}." if suggested_new_vault_target_path else ""
