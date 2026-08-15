@@ -15,6 +15,7 @@ from memova_collector.knowledge_v5 import (
     KnowledgeV5AnalyzerLoop,
     KnowledgeV5StateStore,
 )
+from memova_collector.oauth import OAuthHttpError
 from memova_collector.ledger import Ledger
 
 RUN_ID = "10000000-0000-4000-8000-000000000001"
@@ -159,6 +160,30 @@ class _FakeClient:
 
 
 class KnowledgeV5Tests(unittest.TestCase):
+    def test_disabled_backend_defers_v5_without_losing_resumable_state(self) -> None:
+        class DisabledClient(_FakeClient):
+            def create_sync_plan(self, payload):
+                del payload
+                raise OAuthHttpError(404, {"error": {"code": "integration.unavailable"}})
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            state_dir = Path(temp_dir)
+            with Ledger(state_dir / "collector.sqlite3") as ledger:
+                loop = KnowledgeV5AnalyzerLoop(
+                    client=DisabledClient(_plan()),
+                    runner=_FakeRunner(),
+                    ledger=ledger,
+                    state_dir=state_dir,
+                    device_id="device-1",
+                )
+                result = loop.run_once(trigger=True)
+
+                self.assertEqual(result["status"], "unavailable")
+                self.assertTrue(result["retry_required"])
+                self.assertTrue(result["resume_pending"])
+                self.assertIsNone(ledger.get_metadata("knowledge_v5_initialized"))
+                self.assertTrue(loop.has_pending_run())
+
     def test_analyzer_loop_commits_checkpoint_only_after_valid_ack(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             state_dir = Path(temp_dir)

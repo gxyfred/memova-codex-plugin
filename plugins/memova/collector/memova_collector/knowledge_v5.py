@@ -382,6 +382,19 @@ class KnowledgeV5AnalyzerLoop:
         return self.store.path.exists()
 
     def run_once(self, *, trigger: bool) -> dict[str, Any]:
+        try:
+            return self._run_once(trigger=trigger)
+        except OAuthHttpError as exc:
+            if exc.status_code != 404:
+                raise
+            return {
+                "status": "unavailable",
+                "reason": "server_rollout_disabled_or_not_deployed",
+                "retry_required": True,
+                "resume_pending": self.has_pending_run(),
+            }
+
+    def _run_once(self, *, trigger: bool) -> dict[str, Any]:
         state = self.store.load()
         if state is None:
             if not trigger:

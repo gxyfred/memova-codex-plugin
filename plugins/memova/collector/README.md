@@ -33,7 +33,9 @@ archive ACK.
   advance the local checkpoint only after a durable server ACK. One private `current-run.json` file
   preserves idempotency across crashes;
   no additional local database table or permanent service is introduced. The existing scheduler
-  drives both archive and V5 stages.
+  drives both archive and V5 stages. If the backend's default-off V5 rollout gate is disabled or
+  not deployed, the archive ACK remains successful, V5 reports `unavailable`, and the resumable
+  state is retained for a later run instead of failing or re-uploading raw history.
 - **V2 project context:** after MCP pairing, keep the backend-issued, non-authorizing
   owner/workspace repository HMAC key beside OAuth tokens in the OS credential store. A repository
   remote becomes a stable HMAC fingerprint across that owner's paired devices; repositories without

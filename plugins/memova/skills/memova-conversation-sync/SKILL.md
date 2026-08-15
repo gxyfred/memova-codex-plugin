@@ -182,6 +182,10 @@ acquires a workspace lease, verifies Bundle size/hash, runs an ephemeral read-on
 submits the schema-valid changeset, and advances `knowledge_v5_server_checkpoint` only after the
 durable changeset ACK. Do not add a token preflight or per-run user confirmation in V5.0.
 
+If Memova returns HTTP 404 because the default-off V5 rollout is disabled or the endpoint is not
+deployed yet, report V5 as `unavailable` without treating the already durable archive ACK as a
+failure. Keep `current-run.json` resumable and let the next scheduled run retry after rollout.
+
 If submission has an unknown outcome, leave `knowledge-v5/current-run.json` intact. The next
 scheduler run must query run status and reuse the stored idempotency key; it must not rerun Codex
 when the backend already has a completed ACK. Report per-object accepted/conflict/rejected counts.
