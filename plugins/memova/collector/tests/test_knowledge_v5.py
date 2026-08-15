@@ -234,6 +234,62 @@ class KnowledgeV5Tests(unittest.TestCase):
             self.assertEqual(runner.calls, 1)
             self.assertEqual(len(client.submitted), 1)
 
+    def test_resumed_changeset_rebuilds_frontmatter_before_submit(self) -> None:
+        idempotency_key = "knowledge-v5-changeset:resumed-frontmatter"
+        change_id = "20000000-0000-4000-8000-000000000004"
+        changeset = _changeset(lease_id=LEASE_ID, idempotency_key=idempotency_key)
+        changeset["object_changes"] = [
+            {
+                "change_id": change_id,
+                "object_id": MANUAL_ID,
+                "object_type": "personal_manual",
+                "operation": "create",
+                "expected_revision": None,
+                "canonical_format": "markdown",
+                "content": "---\nbad: model header\n---\n# Personal Manual\n",
+                "content_sha256": "0" * 64,
+            }
+        ]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            state_dir = Path(temp_dir)
+            KnowledgeV5StateStore(state_dir).save(
+                {
+                    "state_schema": 1,
+                    "plan_request": {},
+                    "plan": _plan(),
+                    "lease": _lease(),
+                    "changeset_idempotency_key": idempotency_key,
+                    "changeset": changeset,
+                }
+            )
+            client = _FakeClient(_plan())
+            with Ledger(state_dir / "collector.sqlite3") as ledger:
+                result = KnowledgeV5AnalyzerLoop(
+                    client=client,
+                    runner=_FakeRunner(),
+                    ledger=ledger,
+                    state_dir=state_dir,
+                    device_id="device-1",
+                ).run_once(trigger=False)
+
+        self.assertEqual(result["results"]["accepted"], 0)
+        submitted = client.submitted[0]["object_changes"][0]
+        self.assertEqual(
+            submitted["content"],
+            "---\n"
+            "memova_schema: knowledge-object/v1\n"
+            f"object_id: {MANUAL_ID}\n"
+            "object_type: personal_manual\n"
+            f"revision: {change_id}\n"
+            "---\n"
+            "# Personal Manual\n",
+        )
+        self.assertEqual(
+            submitted["content_sha256"],
+            hashlib.sha256(submitted["content"].encode("utf-8")).hexdigest(),
+        )
+
     def test_ack_checkpoint_must_bind_the_new_bundle_revision(self) -> None:
         class InvalidCheckpointClient(_FakeClient):
             def submit_changeset(self, payload):
@@ -390,6 +446,118 @@ class KnowledgeV5Tests(unittest.TestCase):
         self.assertEqual(
             result["object_changes"][0]["content_sha256"],
             hashlib.sha256(document.encode("utf-8")).hexdigest(),
+        )
+
+    def test_runner_replaces_model_frontmatter_with_create_identity(self) -> None:
+        content = _bundle()
+        plan = _plan(bundle=content)
+        change_id = "20000000-0000-4000-8000-000000000001"
+        body = "# Personal Manual\n\nDurable body.\n"
+
+        def fake_process(command, **kwargs):
+            output_path = Path(command[command.index("--output-last-message") + 1])
+            changeset = _changeset(
+                lease_id=LEASE_ID,
+                idempotency_key="knowledge-v5-changeset:frontmatter-create",
+            )
+            changeset["object_changes"] = [
+                {
+                    "change_id": change_id,
+                    "object_id": MANUAL_ID,
+                    "object_type": "personal_manual",
+                    "operation": "create",
+                    "expected_revision": None,
+                    "canonical_format": "markdown",
+                    "content": (
+                        "---\n"
+                        "memova_schema: knowledge-object/v1\n"
+                        f"object_id: {MANUAL_ID}\n"
+                        "object_type: personal_manual\n"
+                        f"revision: {change_id}\n"
+                        "model_extra: rejected-by-server\n"
+                        "---\n"
+                        f"{body}"
+                    ),
+                    "content_sha256": "0" * 64,
+                }
+            ]
+            output_path.write_text(json.dumps(changeset), encoding="utf-8")
+            return type("Completed", (), {"returncode": 0})()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result = CodexKnowledgeV5Runner(
+                state_dir=Path(temp_dir),
+                process_runner=fake_process,
+            ).analyze(
+                bundle=content,
+                plan=plan,
+                lease_id=LEASE_ID,
+                idempotency_key="knowledge-v5-changeset:frontmatter-create",
+            )
+
+        document = result["object_changes"][0]["content"]
+        self.assertEqual(
+            document,
+            "---\n"
+            "memova_schema: knowledge-object/v1\n"
+            f"object_id: {MANUAL_ID}\n"
+            "object_type: personal_manual\n"
+            f"revision: {change_id}\n"
+            "---\n"
+            f"{body}",
+        )
+        self.assertEqual(
+            result["object_changes"][0]["content_sha256"],
+            hashlib.sha256(document.encode("utf-8")).hexdigest(),
+        )
+
+    def test_runner_replaces_frontmatter_with_expected_replace_revision(self) -> None:
+        content = _bundle()
+        plan = _plan(bundle=content)
+        expected_revision = "20000000-0000-4000-8000-000000000002"
+        body = "# Personal Manual\n\nUpdated body.\n"
+
+        def fake_process(command, **kwargs):
+            output_path = Path(command[command.index("--output-last-message") + 1])
+            changeset = _changeset(
+                lease_id=LEASE_ID,
+                idempotency_key="knowledge-v5-changeset:frontmatter-replace",
+            )
+            changeset["object_changes"] = [
+                {
+                    "change_id": "20000000-0000-4000-8000-000000000003",
+                    "object_id": MANUAL_ID,
+                    "object_type": "personal_manual",
+                    "operation": "replace",
+                    "expected_revision": expected_revision,
+                    "canonical_format": "markdown",
+                    "content": body,
+                    "content_sha256": "0" * 64,
+                }
+            ]
+            output_path.write_text(json.dumps(changeset), encoding="utf-8")
+            return type("Completed", (), {"returncode": 0})()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result = CodexKnowledgeV5Runner(
+                state_dir=Path(temp_dir),
+                process_runner=fake_process,
+            ).analyze(
+                bundle=content,
+                plan=plan,
+                lease_id=LEASE_ID,
+                idempotency_key="knowledge-v5-changeset:frontmatter-replace",
+            )
+
+        self.assertEqual(
+            result["object_changes"][0]["content"],
+            "---\n"
+            "memova_schema: knowledge-object/v1\n"
+            f"object_id: {MANUAL_ID}\n"
+            "object_type: personal_manual\n"
+            f"revision: {expected_revision}\n"
+            "---\n"
+            f"{body}",
         )
 
     def test_runner_rejects_bundle_hash_mismatch_before_exec(self) -> None:

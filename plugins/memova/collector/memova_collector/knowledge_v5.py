@@ -5,6 +5,7 @@ import io
 import ipaddress
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -27,6 +28,11 @@ LEASE_SCHEMA = "knowledge-analyzer-lease/v1"
 RUN_SCHEMA = "knowledge-analyzer-run/v1"
 CHANGESET_SCHEMA = "knowledge-changeset/v1"
 ACK_SCHEMA = "knowledge-changeset-ack/v1"
+
+_MARKDOWN_DOCUMENT_HEADER_RE = re.compile(
+    r"\A---\r?\n.*?\r?\n---(?:\r?\n|\Z)",
+    re.DOTALL,
+)
 
 
 def analyzer_workspace_root(state_dir: Path) -> Path:
@@ -600,7 +606,7 @@ def _validate_run(run: dict[str, Any], *, plan: dict[str, Any]) -> None:
 
 
 def _normalize_changeset_content_hashes(changeset: object) -> None:
-    """Own deterministic transport hashes instead of trusting model arithmetic."""
+    """Own deterministic Markdown identity and transport hashes."""
     if not isinstance(changeset, dict):
         return
     object_changes = changeset.get("object_changes")
@@ -611,6 +617,27 @@ def _normalize_changeset_content_hashes(changeset: object) -> None:
             continue
         content = change.get("content")
         if isinstance(content, str):
+            if change.get("canonical_format") == "markdown":
+                identity_values = (
+                    change.get("object_id"),
+                    change.get("object_type"),
+                    change.get("change_id")
+                    if change.get("operation") == "create"
+                    else change.get("expected_revision"),
+                )
+                if all(isinstance(value, str) and value for value in identity_values):
+                    object_id, object_type, revision = identity_values
+                    body = _MARKDOWN_DOCUMENT_HEADER_RE.sub("", content, count=1)
+                    content = (
+                        "---\n"
+                        "memova_schema: knowledge-object/v1\n"
+                        f"object_id: {object_id}\n"
+                        f"object_type: {object_type}\n"
+                        f"revision: {revision}\n"
+                        "---\n"
+                        f"{body}"
+                    )
+                    change["content"] = content
             change["content_sha256"] = hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 
