@@ -1,6 +1,6 @@
 ---
 name: memova-conversation-sync
-description: Set up, authorize, preview, sync, inspect, pause, resume, disconnect, delete, update, or uninstall the user-scoped Memova Collector for complete user-visible Codex conversation history. Use only when the user explicitly asks for Memova conversation sync or selects that option from the Memova menu. M4 supports one-login MCP pairing, isolated Collector credentials, incremental Memova REST upload, server ACK, and explicit long-term retention/deletion controls.
+description: Set up, authorize, preview, sync, inspect, diagnose, pause, resume, disconnect, delete, update, or uninstall the user-scoped Memova Collector for complete user-visible Codex conversation history and automatic Knowledge V5 analysis. Use only when the user explicitly asks for Memova conversation sync or selects that option from the Memova menu. Supports one-login MCP pairing, isolated Collector credentials, incremental Memova REST upload, durable ACK, ephemeral local Codex analysis, and explicit retention/deletion controls.
 ---
 
 # Memova Conversation Sync
@@ -16,9 +16,11 @@ scheduler activation, remote deletion, disconnect, or uninstall.
 - **Connect:** use the signed-in Memova MCP session to create a short-lived PKCE pairing grant.
   Never copy or reuse the Codex MCP bearer token in the Collector.
 - **Status:** inspect local counts first. Add `--remote` only when the user asks for server status.
-- **Sync now:** clarify whether the user means Codex-to-archive, archive-to-V3, or end-to-end. The
-  first uses Collector REST; the second uses the V3 MCP trigger on already-durable archive data;
-  end-to-end waits for the Collector ACK before invoking the V3 trigger.
+- **Diagnose:** run the local content-free `diagnose` command. It does not read conversations or
+  call Memova; use it before proposing setup repair or a V5 resume.
+- **Sync now:** the normal REST command is end-to-end: it archives changed Codex history, waits for
+  durable ACK, then automatically runs or resumes the server-authorized Knowledge V5 analyzer.
+  `--skip-knowledge-v5` is only a disclosed one-run rollout/diagnostic escape hatch.
 - **Pause/resume:** keep the scheduler installed; paused runs exit before reading tasks.
 - **Disconnect:** revoke Collector OAuth and stop collection without deleting local or remote data.
 - **Delete:** require explicit scope and confirmation; send deletion before revoking OAuth.
@@ -41,8 +43,8 @@ Capability inspection must not call `thread/list` or `thread/read`. Report:
 - Exclude system/developer prompts, hidden reasoning, tool calls/results, terminal output,
   file-change payloads/bodies, binary attachments, and subagent traces.
 - Visible messages can contain secrets; do not claim automatic redaction.
-- V2 can add repository identity so Knowledge V3 can group related tasks and support an explicit
-  Project binding. Fresh setup defaults to a privacy-minimal fingerprint only. The optional full
+- Repository identity lets Knowledge V5 group related tasks and support explicit Project binding.
+  Fresh setup defaults to a privacy-minimal fingerprint only. The optional full
   mode also sends repository display name, branch, and repository-relative working path. MCP
   pairing stores a non-authorizing
   owner/workspace HMAC key only in the OS credential record: usable remotes produce a stable HMAC
@@ -51,13 +53,17 @@ Capability inspection must not call `thread/list` or `thread/read`. Report:
 - Fresh setup defaults to privacy-minimal repository identity. `--include-project-context` enables
   the disclosed full observations; `--disable-project-context` sends no repository context.
   Existing consent is never silently expanded by an update.
-- Hooks are optional content-free activity audit markers. In 1.3.0 they are not consumed as sync
+- Hooks are optional content-free activity audit markers. In 1.4.0 they are not consumed as sync
   triggers; scheduler polling is the only background sync mechanism.
 - Each run lists metadata, reads only changed tasks, and sends only new/edited/deleted items.
 - Server ACK is required before the REST checkpoint advances. Retries reuse the same outbox batch
   and idempotency key; a full history list is never uploaded on every run.
-- Raw archive acceptance is consumer-neutral. Personal Manual and Knowledge V3 independently read
-  the archive; neither consumer is part of Collector ACK or status.
+- Raw archive acceptance remains consumer-neutral. Knowledge V5 starts only after that ACK and has
+  its own server plan, Bundle revision, lease, changeset, run status, and durable checkpoint.
+- V5 invokes the signed-in user's Codex with `--ephemeral`, `--ignore-user-config`,
+  `--ignore-rules`, `--sandbox read-only`, and plugin/app/MCP features disabled. It reads the
+  complete authorized Wiki Bundle in an isolated private workspace; no unrelated integration,
+  separate ChatGPT Scheduled Task, or permanent analyzer process is created.
 
 ## Staged setup
 
@@ -110,8 +116,7 @@ Stop on incompatible App Server. Never parse transcript JSONL/internal databases
 
 Explain the requested `conversations.read`, `conversations.write`, and `conversations.delete`
 Collector scopes and the retention disclosure above. The Codex MCP login also requests
-`knowledge.read` and `knowledge.write` so it can show and control the separate Knowledge V3
-consumer. If Memova MCP is not signed in, perform that OAuth login with the
+  `knowledge.read` and `knowledge.write` for Memova knowledge workflows. If Memova MCP is not signed in, perform that OAuth login with the
 `conversations.connect` scope. Because `codex mcp list` does not expose granted scopes, an existing
 login cannot prove it already has these scopes. Explain that reauthorization changes the Memova MCP
 session/scopes but does not authorize a scheduler. Obtain separate explicit approval immediately
@@ -169,35 +174,18 @@ The bounded run reads/checkpoints only those three tasks and refuses an existing
 contains any other task. Require a durable server ACK before proceeding. Failure must not fall back
 to an unbounded run.
 
-### 6. Offer Knowledge V3 processing separately
+### 6. Verify automatic Knowledge V5 completion
 
-Archive sync and Knowledge V3 processing are independent permissions. After the bounded archive
-batch has a durable server ACK, use `get_conversation_knowledge_status` to show the backend state.
-Do not infer V3 state from Collector status.
+The same `sync-once --sink rest` command automatically requests a V5 sync plan after the archive
+ACK. The backend provides the complete authorized Wiki Bundle and exact work items. Collector
+acquires a workspace lease, verifies Bundle size/hash, runs an ephemeral read-only `codex exec`,
+submits the schema-valid changeset, and advances `knowledge_v5_server_checkpoint` only after the
+durable changeset ACK. Do not add a token preflight or per-run user confirmation in V5.0.
 
-If the user wants the archive continuously processed into Knowledge V3, explain and obtain one
-explicit confirmation for ongoing automatic incrementals. Then call
-`enable_conversation_knowledge` with `continuous_processing_confirmed=true`. This creates a
-no-model preflight for the one-time historical backfill; it does not start paid model work.
-
-Show the returned run id and exact maximum input tokens, output tokens, model calls, estimated USD
-cost, model deployment, and snapshot size. Only after the user explicitly approves those finite
-initial values, call `confirm_conversation_knowledge_initial_run` with the same run id, currency
-`USD`, `initial_backfill_confirmed=true`, and bounds at least as large as the displayed maxima.
-Those user-confirmed bounds apply only to that historical run. Later changed archive data is
-processed automatically under backend-owned per-run budgets and safety limits; do not ask for a
-new approval for each ordinary incremental.
-
-The backend checks durable archive events at least once per minute, waits for 60 seconds of quiet to
-coalesce normal bursts, and never waits more than 10 minutes. If the user explicitly asks to process
-already-uploaded changes immediately, call `trigger_conversation_knowledge_sync_now` with a fresh
-stable idempotency key; this bypasses the quiet window but not safety checks.
-
-If status is `paused_system_safety`, perform only read-only diagnosis: show the triggering preflight,
-current frozen run budget, server safety limits, and preserved archive/V3 checkpoint state. Do not
-repeat initial confirmation, change limits, retry, deploy, or requeue automatically. Escalate for an
-operational fix or bounded partition plan; any backend limit change or requeue requires its own
-explicit approval.
+If submission has an unknown outcome, leave `knowledge-v5/current-run.json` intact. The next
+scheduler run must query run status and reuse the stored idempotency key; it must not rerun Codex
+when the backend already has a completed ACK. Report per-object accepted/conflict/rejected counts.
+The backend alone updates authoritative Memova documents and derives backlinks.
 
 ### 7. Offer background sync
 
@@ -220,7 +208,7 @@ supported Codex App Server must remain available.
 
 Tell the user that `/hooks` may be used to review/trust `hooks/hooks.json` only if they want local,
 content-free activity audit markers. Never infer trust from local files. These markers are not read
-by the 1.3.0 Collector and do not make sync faster or more reliable; the scheduler remains the
+by the 1.4.0 Collector and do not make sync faster or more reliable; the scheduler remains the
 authoritative background mechanism.
 
 ## Control commands
@@ -228,6 +216,7 @@ authoritative background mechanism.
 ```bash
 python3 "<launcher>" status --state-dir "<state_dir>"
 python3 "<launcher>" status --state-dir "<state_dir>" --remote
+python3 "<launcher>" diagnose --state-dir "<state_dir>"
 python3 "<launcher>" pause --state-dir "<state_dir>"
 python3 "<launcher>" resume --state-dir "<state_dir>"
 python3 "<launcher>" sync-once --state-dir "<state_dir>" --live \
@@ -238,9 +227,12 @@ python3 "<launcher>" disconnect --state-dir "<state_dir>"
 Do not run `sync-once` merely to test credentials; remote status is read-only. The run lock prevents
 overlap. MCP, local-export, and REST checkpoints remain target-scoped.
 
-For any "sync now" request, state which stage will run. An end-to-end request must execute
-Collector REST first, verify its durable ACK, then call the V3 sync-now tool and report V3 status
-only from MCP. Neither ACK nor a queued V3 run means projection has completed.
+`diagnose` is local and content-free. It reports consent, preview, OAuth credential presence,
+Codex App Server support, pending V5 recovery state, and the next safe action. It must not repair,
+sync, or upload anything.
+
+For any "sync now" request, state that the normal REST run includes raw archive followed by V5.
+Archive ACK alone does not mean V5 completed; use the `knowledge_v5` result and local V5 checkpoint.
 
 For explicit deletion, show the exact thread/device/all scope and require confirmation:
 
@@ -271,7 +263,6 @@ it is not remote deletion.
 ## Completion language
 
 Say **"Collector is connected"** only after pairing/fallback OAuth and server consent registration.
-After a bounded or manual REST ACK, say only **"This batch is durably archived."** Say **"Memova
-background conversation sync is active"** only after the scheduler successfully activates. Report
-Knowledge V3 state only from the dedicated MCP status tool because backend consumers are
-independent from Collector status.
+After a bounded or manual raw REST ACK, say only **"This batch is durably archived."** Say
+**"Knowledge V5 is updated"** only after a valid changeset ACK or a `no_work` plan. Say **"Memova
+background conversation sync is active"** only after the scheduler successfully activates.

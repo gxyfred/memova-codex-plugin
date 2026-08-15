@@ -1,7 +1,7 @@
 {
   "name": "memova",
-  "version": "1.3.0",
-  "description": "Run Memova workflows, manage V2/V3 knowledge roots, and sync opt-in Codex conversation history.",
+  "version": "1.4.0",
+  "description": "Run Memova workflows and sync opt-in Codex history into the Knowledge V5 Wiki.",
   "author": {
     "name": "Memova",
     "url": "https://memova.ai"
@@ -25,8 +25,8 @@
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Memova",
-    "shortDescription": "Open Memova setup, tasks, vault diagnosis, and conversation sync.",
-    "longDescription": "Connect Codex to Memova through OAuth MCP for knowledge-base and automation workflows. Use @memova to create or diagnose backend-defined Knowledge Base V2/V3 managed roots, review and run automation tasks, and explicitly configure the Codex conversation Collector. Version 1.3.0 adds strict backend-driven V3 setup, scoped conversation pairing, bounded single-task acceptance sync, privacy-safe optional project context, incremental neutral-archive delivery, and thread, device, or all-data deletion.",
+    "shortDescription": "Open Knowledge V5 setup, diagnosis, tasks, and legacy vault tools.",
+    "longDescription": "Connect Codex to Memova through OAuth MCP for knowledge-base and automation workflows. Use @memova to review tasks, configure the consent-gated conversation Collector, and maintain the Knowledge V5 Wiki. Version 1.4.0 keeps the neutral raw archive and adds automatic, resumable local V5 analysis with ephemeral Codex execution, server-authorized changesets, and durable ACK recovery. Existing V2/V3 tools remain available only for the staged transition.",
     "developerName": "Memova",
     "category": "Productivity",
     "capabilities": [
@@ -37,11 +37,11 @@
     "websiteURL": "https://memova.ai",
     "defaultPrompt": [
       "Open Memova menu.",
-      "Set up knowledge base.",
+      "Set up Knowledge V5.",
       "Review my automation tasks.",
       "Run latest note automation tasks.",
-      "Diagnose knowledge base.",
-      "Set up private Codex conversation sync."
+      "Diagnose Knowledge V5.",
+      "Open legacy V2/V3 vault tools."
     ],
     "brandColor": "#3366FF",
     "composerIcon": "./assets/icon.svg",

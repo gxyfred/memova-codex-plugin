@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import uuid
 from collections import Counter
 from typing import Any
@@ -16,6 +17,21 @@ MAX_THREAD_ENTRIES_PER_BATCH = 20
 
 def _metadata_thread_id(thread: dict[str, Any]) -> str:
     return str(thread.get("id") or thread.get("threadId") or "")
+
+
+def _is_below_any_root(cwd: object, roots: tuple[str, ...]) -> bool:
+    if not isinstance(cwd, str) or not cwd.strip():
+        return False
+    candidate = os.path.normcase(os.path.realpath(os.path.expanduser(cwd)))
+    for root in roots:
+        normalized_root = os.path.normcase(os.path.realpath(os.path.expanduser(root)))
+        try:
+            if os.path.commonpath((candidate, normalized_root)) == normalized_root:
+                return True
+        except ValueError:
+            # Windows paths on different drives cannot share a common path.
+            continue
+    return False
 
 
 def _split_thread(thread: dict[str, Any]) -> list[dict[str, Any]]:
@@ -59,6 +75,7 @@ class SyncEngine:
         consent_id: str,
         device_id: str,
         thread_ids: set[str] | None = None,
+        excluded_cwd_roots: tuple[str, ...] = (),
     ) -> None:
         self.source = source
         self.ledger = ledger
@@ -66,6 +83,7 @@ class SyncEngine:
         self.consent_id = consent_id
         self.device_id = device_id
         self.thread_ids = {value for value in (thread_ids or set()) if value} or None
+        self.excluded_cwd_roots = tuple(value for value in excluded_cwd_roots if value)
         self.delivery_target = str(getattr(sink, "target", "mock"))
         fingerprint_secret = self.ledger.get_metadata("repository_fingerprint_secret")
         if fingerprint_secret is None:
@@ -124,14 +142,20 @@ class SyncEngine:
             }
 
         acknowledged = self._flush_outbox()
+        diagnostics: Counter[str] = Counter()
         listed: dict[str, tuple[dict[str, Any], bool]] = {}
         for archived in (False, True):
             for metadata in self.source.list_threads(archived=archived):
                 thread_id = _metadata_thread_id(metadata)
-                if thread_id and (self.thread_ids is None or thread_id in self.thread_ids):
-                    listed[thread_id] = (metadata, archived)
+                if not thread_id or (
+                    self.thread_ids is not None and thread_id not in self.thread_ids
+                ):
+                    continue
+                if _is_below_any_root(metadata.get("cwd"), self.excluded_cwd_roots):
+                    diagnostics["excluded_memova_analyzer_threads"] += 1
+                    continue
+                listed[thread_id] = (metadata, archived)
 
-        diagnostics: Counter[str] = Counter()
         entries: list[dict[str, Any]] = []
         read_count = 0
         for thread_id, (metadata, archived) in listed.items():
@@ -149,6 +173,9 @@ class SyncEngine:
             full_thread.setdefault("source", metadata.get("source"))
             full_thread.setdefault("cwd", metadata.get("cwd"))
             full_thread.setdefault("gitInfo", metadata.get("gitInfo"))
+            if _is_below_any_root(full_thread.get("cwd"), self.excluded_cwd_roots):
+                diagnostics["excluded_memova_analyzer_threads"] += 1
+                continue
             extracted, thread_diagnostics = extract_thread(
                 full_thread,
                 archived=archived,

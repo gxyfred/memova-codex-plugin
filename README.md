@@ -13,13 +13,14 @@ This plugin bundles:
 - optional content-free Hook audit markers and three-platform background-scheduler definitions,
 - Memova starter prompts and plugin presentation metadata.
 
-The `1.3.0` development line contains the consent-gated Codex conversation Collector under
-`plugins/memova/collector/`. M4 adds one-login MCP pairing with a separate device-bound Collector
+The `1.4.0` development line contains the consent-gated Codex conversation Collector under
+`plugins/memova/collector/`. The existing M4 archive uses one-login MCP pairing with a separate device-bound Collector
 credential, OS credential storage, an idempotent Memova REST sink with durable server ACK, and
 an owner/workspace-scoped non-authorizing repository HMAC key used only for privacy-safe project
-context. It also supports thread/device/all deletion plus retain-until-deleted controls. The optional
-1.3.0 also executes Knowledge Base V3 setup strictly from backend-supplied operations and adds a
-three-task bounded sync procedure for controlled real-history acceptance. The optional
+context. Version 1.4.0 adds the Knowledge V5 post-archive loop: sync plan, workspace lease, verified
+Wiki Bundle download, ephemeral read-only `codex exec`, server-authorized changeset, and durable ACK
+recovery. Analyzer workspaces are excluded from future collection. It also supports
+thread/device/all deletion plus retain-until-deleted controls. The optional
 5-minute macOS launchd, Windows Task
 Scheduler, or Linux systemd user task activates only after consent, live preview, and OAuth gates.
 No production deployment is enabled by this repository change.
@@ -54,8 +55,8 @@ During backend development, keep these plugin changes on a separate `codex/` fea
 prevents a plugin update from exposing a local file-tree or validation contract before the backend
 API and iOS handoff are ready.
 
-The 1.3.0 development branch is `codex/memova-plugin-1.3.0`. It preserves V2 compatibility while
-using backend-issued `setup_operations` as the only file-content authority for V3.
+Development remains isolated on a `codex/` feature branch until the matching backend contract is
+ready. Existing V2/V3 tools remain present during the staged transition; V5 does not dual-write V3.
 
 ## Requirements
 
@@ -68,7 +69,8 @@ using backend-issued `setup_operations` as the only file-content authority for V
   OAuth. There is no plaintext credential fallback.
 - A Memova account.
 - Access to this GitHub repository.
-- Network access to `https://api.memova.ai/mcp` and `https://api.memova.ai/v1/external-conversations`
+- Network access to `https://api.memova.ai/mcp`, `https://api.memova.ai/v1/external-conversations`,
+  and `https://api.memova.ai/v1/knowledge-v5`
   when conversation cloud sync is enabled.
 
 ## Quick Start
@@ -158,22 +160,23 @@ In Codex, type:
 Codex should open a short Memova menu:
 
 ```text
-1. Set up knowledge base
+1. Set up Knowledge V5
 2. Review my automation tasks
 3. Run latest note automation tasks
-4. Diagnose knowledge base
-5. Set up private Codex conversation sync
+4. Diagnose Knowledge V5
+5. Set up legacy V2/V3 vault
+6. Diagnose legacy V2/V3 vault
 ```
 
 Reply with a number, or select one of the plugin starter prompts:
 
 ```text
 Open Memova menu.
-Set up knowledge base.
+Set up Knowledge V5.
 Review my automation tasks.
 Run latest note automation tasks.
-Diagnose knowledge base.
-Set up private Codex conversation sync.
+Diagnose Knowledge V5.
+Open legacy V2/V3 vault tools.
 ```
 
 You can still ask directly:
@@ -181,13 +184,13 @@ You can still ask directly:
 ```text
 @memova Run latest note automation tasks.
 @memova Review my automation tasks.
-@memova Diagnose knowledge base.
-@memova Set up private Codex conversation sync.
+@memova Diagnose Knowledge V5.
+@memova Set up legacy V2/V3 vault.
 ```
 
 The menu is the safe default entrypoint. It does not run a write-heavy workflow just because the
-user typed bare `@memova`; it routes the user to setup, read-only automation task review,
-latest-note automation task execution, or vault diagnosis.
+user typed bare `@memova`; it routes the user to V5 setup/diagnosis, read-only automation task
+review, latest-note automation task execution, or explicit legacy vault tools.
 
 The menu itself does not fetch Memova data. MCP-backed selections require the Memova MCP login above.
 If Codex says setup or automation MCP tools are unavailable, check `codex mcp list`; `Not logged in`
@@ -199,16 +202,14 @@ existing `automation_tasks` that the user already sent to Codex from Memova/iOS,
 task at a time, asks before approval-required work, executes safe tasks when the current workspace
 is appropriate, and writes progress/results back to Memova.
 
-On the first non-setup Memova workflow, the plugin checks whether a Memova knowledge-base vault is
-already present on the Mac. If not, it shows one setup reminder, records that reminder locally under
-`~/.cache/memova-codex-plugin/`, and does not repeat it on later workflows. Users can still start
-setup explicitly with `@memova Set up knowledge base.`
+The legacy V2/V3 options retain the one-time local vault reminder under
+`~/.cache/memova-codex-plugin/`. It no longer blocks Knowledge V5 or automation workflows.
 
 The plugin also checks for newer Memova plugin releases at most once per day. If a newer version is
 available, it reminds the user to upgrade, then repeats that reminder at most once every 7 days for
 the same latest version.
 
-## Set Up A Memova Knowledge Base
+## Legacy V2/V3 Vault Compatibility
 
 The knowledge-base setup flow is designed for users who already completed the Memova iOS setup step and marked setup ready for Codex.
 
@@ -481,14 +482,13 @@ python3 "<installed-launcher>" sync-once \
 This mode reads/checkpoints only the three approved tasks and refuses pending outbox batches
 containing other tasks. Running it against production still requires a separate explicit approval because it
 uploads real conversation content. Bundled Hooks are optional content-free audit markers only; in
-1.3.0 they do not trigger collection. The scheduler is the background mechanism.
+1.4.0 they do not trigger collection. The scheduler is the background mechanism.
 
-The Collector ends at the consumer-neutral raw archive. Knowledge V3 and Personal Manual are
-independent backend consumers with their own processing, status, and lifecycle handling; a durable
-archive ACK does not by itself mean either consumer has finished. Knowledge V3 requires one
-continuous-processing authorization plus a separate one-time finite budget confirmation for the
-initial historical backfill. Later ordinary incrementals run automatically under backend safety
-limits.
+The raw archive remains consumer-neutral. After its durable ACK, the same Collector run requests a
+Knowledge V5 plan, downloads the authorized Wiki Bundle, invokes an ephemeral read-only Codex
+analyzer, and submits a resumable changeset. Archive ACK alone does not mean V5 finished; check the
+`knowledge_v5` result or run local `diagnose`. Personal Manual is one V5 document generated through
+that server-authorized flow. V5 does not dual-write Knowledge V3.
 
 ## What The Menu And Workflow Do
 
@@ -496,8 +496,8 @@ When triggered, the bundled `memova-menu` skill tells Codex to:
 
 1. Run the low-frequency plugin version check.
 2. Run the one-time knowledge-base setup reminder check.
-3. Show a numbered menu for setup, automation task review, latest-note automation task execution,
-   and vault diagnosis.
+3. Show a numbered menu for Knowledge V5 setup/diagnosis, automation task review, latest-note
+   automation task execution, and explicit legacy vault compatibility.
 4. Treat a simple numeric reply like `1` or `2` as the selected Memova action in the current
    thread.
 5. Keep automation task review read-only unless the user explicitly asks to execute a task.

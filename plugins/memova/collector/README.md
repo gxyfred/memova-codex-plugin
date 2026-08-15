@@ -1,9 +1,9 @@
-# Memova Codex Conversation Collector M0-M4
+# Memova Codex Conversation Collector M0-M4 + Knowledge V5
 
 This plugin-bundled directory implements the local, version-neutral foundation for Memova Codex
-conversation sync. The current local development target is `1.3.0`; it retains the strict V2
-archive batch and adds backend-driven Knowledge V3 compatibility, scoped MCP pairing guidance, and
-a bounded three-task acceptance procedure on top of the `1.2.0` Collector line.
+conversation sync. The current local development target is `1.4.0`; it retains the strict,
+consumer-neutral archive contract and adds the automatic Knowledge V5 analyzer loop after durable
+archive ACK.
 
 ## Implemented scope
 
@@ -26,6 +26,14 @@ a bounded three-task acceptance procedure on top of the `1.2.0` Collector line.
   single-use PKCE pairing grant; exchange it for a separate device-bound Collector credential kept
   only in the OS credential store; register device consent; deliver target-scoped incremental
   batches to Memova REST; require a matching durable ACK; and expose thread/device/all deletion.
+- **Knowledge V5 analyzer loop:** after a successful archive ACK (and once on first V5 startup),
+  request a server sync plan and workspace lease, verify and extract the complete Wiki Bundle into
+  an isolated private workspace, invoke `codex exec` with `--ephemeral`, `--sandbox read-only`, and
+  plugin/app/MCP features disabled, plus the Bundle changeset schema; then submit the changeset and
+  advance the local checkpoint only after a durable server ACK. One private `current-run.json` file
+  preserves idempotency across crashes;
+  no additional local database table or permanent service is introduced. The existing scheduler
+  drives both archive and V5 stages.
 - **V2 project context:** after MCP pairing, keep the backend-issued, non-authorizing
   owner/workspace repository HMAC key beside OAuth tokens in the OS credential store. A repository
   remote becomes a stable HMAC fingerprint across that owner's paired devices; repositories without
@@ -60,15 +68,24 @@ content, and requires both `--acknowledge-local-read` and
 `--allow-experimental-app-server`.
 
 The bundled Hooks never read prompt/response fields or `transcript_path`. They write only event,
-session id, turn id, and timestamp under `$PLUGIN_DATA`. In 1.3.0 these are optional local audit
+session id, turn id, and timestamp under `$PLUGIN_DATA`. In 1.4.0 these are optional local audit
 markers and are not consumed by the Collector. The periodic scheduler is the background mechanism.
 
-## Consumer-neutral archive boundary
+## Consumer-neutral archive and V5 boundary
 
-The Collector terminates at a private raw archive and durable ACK. It contains no Personal Manual
-or Knowledge V3 projection adapter, status, field, or export sink. Those backend consumers each
-freeze their own source snapshot and own their analysis data, jobs, evidence, and lifecycle cursor.
-Their only shared ancestor is the raw archive.
+Raw collection still terminates at a private archive and durable ACK; the archive payload contains
+no Personal Manual or knowledge projection fields. Knowledge V5 is a separate post-ACK consumer:
+the backend owns plans, Bundles, authorization, validation, commits, backlinks, and the durable run
+record, while the local Collector only orchestrates the user's ephemeral Codex analysis. A source
+document owns outbound links, and only the backend updates authoritative Memova documents. V5 does
+not write V3 data.
+
+The Analyzer uses a stable private workspace root solely so Collection can exclude its own work
+defensively. `--ephemeral` prevents Codex rollout persistence, and the workspace is removed after
+each attempt. Plugin, remote-plugin catalog, recommended-plugin, app, and app-MCP features are
+disabled for the Analyzer subprocess so unrelated integrations are neither initialized nor exposed.
+`--skip-knowledge-v5` is a one-run rollout/diagnostic escape hatch; normal REST sync runs V5
+automatically and requires no separate Scheduled Task.
 
 ## Development commands
 

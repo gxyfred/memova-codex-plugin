@@ -47,7 +47,7 @@ def _runtime_dependency_report() -> dict[str, Any]:
 def _require_supported_python() -> None:
     if sys.version_info < MIN_PYTHON:
         raise RuntimeError(
-            "Memova Collector 1.3.0 requires Python 3.11 or newer. "
+            "Memova Collector 1.4.0 requires Python 3.11 or newer. "
             f"Current interpreter: {platform.python_version()} ({sys.executable})."
         )
 

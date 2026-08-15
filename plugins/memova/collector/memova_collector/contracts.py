@@ -5,7 +5,7 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
-COLLECTOR_VERSION = "1.3.0"
+COLLECTOR_VERSION = "1.4.0"
 BATCH_SCHEMA_VERSION = "memova_external_conversation_batch_v2"
 ACK_SCHEMA_VERSION = "memova_external_conversation_batch_ack_v1"
 CONSENT_SCHEMA_VERSION = "memova_conversation_sync_consent_v1"

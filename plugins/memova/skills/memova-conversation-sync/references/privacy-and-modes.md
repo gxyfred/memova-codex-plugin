@@ -11,11 +11,11 @@
 | OS credential store | No | OAuth token record | No itself | Yes |
 | OS scheduler | No itself | User-scoped definition | No itself | For unattended sync |
 | Memova archive | Receives selected visible text; privacy-minimal repository identity by default on fresh setup, or optional full project observations | Raw archive/ACK/audit | HTTPS | Yes |
-| Personal Manual consumer | Independently reads archive snapshots | Own claims/evidence/HTML | Backend-internal | No for archive |
-| Knowledge V3 consumer | Independently reads archive snapshots | Own projection state | Backend-internal | No for archive |
+| Knowledge V5 local analyzer | Complete server-authorized Wiki Bundle | Ephemeral workspace plus one resumable changeset file | Memova REST plus the user's signed-in Codex | After archive ACK |
+| Knowledge V5 backend | Archive plus authoritative Memova objects | Bundle, run/lease, validated documents, derived backlinks | Backend-internal | Yes for V5 |
 
 Hooks ignore transcript paths, prompts, and assistant text. They persist only event/session/turn ids
-and time. Their spool is bounded and disposable. In 1.3.0 the Collector does not consume this spool;
+and time. Their spool is bounded and disposable. In 1.4.0 the Collector does not consume this spool;
 Hooks are optional audit markers, not sync triggers. The scheduler is the background mechanism.
 
 ## Local state and credentials
@@ -26,7 +26,10 @@ Default application root:
 - Windows: `%LOCALAPPDATA%\Memova\CodexCollector`
 - Linux: `${XDG_DATA_HOME:-~/.local/share}/memova/codex-collector`
 
-SQLite can contain pending visible conversation batches until ACK. Restrictive file permissions are
+SQLite can contain pending visible conversation batches until ACK. During V5 recovery,
+`knowledge-v5/current-run.json` can temporarily contain a generated changeset until its durable
+server ACK. Analyzer Bundle files exist only under the private analyzer workspace and are removed
+after each attempt. Restrictive file permissions are
 not encryption; keep the directory out of source control/cloud shares. OAuth tokens must exist only
 in macOS Keychain, Windows Credential Manager, or Linux Secret Service. There is no plaintext
 fallback.
@@ -55,11 +58,10 @@ messages. Persist batches in an outbox; advance checkpoints only after a matchin
 target-scoped local-export ACK cannot suppress the first REST upload.
 
 The OS scheduler runs the Collector every 5 minutes by default. Each run still lists metadata but
-reads and uploads only changed tasks. After archive ACK, Knowledge V3 is a separate backend
-consumer: one explicit authorization enables continuous incrementals, while the historical
-backfill has its own no-model preflight and one-time finite budget confirmation. Normal archive
-events coalesce after 60 seconds of quiet with a 10-minute maximum wait; sync-now can bypass that
-quiet window. Ordinary incrementals never require repeated user budget approval.
+reads and uploads only changed tasks. After archive ACK, the same runtime automatically runs or
+resumes Knowledge V5. V5.0 sends the complete authorized Wiki Bundle to an ephemeral, read-only
+local `codex exec`; there is no token preflight and no separate Scheduled Task. A no-change run skips
+V5 after initialization unless local recovery state exists.
 
 The first production-shaped acceptance run uses exactly three explicitly approved task ids. It
 reads and advances checkpoints only for that selection and refuses mixed pending outbox batches.
@@ -79,6 +81,7 @@ scrubs stored batch payloads while retaining non-content audit metadata. Thread 
 only that device-scoped thread. Private Blob raw objects are physically deleted; the database emits
 a content-free lifecycle event in the same transaction as its archive state change.
 
-The Collector has no projection adapter, projection fields, or consumer status. Personal Manual and
-Knowledge V3 each maintain their own snapshots, analysis data, jobs, APIs, and idempotent lifecycle
-cursor. They share only the neutral archive as an ancestor and never call or reference each other.
+The raw archive has no projection fields. The V5 backend owns authoritative Memova documents,
+Bundle authorization, link validation, commits, backlinks, and durable analyzer status. Collector
+only orchestrates the local analyzer after ACK; it cannot write target Memova documents directly.
+V5 does not dual-write V3.
