@@ -271,6 +271,7 @@ class CodexKnowledgeV5Runner:
             if not output_path.exists():
                 raise RuntimeError("Local Codex analysis did not produce a changeset.")
             changeset = json.loads(output_path.read_text(encoding="utf-8"))
+            _normalize_changeset_content_hashes(changeset)
             _validate_changeset(
                 changeset,
                 plan=plan,
@@ -469,6 +470,7 @@ class KnowledgeV5AnalyzerLoop:
         lease = self._ensure_lease(plan=plan, lease=state.get("lease"))
         state["lease"] = lease
         changeset["lease_id"] = lease["lease_id"]
+        _normalize_changeset_content_hashes(changeset)
         _validate_changeset(
             changeset,
             plan=plan,
@@ -595,6 +597,21 @@ def _validate_run(run: dict[str, Any], *, plan: dict[str, Any]) -> None:
         raise RuntimeError("Knowledge V5 analyzer run does not match its plan.")
     if str(run.get("plan_id")) != str(plan["plan_id"]):
         raise RuntimeError("Knowledge V5 analyzer run plan_id does not match its plan.")
+
+
+def _normalize_changeset_content_hashes(changeset: object) -> None:
+    """Own deterministic transport hashes instead of trusting model arithmetic."""
+    if not isinstance(changeset, dict):
+        return
+    object_changes = changeset.get("object_changes")
+    if not isinstance(object_changes, list):
+        return
+    for change in object_changes:
+        if not isinstance(change, dict):
+            continue
+        content = change.get("content")
+        if isinstance(content, str):
+            change["content_sha256"] = hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 
 def _validate_changeset(

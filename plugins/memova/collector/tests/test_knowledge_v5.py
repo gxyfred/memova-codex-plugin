@@ -354,6 +354,44 @@ class KnowledgeV5Tests(unittest.TestCase):
                 self.assertIn(feature, captured["command"])
             self.assertFalse((runner.workspace_root / RUN_ID).exists())
 
+    def test_runner_recomputes_model_supplied_content_hash(self) -> None:
+        content = _bundle()
+        plan = _plan(bundle=content)
+        document = "# Deterministic content\n"
+
+        def fake_process(command, **kwargs):
+            output_path = Path(command[command.index("--output-last-message") + 1])
+            changeset = _changeset(
+                lease_id=LEASE_ID,
+                idempotency_key="knowledge-v5-changeset:hash-normalization",
+            )
+            changeset["object_changes"] = [
+                {
+                    "change_id": str(uuid.uuid4()),
+                    "object_id": MANUAL_ID,
+                    "content": document,
+                    "content_sha256": "0" * 64,
+                }
+            ]
+            output_path.write_text(json.dumps(changeset), encoding="utf-8")
+            return type("Completed", (), {"returncode": 0})()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result = CodexKnowledgeV5Runner(
+                state_dir=Path(temp_dir),
+                process_runner=fake_process,
+            ).analyze(
+                bundle=content,
+                plan=plan,
+                lease_id=LEASE_ID,
+                idempotency_key="knowledge-v5-changeset:hash-normalization",
+            )
+
+        self.assertEqual(
+            result["object_changes"][0]["content_sha256"],
+            hashlib.sha256(document.encode("utf-8")).hexdigest(),
+        )
+
     def test_runner_rejects_bundle_hash_mismatch_before_exec(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             called = False
