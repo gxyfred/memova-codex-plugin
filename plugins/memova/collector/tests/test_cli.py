@@ -164,6 +164,30 @@ class CliTests(unittest.TestCase):
             self.assertEqual(result, 2)
             self.assertIn("successful live preview", json.loads(output.getvalue())["error"])
 
+    def test_preview_reads_only_selected_threads(self) -> None:
+        fixture = (
+            Path(__file__).parent / "fixtures" / "app-server-history-v1.json"
+        )
+        output = io.StringIO()
+        with redirect_stdout(output):
+            result = main(
+                [
+                    "preview",
+                    "--fixture",
+                    str(fixture),
+                    "--thread-id",
+                    "thread-active-001",
+                ]
+            )
+
+        payload = json.loads(output.getvalue())
+        self.assertEqual(result, 0)
+        self.assertEqual(payload["listed_thread_count"], 1)
+        self.assertEqual(payload["read_thread_count"], 1)
+        self.assertEqual(payload["bounded_thread_ids"], ["thread-active-001"])
+        self.assertFalse(payload["persisted_after_preview"])
+        self.assertFalse(payload["remote_upload_performed"])
+
 
 if __name__ == "__main__":
     unittest.main()

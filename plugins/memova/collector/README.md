@@ -152,11 +152,15 @@ python3 -m memova_collector preview \
   --live \
   --acknowledge-local-read \
   --allow-experimental-app-server \
-  --record-preview
+  --record-preview \
+  --thread-id "<approved_codex_task_id_1>" \
+  --thread-id "<approved_codex_task_id_2>" \
+  --thread-id "<approved_codex_task_id_3>"
 ```
 
 Preview content is discarded; recording stores only the completion timestamp/source needed by the
-scheduler gate.
+scheduler gate. Repeated `--thread-id` arguments bound both listing and reading to exactly those
+tasks; omit them only when an all-history preview is intentional.
 
 ## Runtime and scheduler manager
 

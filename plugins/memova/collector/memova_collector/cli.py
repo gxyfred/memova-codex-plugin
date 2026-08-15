@@ -306,6 +306,7 @@ def command_preview(args: argparse.Namespace) -> int:
                     sink=MockSink(),
                     consent_id="preview-consent-local",
                     device_id="preview-device-local",
+                    thread_ids=set(args.thread_id or []),
                 ).run_once()
         result["status"] = "preview_completed"
         result["content_returned"] = False
@@ -669,6 +670,18 @@ def _add_api_base(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--api-base", default="https://api.memova.ai")
 
 
+def _add_thread_scope(parser: argparse.ArgumentParser, *, operation: str) -> None:
+    parser.add_argument(
+        "--thread-id",
+        action="append",
+        default=[],
+        help=(
+            f"Restrict this {operation} to an exact Codex task id. "
+            "Repeat for multiple tasks."
+        ),
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="memova-codex-collector")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -721,6 +734,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_source(preview)
     preview.add_argument("--acknowledge-local-read", action="store_true")
     preview.add_argument("--record-preview", action="store_true")
+    _add_thread_scope(preview, operation="preview")
     preview.set_defaults(handler=command_preview)
 
     sync_once = subparsers.add_parser("sync-once")
@@ -739,15 +753,7 @@ def build_parser() -> argparse.ArgumentParser:
             "Intended only for rollout diagnostics and rollback."
         ),
     )
-    sync_once.add_argument(
-        "--thread-id",
-        action="append",
-        default=[],
-        help=(
-            "Restrict this run to an exact Codex task id. Repeat for multiple tasks. "
-            "Bounded runs refuse unrelated pending outbox batches."
-        ),
-    )
+    _add_thread_scope(sync_once, operation="run")
     sync_once.set_defaults(handler=command_sync_once)
 
     status_parser = subparsers.add_parser("status")
