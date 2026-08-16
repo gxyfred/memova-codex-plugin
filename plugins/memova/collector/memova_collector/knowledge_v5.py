@@ -10,14 +10,16 @@ import shutil
 import stat
 import subprocess
 import tempfile
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
 import zipfile
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
-from typing import Any, Callable
+from typing import Any
 
 from .ledger import Ledger
 from .oauth import CollectorOAuthClient, OAuthHttpError, _json_request
@@ -248,6 +250,7 @@ class CodexKnowledgeV5Runner:
                 "--skip-git-repo-check",
                 "--color",
                 "never",
+                "--json",
                 "--cd",
                 str(workspace),
                 "--output-schema",
@@ -261,6 +264,7 @@ class CodexKnowledgeV5Runner:
                 lease_id=lease_id,
                 idempotency_key=idempotency_key,
             )
+            started = time.perf_counter()
             completed = self.process_runner(
                 command,
                 input=prompt,
@@ -268,6 +272,10 @@ class CodexKnowledgeV5Runner:
                 capture_output=True,
                 timeout=self.timeout_seconds,
                 check=False,
+            )
+            analyzer_duration_ms = max(
+                round((time.perf_counter() - started) * 1000),
+                0,
             )
             if completed.returncode != 0:
                 raise RuntimeError(
@@ -278,6 +286,10 @@ class CodexKnowledgeV5Runner:
                 raise RuntimeError("Local Codex analysis did not produce a changeset.")
             changeset = json.loads(output_path.read_text(encoding="utf-8"))
             _normalize_changeset_content_hashes(changeset)
+            changeset["client_usage"] = _parse_codex_usage(
+                getattr(completed, "stdout", "") or "",
+                analyzer_duration_ms=analyzer_duration_ms,
+            )
             _validate_changeset(
                 changeset,
                 plan=plan,
@@ -639,6 +651,52 @@ def _normalize_changeset_content_hashes(changeset: object) -> None:
                     )
                     change["content"] = content
             change["content_sha256"] = hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+def _parse_codex_usage(stdout: str, *, analyzer_duration_ms: int) -> dict[str, Any]:
+    usage: dict[str, Any] | None = None
+    model: str | None = None
+    for raw_line in stdout.splitlines():
+        try:
+            event = json.loads(raw_line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        if event.get("type") == "turn.completed" and isinstance(event.get("usage"), dict):
+            usage = event["usage"]
+            raw_model = event.get("model")
+            model = raw_model[:128] if isinstance(raw_model, str) else None
+    if usage is None:
+        return {
+            "source": "unavailable",
+            "model": None,
+            "input_tokens": None,
+            "cached_input_tokens": None,
+            "output_tokens": None,
+            "analyzer_duration_ms": analyzer_duration_ms,
+        }
+    try:
+        input_tokens = max(int(usage["input_tokens"]), 0)
+        cached_input_tokens = max(int(usage["cached_input_tokens"]), 0)
+        output_tokens = max(int(usage["output_tokens"]), 0)
+    except (KeyError, TypeError, ValueError):
+        return {
+            "source": "unavailable",
+            "model": None,
+            "input_tokens": None,
+            "cached_input_tokens": None,
+            "output_tokens": None,
+            "analyzer_duration_ms": analyzer_duration_ms,
+        }
+    return {
+        "source": "codex_cli_jsonl",
+        "model": model,
+        "input_tokens": input_tokens,
+        "cached_input_tokens": cached_input_tokens,
+        "output_tokens": output_tokens,
+        "analyzer_duration_ms": analyzer_duration_ms,
+    }
 
 
 def _validate_changeset(
