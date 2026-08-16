@@ -15,8 +15,8 @@ from memova_collector.knowledge_v5 import (
     KnowledgeV5AnalyzerLoop,
     KnowledgeV5StateStore,
 )
-from memova_collector.oauth import OAuthHttpError
 from memova_collector.ledger import Ledger
+from memova_collector.oauth import OAuthHttpError
 
 RUN_ID = "10000000-0000-4000-8000-000000000001"
 PLAN_ID = "10000000-0000-4000-8000-000000000002"
@@ -398,6 +398,7 @@ class KnowledgeV5Tests(unittest.TestCase):
             )
             self.assertEqual(result["schema_version"], "knowledge-changeset/v1")
             self.assertIn("--ephemeral", captured["command"])
+            self.assertIn("--json", captured["command"])
             self.assertIn("read-only", captured["command"])
             self.assertIn("--ignore-user-config", captured["command"])
             for feature in (
@@ -408,7 +409,61 @@ class KnowledgeV5Tests(unittest.TestCase):
                 "enable_mcp_apps",
             ):
                 self.assertIn(feature, captured["command"])
+            self.assertEqual(result["client_usage"]["source"], "unavailable")
             self.assertFalse((runner.workspace_root / RUN_ID).exists())
+
+    def test_runner_attaches_codex_jsonl_token_usage(self) -> None:
+        content = _bundle()
+        plan = _plan(bundle=content)
+
+        def fake_process(command, **kwargs):
+            output_path = Path(command[command.index("--output-last-message") + 1])
+            output_path.write_text(
+                json.dumps(
+                    _changeset(
+                        lease_id=LEASE_ID,
+                        idempotency_key="knowledge-v5-changeset:usage",
+                    )
+                ),
+                encoding="utf-8",
+            )
+            event = {
+                "type": "turn.completed",
+                "model": "gpt-test",
+                "usage": {
+                    "input_tokens": 120,
+                    "cached_input_tokens": 20,
+                    "output_tokens": 30,
+                },
+            }
+            return type(
+                "Completed",
+                (),
+                {"returncode": 0, "stdout": json.dumps(event) + "\n"},
+            )()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result = CodexKnowledgeV5Runner(
+                state_dir=Path(temp_dir),
+                process_runner=fake_process,
+            ).analyze(
+                bundle=content,
+                plan=plan,
+                lease_id=LEASE_ID,
+                idempotency_key="knowledge-v5-changeset:usage",
+            )
+
+        self.assertEqual(
+            result["client_usage"],
+            {
+                "source": "codex_cli_jsonl",
+                "model": "gpt-test",
+                "input_tokens": 120,
+                "cached_input_tokens": 20,
+                "output_tokens": 30,
+                "analyzer_duration_ms": result["client_usage"]["analyzer_duration_ms"],
+            },
+        )
 
     def test_runner_recomputes_model_supplied_content_hash(self) -> None:
         content = _bundle()

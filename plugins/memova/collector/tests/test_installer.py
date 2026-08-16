@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+import importlib.util
+import io
 import json
 import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 
-from memova_collector.ledger import Ledger
 from memova_collector.contracts import CONSENT_SCHEMA_VERSION
+from memova_collector.ledger import Ledger
 
 MANAGER = (
     Path(__file__).parents[2]
@@ -99,6 +102,60 @@ class InstallerTests(unittest.TestCase):
             archive = Path(json.loads(uninstalled.stdout)["archive"])
             self.assertTrue(archive.exists())
             self.assertFalse(install_root.exists())
+
+    def test_isolated_machine_scheduler_lifecycle_is_reversible(self) -> None:
+        spec = importlib.util.spec_from_file_location("memova_sync_manager_acceptance", MANAGER)
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader)
+        manager = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(manager)
+        manager._readiness = lambda *_args, **_kwargs: {
+            "consent_active": True,
+            "live_preview_completed": True,
+            "preview_source": "live",
+            "oauth_connected": True,
+            "oauth": {"connected": True},
+        }
+        executed: list[list[str]] = []
+
+        def fake_run_commands(commands):
+            executed.extend(commands)
+            return [
+                {"command": command, "returncode": 0, "stdout": "", "stderr": ""}
+                for command in commands
+            ]
+
+        manager._run_commands = fake_run_commands
+
+        with tempfile.TemporaryDirectory() as temp_dir, redirect_stdout(io.StringIO()):
+            root = Path(temp_dir)
+            install_root = root / "runtime"
+            home = root / "clean-home"
+            parser = manager.build_parser()
+
+            for arguments in (
+                ["install", "--install-root", str(install_root), "--confirm"],
+                [
+                    "write-scheduler",
+                    "--install-root",
+                    str(install_root),
+                    "--home",
+                    str(home),
+                    "--platform",
+                    manager._platform_name(),
+                    "--confirm",
+                ],
+                ["activate-scheduler", "--install-root", str(install_root), "--confirm"],
+                ["deactivate-scheduler", "--install-root", str(install_root), "--confirm"],
+                ["remove-scheduler", "--install-root", str(install_root), "--confirm"],
+                ["uninstall", "--install-root", str(install_root), "--confirm"],
+            ):
+                args = parser.parse_args(arguments)
+                self.assertEqual(args.handler(args), 0)
+
+            self.assertFalse(install_root.exists())
+            self.assertTrue(list(root.glob("runtime.removed-*")))
+            self.assertGreaterEqual(len(executed), 2)
 
 
 if __name__ == "__main__":
