@@ -1,7 +1,7 @@
 interface:
   display_name: "Memova Conversation Sync"
-  short_description: "Control private Codex sync and Knowledge V3."
-  default_prompt: "Use $memova-conversation-sync to safely configure private Codex conversation sync and its separate Knowledge V3 processing in Memova."
+  short_description: "Control private Codex sync and Knowledge V5."
+  default_prompt: "Use $memova-conversation-sync to safely configure private Codex conversation sync and automatic Knowledge V5 processing in Memova."
 
 policy:
   allow_implicit_invocation: false
@@ -10,6 +10,6 @@ dependencies:
   tools:
     - type: "mcp"
       value: "memova"
-      description: "Memova OAuth MCP server for scoped Collector pairing and Knowledge V3 controls."
+      description: "Memova OAuth MCP server for scoped Collector pairing and Knowledge V5 controls."
       transport: "streamable_http"
       url: "https://api.memova.ai/mcp"

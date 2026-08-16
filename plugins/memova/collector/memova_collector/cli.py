@@ -21,6 +21,12 @@ from .contracts import (
 )
 from .fixtures import FixtureThreadSource
 from .ledger import Ledger, inspect_ledger
+from .knowledge_v5 import (
+    CodexKnowledgeV5Runner,
+    KnowledgeV5AnalyzerLoop,
+    KnowledgeV5ApiClient,
+    analyzer_workspace_root,
+)
 from .locking import RunLock, read_lock
 from .oauth import CollectorOAuthClient
 from .sinks import MockSink, RestSink
@@ -162,7 +168,8 @@ def command_setup(args: argparse.Namespace) -> int:
         ledger.set_metadata("consent_id", consent["consent_id"])
         ledger.set_metadata("device_id", consent["device_id"])
         ledger.set_metadata("paused", "false")
-        ledger.set_metadata("mode", "m4_ready_not_connected")
+        ledger.set_metadata("mode", "v5_ready_not_connected")
+        ledger.set_metadata("knowledge_mode", "knowledge_v5")
         ledger.set_metadata(
             "project_context_enabled",
             "true" if project_context_mode != "disabled" else "false",
@@ -170,7 +177,8 @@ def command_setup(args: argparse.Namespace) -> int:
         ledger.set_metadata("project_context_mode", project_context_mode)
     _print_json(
         {
-            "status": "configured_for_m4",
+            "status": "configured_for_v5",
+            "knowledge_mode": "knowledge_v5",
             "state_dir": str(state_dir),
             "consent_id": consent["consent_id"],
             "device_id": consent["device_id"],
@@ -209,7 +217,37 @@ def _run_sync(
         consent_id=str(consent["consent_id"]),
         device_id=str(consent["device_id"]),
         thread_ids=set(args.thread_id or []),
+        excluded_cwd_roots=(str(analyzer_workspace_root(_state_dir(args))),),
     ).run_once()
+
+
+def _run_knowledge_v5(
+    *,
+    args: argparse.Namespace,
+    ledger: Ledger,
+    consent: dict[str, Any],
+    archived_result: dict[str, Any],
+) -> dict[str, Any]:
+    if bool(getattr(args, "skip_knowledge_v5", False)):
+        return {"status": "disabled_for_this_run"}
+    oauth = _oauth(args)
+    loop = KnowledgeV5AnalyzerLoop(
+        client=KnowledgeV5ApiClient(api_base=args.api_base, oauth=oauth),
+        runner=CodexKnowledgeV5Runner(
+            state_dir=_state_dir(args),
+            codex_path=args.codex_path,
+        ),
+        ledger=ledger,
+        state_dir=_state_dir(args),
+        device_id=str(consent["device_id"]),
+    )
+    trigger = bool(
+        archived_result.get("acknowledged_batch_count", 0)
+        or ledger.get_metadata("knowledge_v5_initialized") != "true"
+        or ledger.get_metadata("knowledge_v5_retry_required") == "true"
+        or loop.has_pending_run()
+    )
+    return loop.run_once(trigger=trigger)
 
 
 def command_sync_once(args: argparse.Namespace) -> int:
@@ -232,11 +270,18 @@ def command_sync_once(args: argparse.Namespace) -> int:
         try:
             with Ledger(_ledger_path(args)) as ledger:
                 result = _run_sync(args=args, source=source, ledger=ledger, consent=consent)
-                result["ledger"] = ledger.status()
                 result["remote_upload_performed"] = bool(
                     args.sink == "rest" and result.get("acknowledged_batch_count", 0)
                 )
                 result["sink"] = args.sink
+                if args.sink == "rest":
+                    result["knowledge_v5"] = _run_knowledge_v5(
+                        args=args,
+                        ledger=ledger,
+                        consent=consent,
+                        archived_result=result,
+                    )
+                result["ledger"] = ledger.status()
                 if args.sink == "mock":
                     result["output"] = args.output or str(
                         _state_dir(args) / "mock-batches.jsonl",
@@ -261,6 +306,7 @@ def command_preview(args: argparse.Namespace) -> int:
                     sink=MockSink(),
                     consent_id="preview-consent-local",
                     device_id="preview-device-local",
+                    thread_ids=set(args.thread_id or []),
                 ).run_once()
         result["status"] = "preview_completed"
         result["content_returned"] = False
@@ -291,6 +337,18 @@ def command_status(args: argparse.Namespace) -> int:
         payload["project_context_mode"] = metadata.get("project_context_mode") or (
             "full" if payload["project_context_enabled"] else "disabled"
         )
+        payload["knowledge_v5_initialized"] = (
+            metadata.get("knowledge_v5_initialized") == "true"
+        )
+        payload["knowledge_v5_server_checkpoint"] = metadata.get(
+            "knowledge_v5_server_checkpoint"
+        )
+        payload["knowledge_v5_last_analyzer_run_id"] = metadata.get(
+            "knowledge_v5_last_analyzer_run_id"
+        )
+        payload["knowledge_v5_retry_required"] = (
+            metadata.get("knowledge_v5_retry_required") == "true"
+        )
     else:
         payload = {
             "thread_checkpoint_count": 0,
@@ -305,8 +363,16 @@ def command_status(args: argparse.Namespace) -> int:
             "preview_source": None,
             "project_context_enabled": False,
             "project_context_mode": "disabled",
+            "knowledge_v5_initialized": False,
+            "knowledge_v5_server_checkpoint": None,
+            "knowledge_v5_last_analyzer_run_id": None,
+            "knowledge_v5_retry_required": False,
         }
+    payload["knowledge_v5_run_pending"] = (
+        _state_dir(args) / "knowledge-v5" / "current-run.json"
+    ).exists()
     payload["schema_version"] = STATUS_SCHEMA_VERSION
+    payload["knowledge_mode"] = "knowledge_v5"
     lock = read_lock(_state_dir(args) / "sync.lock")
     payload["run_active"] = lock is not None
     if args.remote:
@@ -322,6 +388,88 @@ def command_status(args: argparse.Namespace) -> int:
         ).status(device_id=str(consent["device_id"]))
     _print_json(payload)
     return 0
+
+
+def command_diagnose(args: argparse.Namespace) -> int:
+    """Inspect the local Collector/V5 control plane without reading conversation content."""
+
+    state_dir = _state_dir(args)
+    consent_path = state_dir / "consent.json"
+    consent = None
+    consent_error = None
+    if consent_path.exists():
+        try:
+            consent = json.loads(consent_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            consent_error = str(exc)
+    snapshot = inspect_ledger(_ledger_path(args))
+    metadata = (snapshot or {}).get("metadata", {})
+    capability = inspect_capabilities(args.codex_path)
+    try:
+        oauth = _oauth(args).status()
+    except RuntimeError as exc:
+        oauth = {"connected": False, "error": str(exc)}
+    current_run = state_dir / "knowledge-v5" / "current-run.json"
+    checks = {
+        "consent_active": bool(
+            consent
+            and consent.get("schema_version") == CONSENT_SCHEMA_VERSION
+            and consent.get("status") == "active"
+        ),
+        "ledger_ready": snapshot is not None,
+        "live_preview_completed": bool(
+            metadata.get("preview_source") == "live"
+            and metadata.get("preview_completed_at")
+        ),
+        "oauth_connected": bool(oauth.get("connected")),
+        "codex_app_server_supported": bool(capability.get("supported")),
+        "knowledge_v5_retry_required": metadata.get("knowledge_v5_retry_required")
+        == "true",
+        "knowledge_v5_run_pending": current_run.exists(),
+    }
+    recommendations = []
+    if consent_error:
+        recommendations.append("Repeat setup because consent.json is unreadable.")
+    elif not checks["consent_active"]:
+        recommendations.append("Run setup and accept the collection policy.")
+    if checks["consent_active"] and not checks["live_preview_completed"]:
+        recommendations.append("Run and record the live three-task preview before connecting.")
+    if checks["live_preview_completed"] and not checks["oauth_connected"]:
+        recommendations.append("Connect the Collector to the intended Memova account.")
+    if not checks["codex_app_server_supported"]:
+        recommendations.append("Update Codex before enabling live collection.")
+    if checks["knowledge_v5_run_pending"] or checks["knowledge_v5_retry_required"]:
+        recommendations.append("Run sync-once to resume the existing Knowledge V5 run.")
+    configured = all(
+        checks[name]
+        for name in (
+            "consent_active",
+            "ledger_ready",
+            "live_preview_completed",
+            "oauth_connected",
+            "codex_app_server_supported",
+        )
+    )
+    _print_json(
+        {
+            "status": "healthy" if configured and not recommendations else "attention_required",
+            "knowledge_mode": "knowledge_v5",
+            "content_read": False,
+            "network_request_performed": False,
+            "checks": checks,
+            "consent_error": consent_error,
+            "oauth": oauth,
+            "capability": capability,
+            "knowledge_v5_server_checkpoint": metadata.get(
+                "knowledge_v5_server_checkpoint"
+            ),
+            "knowledge_v5_last_analyzer_run_id": metadata.get(
+                "knowledge_v5_last_analyzer_run_id"
+            ),
+            "recommendations": recommendations,
+        },
+    )
+    return 0 if configured and not recommendations else 2
 
 
 def command_connect(args: argparse.Namespace) -> int:
@@ -522,6 +670,18 @@ def _add_api_base(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--api-base", default="https://api.memova.ai")
 
 
+def _add_thread_scope(parser: argparse.ArgumentParser, *, operation: str) -> None:
+    parser.add_argument(
+        "--thread-id",
+        action="append",
+        default=[],
+        help=(
+            f"Restrict this {operation} to an exact Codex task id. "
+            "Repeat for multiple tasks."
+        ),
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="memova-codex-collector")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -574,6 +734,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_source(preview)
     preview.add_argument("--acknowledge-local-read", action="store_true")
     preview.add_argument("--record-preview", action="store_true")
+    _add_thread_scope(preview, operation="preview")
     preview.set_defaults(handler=command_preview)
 
     sync_once = subparsers.add_parser("sync-once")
@@ -585,14 +746,14 @@ def build_parser() -> argparse.ArgumentParser:
     _add_api_base(sync_once)
     sync_once.add_argument("--output")
     sync_once.add_argument(
-        "--thread-id",
-        action="append",
-        default=[],
+        "--skip-knowledge-v5",
+        action="store_true",
         help=(
-            "Restrict this run to an exact Codex task id. Repeat for multiple tasks. "
-            "Bounded runs refuse unrelated pending outbox batches."
+            "Archive conversations without running the automatic Knowledge V5 analyzer. "
+            "Intended only for rollout diagnostics and rollback."
         ),
     )
+    _add_thread_scope(sync_once, operation="run")
     sync_once.set_defaults(handler=command_sync_once)
 
     status_parser = subparsers.add_parser("status")
@@ -600,6 +761,12 @@ def build_parser() -> argparse.ArgumentParser:
     _add_api_base(status_parser)
     status_parser.add_argument("--remote", action="store_true")
     status_parser.set_defaults(handler=command_status)
+
+    diagnose = subparsers.add_parser("diagnose")
+    _add_state_dir(diagnose)
+    _add_api_base(diagnose)
+    diagnose.add_argument("--codex-path")
+    diagnose.set_defaults(handler=command_diagnose)
 
     pause = subparsers.add_parser("pause")
     _add_state_dir(pause)

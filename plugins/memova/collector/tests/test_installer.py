@@ -47,6 +47,7 @@ class InstallerTests(unittest.TestCase):
             root = Path(temp_dir)
             install_root = root / "runtime"
             state_dir = install_root / "state"
+            isolated_api_base = f"https://collector-test-{root.name}.invalid"
             installed = self._run("install", "--install-root", str(install_root), "--confirm")
             self.assertEqual(installed.returncode, 0, installed.stdout)
 
@@ -58,6 +59,8 @@ class InstallerTests(unittest.TestCase):
                 str(root / "home"),
                 "--platform",
                 "linux",
+                "--api-base",
+                isolated_api_base,
                 "--confirm",
             )
             self.assertEqual(refused.returncode, 2)
@@ -79,6 +82,8 @@ class InstallerTests(unittest.TestCase):
                 str(root / "home"),
                 "--platform",
                 "linux",
+                "--api-base",
+                isolated_api_base,
                 "--confirm",
             )
             self.assertEqual(still_refused.returncode, 2)

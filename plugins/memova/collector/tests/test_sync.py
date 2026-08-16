@@ -49,6 +49,57 @@ class SyncTests(unittest.TestCase):
                 }
                 self.assertEqual(sent_ids, {"thread-active-001"})
 
+    def test_memova_analyzer_workspace_threads_are_never_archived(self) -> None:
+        class AnalyzerSource:
+            def __init__(self) -> None:
+                self.read_ids: list[str] = []
+
+            def list_threads(self, *, archived: bool):
+                if archived:
+                    return []
+                return [
+                    {
+                        "id": "analyzer-task",
+                        "updatedAt": 1,
+                        "source": {"kind": "exec"},
+                        "cwd": "/private/state/knowledge-v5/analyzer-workspaces/run-1",
+                    },
+                    {
+                        "id": "user-task",
+                        "updatedAt": 1,
+                        "source": {"kind": "cli"},
+                        "cwd": "/private/user/project",
+                    },
+                ]
+
+            def read_thread(self, thread_id: str):
+                self.read_ids.append(thread_id)
+                return {
+                    "id": thread_id,
+                    "updatedAt": 1,
+                    "source": {"kind": "cli"},
+                    "cwd": "/private/user/project",
+                    "turns": [],
+                }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source = AnalyzerSource()
+            sink = MockSink()
+            with Ledger(Path(temp_dir) / "ledger.sqlite3") as ledger:
+                result = SyncEngine(
+                    source=source,
+                    ledger=ledger,
+                    sink=sink,
+                    consent_id="consent-test-001",
+                    device_id="device-test-001",
+                    excluded_cwd_roots=(
+                        "/private/state/knowledge-v5/analyzer-workspaces",
+                    ),
+                ).run_once()
+            self.assertEqual(source.read_ids, ["user-task"])
+            self.assertEqual(result["listed_thread_count"], 1)
+            self.assertEqual(result["diagnostics"]["excluded_memova_analyzer_threads"], 1)
+
     def test_bounded_sync_refuses_unrelated_pending_outbox(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             with Ledger(Path(temp_dir) / "ledger.sqlite3") as ledger:

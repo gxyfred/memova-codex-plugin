@@ -1,6 +1,6 @@
 ---
 name: memova-menu
-description: Show the Memova workflow menu when the user invokes @memova without a specific request, asks to open the Memova menu, chooses a Memova starter prompt, or replies with a numbered Memova menu option. Use this skill to route the user to setup, automation task review, latest-note automation task execution, vault diagnosis, or explicit private conversation-sync management without immediately executing a write-heavy workflow.
+description: Show the Memova workflow menu when the user invokes @memova without a specific request, asks to open the Memova menu, chooses a Memova starter prompt, or replies with a numbered Memova menu option. Use this skill to route the user to Knowledge V5 setup/diagnosis, automation task review, latest-note automation task execution, or explicit legacy V2/V3 vault compatibility tools without immediately executing a write-heavy workflow.
 ---
 
 # Memova Menu
@@ -25,9 +25,8 @@ python3 plugins/memova/scripts/version_check.py
 
 If `version_check.py` returns `should_remind: true`, show its upgrade message and continue.
 
-Before showing the menu or dispatching knowledge-base or automation selections 2-4, run the one-time
-knowledge-base setup reminder. Conversation-sync selection 5 is independent and must not be blocked
-by knowledge-base readiness:
+Run the legacy knowledge-base setup reminder only after the user selects legacy option 5 or 6. It
+must not block Knowledge V5 or automation workflows:
 
 ```bash
 python3 plugins/memova/scripts/kb_setup_reminder.py
@@ -44,11 +43,12 @@ with:
 ```text
 Memova
 
-1. Set up knowledge base
+1. Set up Knowledge V5
 2. Review my automation tasks
 3. Run latest note automation tasks
-4. Diagnose knowledge base
-5. Set up private Codex conversation sync
+4. Diagnose Knowledge V5
+5. Set up legacy V2/V3 vault
+6. Diagnose legacy V2/V3 vault
 
 Reply with a number, or tell me what you want to do.
 ```
@@ -61,7 +61,11 @@ If the previous assistant message showed the Memova menu and the user replies wi
 one of the option names, treat it as a Memova menu selection even if the new user message does not
 repeat `@memova`.
 
-- `1` or "setup": Follow `plugins/memova/skills/memova-vault-setup/SKILL.md`.
+- `1`, "setup", "Knowledge V5", "conversation sync", or "collector": Follow
+  `plugins/memova/skills/memova-conversation-sync/SKILL.md`. Selecting this option is an explicit
+  request to open the V5 setup workflow, but it is not consent to install files, read/upload
+  history, authorize Collector OAuth, write or activate a scheduler, delete remote data, or trust
+  Hooks. The target Skill must ask at those boundaries.
 - `2` or "automation tasks": Follow the automation task review workflow in
   `plugins/memova/skills/memova-workflow/SKILL.md`. It should call `list_automation_tasks` with
   statuses `pending`, `running`, and `waiting_for_user`, `claimable_only=false`, and a reasonable
@@ -72,13 +76,13 @@ repeat `@memova`.
   `plugins/memova/skills/memova-workflow/SKILL.md`. This workflow must only use existing
   automation tasks linked to the latest ready note's meeting. It must not call
   `extract_action_items`, `accept_action_candidate`, or `ensure_task_from_action`.
-- `4` or "diagnose": Follow `plugins/memova/skills/memova-vault-diagnose/SKILL.md`.
-- `5`, "conversation sync", or "collector": Follow
-  `plugins/memova/skills/memova-conversation-sync/SKILL.md`. Selecting this menu item is an explicit
-  request to open the workflow, but it is not consent to install files, read/upload history,
-  authorize Collector OAuth, write or activate a scheduler, delete remote data, or trust Hooks.
-  The target Skill must ask at those boundaries. Do not run the Memova MCP login helper for this
-  selection; Collector OAuth is separate.
+- `4` or "diagnose": Follow `plugins/memova/skills/memova-conversation-sync/SKILL.md` and run its
+  local content-free `diagnose` path. Do not sync or repair as part of diagnosis.
+- `5` or "legacy vault setup": Run the one-time legacy reminder, then follow
+  `plugins/memova/skills/memova-vault-setup/SKILL.md`.
+- `6` or "legacy vault diagnose": Run the one-time legacy reminder, then follow
+  `plugins/memova/skills/memova-vault-diagnose/SKILL.md`.
+- Do not run the Memova MCP login helper merely for selection 1 or 4; Collector OAuth is separate.
 
 ## Safety
 
