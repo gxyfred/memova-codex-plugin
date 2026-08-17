@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import http.client
 import json
+import time
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
 from .contracts import build_ack
 from .oauth import CollectorOAuthClient, OAuthHttpError, _json_request
@@ -55,10 +57,20 @@ class RestSink:
         api_base: str,
         oauth: CollectorOAuthClient,
         consent: dict[str, Any],
+        retry_attempts: int = 4,
+        retry_backoff_seconds: float = 1.0,
+        sleeper: Callable[[float], None] = time.sleep,
     ) -> None:
+        if retry_attempts < 1:
+            raise ValueError("retry_attempts must be at least 1")
+        if retry_backoff_seconds < 0:
+            raise ValueError("retry_backoff_seconds cannot be negative")
         self.api_base = api_base.rstrip("/")
         self.oauth = oauth
         self.consent = consent
+        self.retry_attempts = retry_attempts
+        self.retry_backoff_seconds = retry_backoff_seconds
+        self.sleeper = sleeper
         self._consent_registered = False
 
     def register_consent(self) -> dict[str, Any]:
@@ -106,21 +118,40 @@ class RestSink:
     ) -> dict[str, Any]:
         token = self.oauth.access_token()
         try:
-            _, response = _json_request(
-                f"{self.api_base}{path}",
-                method=method,
-                payload=payload,
-                token=token,
-            )
-            return response
+            return self._request_with_retries(method, path, payload, token=token)
         except OAuthHttpError as exc:
             if exc.status_code != 401:
                 raise
         token = self.oauth.access_token(force_refresh=True)
-        _, response = _json_request(
-            f"{self.api_base}{path}",
-            method=method,
-            payload=payload,
-            token=token,
-        )
-        return response
+        return self._request_with_retries(method, path, payload, token=token)
+
+    def _request_with_retries(
+        self,
+        method: str,
+        path: str,
+        payload: dict[str, Any] | None,
+        *,
+        token: str,
+    ) -> dict[str, Any]:
+        transient_statuses = frozenset({408, 429, 500, 502, 503, 504})
+        for attempt in range(self.retry_attempts):
+            try:
+                _, response = _json_request(
+                    f"{self.api_base}{path}",
+                    method=method,
+                    payload=payload,
+                    token=token,
+                )
+                return response
+            except OAuthHttpError as exc:
+                if exc.status_code not in transient_statuses:
+                    raise
+                error: BaseException = exc
+            except (OSError, http.client.HTTPException) as exc:
+                error = exc
+
+            if attempt + 1 >= self.retry_attempts:
+                raise error
+            self.sleeper(self.retry_backoff_seconds * (2**attempt))
+
+        raise AssertionError("REST retry loop exited without a response")

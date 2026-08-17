@@ -13,11 +13,15 @@ This plugin bundles:
 - optional content-free Hook audit markers and three-platform background-scheduler definitions,
 - Memova starter prompts and plugin presentation metadata.
 
-The `1.4.0` development line contains the consent-gated Codex conversation Collector under
+The `1.5.0` development line contains the consent-gated Codex conversation Collector under
 `plugins/memova/collector/`. The existing M4 archive uses one-login MCP pairing with a separate device-bound Collector
 credential, OS credential storage, an idempotent Memova REST sink with durable server ACK, and
 an owner/workspace-scoped non-authorizing repository HMAC key used only for privacy-safe project
-context. Version 1.4.0 adds the Knowledge V5 post-archive loop: sync plan, workspace lease, verified
+context. Version 1.5.0 adds bounded retries, analyzes independent small batches concurrently with
+adaptive splitting, safely
+normalizes malformed model-authored link envelopes, and builds a temporary
+authorized title index, and separates digest generation from the Memova business-source association
+pass on top of the Knowledge V5 post-archive loop: sync plan, workspace lease, verified
 Wiki Bundle download, ephemeral read-only `codex exec`, server-authorized changeset, and durable ACK
 recovery. Analyzer workspaces are excluded from future collection. It also supports
 thread/device/all deletion plus retain-until-deleted controls. The optional

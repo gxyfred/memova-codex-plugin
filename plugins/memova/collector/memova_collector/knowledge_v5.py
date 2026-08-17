@@ -17,6 +17,7 @@ import urllib.request
 import uuid
 import zipfile
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -30,11 +31,27 @@ LEASE_SCHEMA = "knowledge-analyzer-lease/v1"
 RUN_SCHEMA = "knowledge-analyzer-run/v1"
 CHANGESET_SCHEMA = "knowledge-changeset/v1"
 ACK_SCHEMA = "knowledge-changeset-ack/v1"
+DEFAULT_MAX_WORK_ITEMS_PER_ANALYZER_CALL = 5
+DEFAULT_MAX_SOURCE_BYTES_PER_ANALYZER_CALL = 6 * 1024 * 1024
+DEFAULT_MAX_PARALLEL_ANALYZER_BATCHES = 4
 
 _MARKDOWN_DOCUMENT_HEADER_RE = re.compile(
     r"\A---\r?\n.*?\r?\n---(?:\r?\n|\Z)",
     re.DOTALL,
 )
+_LINK_METADATA_RE = re.compile(r"<!--memova-link:v1\s+(\{[^\n]*\})-->")
+_MARKDOWN_LINK_WITH_METADATA_RE = re.compile(
+    r"\[([^\]\n]+)\]\(memova://object/[^\)\n]+\)"
+    r"<!--memova-link:v1\s+(\{[^\n]*\})-->"
+)
+
+
+class KnowledgeV5BatchCoverageError(RuntimeError):
+    """A model-authored batch omitted or duplicated an authorized work item."""
+
+
+class KnowledgeV5AssociationPassError(RuntimeError):
+    """The optional association pass did not preserve the valid digest changeset."""
 
 
 def analyzer_workspace_root(state_dir: Path) -> Path:
@@ -207,11 +224,23 @@ class CodexKnowledgeV5Runner:
         codex_path: str | None = None,
         process_runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
         timeout_seconds: int = 25 * 60,
+        max_work_items_per_call: int = DEFAULT_MAX_WORK_ITEMS_PER_ANALYZER_CALL,
+        max_source_bytes_per_call: int = DEFAULT_MAX_SOURCE_BYTES_PER_ANALYZER_CALL,
+        max_parallel_analyzer_batches: int = DEFAULT_MAX_PARALLEL_ANALYZER_BATCHES,
     ) -> None:
+        if max_work_items_per_call < 1:
+            raise ValueError("max_work_items_per_call must be at least 1")
+        if max_source_bytes_per_call < 1:
+            raise ValueError("max_source_bytes_per_call must be at least 1")
+        if max_parallel_analyzer_batches < 1:
+            raise ValueError("max_parallel_analyzer_batches must be at least 1")
         self.workspace_root = analyzer_workspace_root(state_dir)
         self.codex_path = codex_path or "codex"
         self.process_runner = process_runner
         self.timeout_seconds = timeout_seconds
+        self.max_work_items_per_call = max_work_items_per_call
+        self.max_source_bytes_per_call = max_source_bytes_per_call
+        self.max_parallel_analyzer_batches = max_parallel_analyzer_batches
 
     def analyze(
         self,
@@ -227,69 +256,48 @@ class CodexKnowledgeV5Runner:
         self._prepare_workspace(workspace)
         try:
             self._extract_bundle(bundle, workspace)
-            output_path = workspace / "changeset.json"
+            self._write_analyzer_thread_index(workspace)
+            work_item_batches = self._work_item_batches(workspace=workspace, plan=plan)
+            if not work_item_batches:
+                raise RuntimeError("Knowledge V5 analyzer plan contains no work items.")
             schema_path = workspace / "contracts" / "changeset-v1.schema.json"
-            command = [
-                self.codex_path,
-                "exec",
-                "--ephemeral",
-                "--ignore-user-config",
-                "--ignore-rules",
-                "--disable",
-                "plugins",
-                "--disable",
-                "remote_plugin",
-                "--disable",
-                "recommended_plugins",
-                "--disable",
-                "apps",
-                "--disable",
-                "enable_mcp_apps",
-                "--sandbox",
-                "read-only",
-                "--skip-git-repo-check",
-                "--color",
-                "never",
-                "--json",
-                "--cd",
-                str(workspace),
-                "--output-schema",
-                str(schema_path),
-                "--output-last-message",
-                str(output_path),
-                "-",
-            ]
-            prompt = self._prompt(
-                plan=plan,
-                lease_id=lease_id,
-                idempotency_key=idempotency_key,
-            )
-            started = time.perf_counter()
-            completed = self.process_runner(
-                command,
-                input=prompt,
-                text=True,
-                capture_output=True,
-                timeout=self.timeout_seconds,
-                check=False,
-            )
-            analyzer_duration_ms = max(
-                round((time.perf_counter() - started) * 1000),
-                0,
-            )
-            if completed.returncode != 0:
-                raise RuntimeError(
-                    f"Local Codex Knowledge V5 analysis failed with exit code "
-                    f"{completed.returncode}; it will be retried."
-                )
-            if not output_path.exists():
-                raise RuntimeError("Local Codex analysis did not produce a changeset.")
-            changeset = json.loads(output_path.read_text(encoding="utf-8"))
-            _normalize_changeset_content_hashes(changeset)
-            changeset["client_usage"] = _parse_codex_usage(
-                getattr(completed, "stdout", "") or "",
-                analyzer_duration_ms=analyzer_duration_ms,
-            )
+            changes: list[dict[str, Any]] = []
+            usages: list[dict[str, Any]] = []
+            business_source_ids = self._business_source_ids(workspace)
+            batch_count = len(work_item_batches)
+            max_workers = min(self.max_parallel_analyzer_batches, batch_count)
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = [
+                    executor.submit(
+                        self._analyze_batch_with_splitting,
+                        workspace=workspace,
+                        schema_path=schema_path,
+                        plan=plan,
+                        lease_id=lease_id,
+                        idempotency_key=idempotency_key,
+                        work_items=list(work_items),
+                        business_source_ids=business_source_ids,
+                        batch_index=batch_index,
+                        batch_count=batch_count,
+                        split_path="root",
+                    )
+                    for batch_index, work_items in enumerate(work_item_batches, start=1)
+                ]
+                for future in futures:
+                    batch_changes, batch_usages = future.result()
+                    changes.extend(batch_changes)
+                    usages.extend(batch_usages)
+
+            changeset = {
+                "schema_version": CHANGESET_SCHEMA,
+                "analyzer_run_id": plan["analyzer_run_id"],
+                "plan_id": plan["plan_id"],
+                "lease_id": lease_id,
+                "idempotency_key": idempotency_key,
+                "base_bundle_revision": plan["bundle_revision"],
+                "object_changes": changes,
+                "client_usage": _aggregate_codex_usage(usages),
+            }
             _validate_changeset(
                 changeset,
                 plan=plan,
@@ -299,6 +307,306 @@ class CodexKnowledgeV5Runner:
             return changeset
         finally:
             self._remove_workspace(workspace)
+
+    def _analyze_batch_with_splitting(
+        self,
+        *,
+        workspace: Path,
+        schema_path: Path,
+        plan: dict[str, Any],
+        lease_id: str,
+        idempotency_key: str,
+        work_items: list[dict[str, Any]],
+        business_source_ids: set[str],
+        batch_index: int,
+        batch_count: int,
+        split_path: str,
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        usages: list[dict[str, Any]] = []
+        file_stem = f"{batch_index:04d}-{split_path}"
+        needs_association = bool(
+            business_source_ids
+            and any(item.get("work_type") == "changed_thread" for item in work_items)
+        )
+        draft_path = workspace / (
+            f"changeset-draft-{file_stem}.json"
+            if needs_association
+            else f"changeset-{file_stem}.json"
+        )
+        try:
+            batch_changeset, usage = self._run_codex(
+                workspace=workspace,
+                schema_path=schema_path,
+                output_path=draft_path,
+                phase=f"digest {batch_index}/{batch_count} ({split_path})",
+                prompt=self._prompt(
+                    plan=plan,
+                    lease_id=lease_id,
+                    idempotency_key=idempotency_key,
+                    work_items=work_items,
+                    batch_index=batch_index,
+                    batch_count=batch_count,
+                ),
+            )
+            usages.append(usage)
+            _validate_changeset(
+                batch_changeset,
+                plan=plan,
+                lease_id=lease_id,
+                idempotency_key=idempotency_key,
+            )
+            _validate_batch_coverage(batch_changeset, work_items=work_items)
+
+            if needs_association:
+                final_path = workspace / f"changeset-{file_stem}.json"
+                associated, association_usage = self._run_codex(
+                    workspace=workspace,
+                    schema_path=schema_path,
+                    output_path=final_path,
+                    phase=f"business association {batch_index}/{batch_count} ({split_path})",
+                    prompt=self._association_prompt(
+                        plan=plan,
+                        lease_id=lease_id,
+                        idempotency_key=idempotency_key,
+                        work_items=work_items,
+                        draft_path=draft_path.name,
+                        batch_index=batch_index,
+                        batch_count=batch_count,
+                    ),
+                )
+                usages.append(association_usage)
+                _validate_changeset(
+                    associated,
+                    plan=plan,
+                    lease_id=lease_id,
+                    idempotency_key=idempotency_key,
+                )
+                _validate_batch_coverage(associated, work_items=work_items)
+                try:
+                    _validate_association_pass(
+                        before=batch_changeset,
+                        after=associated,
+                        business_source_ids=business_source_ids,
+                    )
+                except KnowledgeV5AssociationPassError:
+                    # Association is an optional enrichment phase. A valid digest changeset must
+                    # never become unusable because the model dropped, rewrote, or broadened a
+                    # Link v1 fact while trying to add cross-network relationships.
+                    final_path.write_text(
+                        json.dumps(
+                            batch_changeset,
+                            ensure_ascii=False,
+                            indent=2,
+                            sort_keys=True,
+                        )
+                        + "\n",
+                        encoding="utf-8",
+                    )
+                    try:
+                        final_path.chmod(0o600)
+                    except OSError:
+                        pass
+                else:
+                    batch_changeset = associated
+            return list(batch_changeset["object_changes"]), usages
+        except KnowledgeV5BatchCoverageError:
+            if len(work_items) == 1:
+                raise
+            middle = len(work_items) // 2
+            left_changes, left_usages = self._analyze_batch_with_splitting(
+                workspace=workspace,
+                schema_path=schema_path,
+                plan=plan,
+                lease_id=lease_id,
+                idempotency_key=idempotency_key,
+                work_items=work_items[:middle],
+                business_source_ids=business_source_ids,
+                batch_index=batch_index,
+                batch_count=batch_count,
+                split_path=f"{split_path}a",
+            )
+            right_changes, right_usages = self._analyze_batch_with_splitting(
+                workspace=workspace,
+                schema_path=schema_path,
+                plan=plan,
+                lease_id=lease_id,
+                idempotency_key=idempotency_key,
+                work_items=work_items[middle:],
+                business_source_ids=business_source_ids,
+                batch_index=batch_index,
+                batch_count=batch_count,
+                split_path=f"{split_path}b",
+            )
+            return (
+                [*left_changes, *right_changes],
+                [*usages, *left_usages, *right_usages],
+            )
+
+    def _run_codex(
+        self,
+        *,
+        workspace: Path,
+        schema_path: Path,
+        output_path: Path,
+        phase: str,
+        prompt: str,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        command = self._command(
+            workspace=workspace,
+            schema_path=schema_path,
+            output_path=output_path,
+        )
+        started = time.perf_counter()
+        completed = self.process_runner(
+            command,
+            input=prompt,
+            text=True,
+            capture_output=True,
+            timeout=self.timeout_seconds,
+            check=False,
+        )
+        analyzer_duration_ms = max(round((time.perf_counter() - started) * 1000), 0)
+        if completed.returncode != 0:
+            raise RuntimeError(
+                f"Local Codex Knowledge V5 {phase} failed with exit code "
+                f"{completed.returncode}; it will be retried."
+            )
+        if not output_path.exists():
+            raise RuntimeError(f"Local Codex Knowledge V5 {phase} produced no changeset.")
+        changeset = json.loads(output_path.read_text(encoding="utf-8"))
+        _sanitize_invalid_link_json(changeset)
+        _normalize_changeset_content_hashes(changeset)
+        usage = _parse_codex_usage(
+            getattr(completed, "stdout", "") or "",
+            analyzer_duration_ms=analyzer_duration_ms,
+        )
+        return changeset, usage
+
+    def _command(
+        self,
+        *,
+        workspace: Path,
+        schema_path: Path,
+        output_path: Path,
+    ) -> list[str]:
+        return [
+            self.codex_path,
+            "exec",
+            "--ephemeral",
+            "--ignore-user-config",
+            "--ignore-rules",
+            "--disable",
+            "plugins",
+            "--disable",
+            "remote_plugin",
+            "--disable",
+            "recommended_plugins",
+            "--disable",
+            "apps",
+            "--disable",
+            "enable_mcp_apps",
+            "--sandbox",
+            "read-only",
+            "--skip-git-repo-check",
+            "--color",
+            "never",
+            "--json",
+            "--cd",
+            str(workspace),
+            "--output-schema",
+            str(schema_path),
+            "--output-last-message",
+            str(output_path),
+            "-",
+        ]
+
+    def _work_item_batches(
+        self,
+        *,
+        workspace: Path,
+        plan: dict[str, Any],
+    ) -> list[list[dict[str, Any]]]:
+        manifest = json.loads((workspace / "bundle.json").read_text(encoding="utf-8"))
+        input_paths = {
+            str(item.get("thread_id")): str(item.get("relative_path"))
+            for item in manifest.get("inputs", [])
+            if isinstance(item, dict) and item.get("input_type") == "changed_thread"
+        }
+        batches: list[list[dict[str, Any]]] = []
+        current: list[dict[str, Any]] = []
+        current_bytes = 0
+        manual_items: list[dict[str, Any]] = []
+
+        for work_item in plan.get("work_items", []):
+            if not isinstance(work_item, dict):
+                raise RuntimeError("Knowledge V5 plan contains an invalid work item.")
+            if work_item.get("work_type") == "personal_manual":
+                manual_items.append(work_item)
+                continue
+            if work_item.get("work_type") != "changed_thread":
+                raise RuntimeError("Knowledge V5 plan contains an unsupported work type.")
+            relative_path = input_paths.get(str(work_item.get("object_id")))
+            if not relative_path:
+                raise RuntimeError("Knowledge V5 changed-thread work has no Bundle input.")
+            source_path = workspace.joinpath(*PurePosixPath(relative_path).parts)
+            source_bytes = source_path.stat().st_size
+            batch_full = len(current) >= self.max_work_items_per_call
+            bytes_full = bool(
+                current
+                and current_bytes + source_bytes > self.max_source_bytes_per_call
+            )
+            if batch_full or bytes_full:
+                batches.append(current)
+                current = []
+                current_bytes = 0
+            current.append(work_item)
+            current_bytes += source_bytes
+
+        if current:
+            batches.append(current)
+        if manual_items:
+            batches.append(manual_items)
+        return batches
+
+    @staticmethod
+    def _write_analyzer_thread_index(workspace: Path) -> None:
+        manifest = json.loads((workspace / "bundle.json").read_text(encoding="utf-8"))
+        entries: list[dict[str, str]] = []
+        for item in manifest.get("inputs", []):
+            if not isinstance(item, dict) or item.get("input_type") != "changed_thread":
+                continue
+            thread_id = str(item.get("thread_id") or "")
+            relative_path = str(item.get("relative_path") or "")
+            source_path = workspace.joinpath(*PurePosixPath(relative_path).parts)
+            source = json.loads(source_path.read_text(encoding="utf-8"))
+            if str(source.get("thread_id")) != thread_id:
+                raise RuntimeError("Knowledge V5 changed-thread index identity mismatch.")
+            title = str(source.get("title") or "Untitled Codex session").strip()
+            entries.append(
+                {
+                    "thread_id": thread_id,
+                    "title": title[:2000] or "Untitled Codex session",
+                    "relative_path": relative_path,
+                }
+            )
+        path = workspace / "analyzer-thread-index.json"
+        path.write_text(
+            json.dumps(entries, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        try:
+            path.chmod(0o600)
+        except OSError:
+            pass
+
+    @staticmethod
+    def _business_source_ids(workspace: Path) -> set[str]:
+        manifest = json.loads((workspace / "bundle.json").read_text(encoding="utf-8"))
+        return {
+            str(item.get("object_id"))
+            for item in manifest.get("objects", [])
+            if isinstance(item, dict) and item.get("bundle_role") == "business_source"
+        }
 
     @staticmethod
     def _verify_bundle_bytes(bundle: bytes, plan: dict[str, Any]) -> None:
@@ -363,19 +671,71 @@ class CodexKnowledgeV5Runner:
         plan: dict[str, Any],
         lease_id: str,
         idempotency_key: str,
+        work_items: list[dict[str, Any]],
+        batch_index: int,
+        batch_count: int,
     ) -> str:
         return (
             "Analyze this authorized Memova Knowledge V5 Wiki Bundle. Read SKILL.md, "
-            "bundle.json, wiki-index.md, and the declared changed-thread inputs. Do not use "
+            "bundle.json, wiki-index.md, analyzer-thread-index.json, and the changed-thread inputs "
+            "needed for the authorized work items below. Before drafting, make a private candidate "
+            "table for every authorized source: search all Memova object titles in wiki-index.md "
+            "and all Codex titles in analyzer-thread-index.json for the same concrete product, "
+            "project, version, named workflow, incident, decision, or continuation trail; then open "
+            "the strongest candidate source files and verify the relationship. Put each verified "
+            "relationship into the source digest using the exact Link v1 envelope from SKILL.md. "
+            "Merely mentioning a candidate title is not a link. A batch containing clearly "
+            "Memova-related sessions but zero Link v1 envelopes is incomplete and must be revised "
+            "before return. Do not invent generic topical relationships or a minimum link per "
+            "document. Every other Bundle object and changed-thread input remains valid context "
+            "and a valid link target, but this call must output changes for exactly the authorized "
+            "work-item subset and no other objects. Do not use "
             "the network and do not modify Bundle files. Return only one JSON changeset that "
             "matches contracts/changeset-v1.schema.json. Use these exact envelope values:\n"
+            f"batch={batch_index}/{batch_count}\n"
             f"analyzer_run_id={plan['analyzer_run_id']}\n"
             f"plan_id={plan['plan_id']}\n"
             f"lease_id={lease_id}\n"
             f"idempotency_key={idempotency_key}\n"
             f"base_bundle_revision={plan['bundle_revision']}\n"
             "Authorized work_items="
-            + json.dumps(plan.get("work_items", []), ensure_ascii=False, sort_keys=True)
+            + json.dumps(work_items, ensure_ascii=False, sort_keys=True)
+        )
+
+    @staticmethod
+    def _association_prompt(
+        *,
+        plan: dict[str, Any],
+        lease_id: str,
+        idempotency_key: str,
+        work_items: list[dict[str, Any]],
+        draft_path: str,
+        batch_index: int,
+        batch_count: int,
+    ) -> str:
+        return (
+            "Perform the dedicated cross-network association pass for this authorized Memova "
+            "Knowledge V5 Bundle. Read SKILL.md, bundle.json, wiki-index.md, "
+            "analyzer-thread-index.json, and the complete draft changeset at "
+            f"{draft_path}. Preserve every authorized object, source fact, digest fact, and "
+            "existing Link v1 relationship from the draft. For each draft codex_session, first "
+            "evaluate original Memova business_source candidates (note, project, action) before "
+            "generated pages or other Codex sessions. Match concrete product/version decisions, "
+            "named workflows, incidents, requirements, people, deliverables, and continuation "
+            "trails; open each candidate document and verify support. Add the strongest supported "
+            "outbound Link v1 relationship to the source digest. A Codex-to-Codex continues link "
+            "does not replace a supported Codex-to-Memova link. Add no new links to Codex sessions "
+            "or generated_summary/generated_output targets in this pass, and do not invent a link "
+            "quota or generic topical relationships. Return the complete enriched changeset, not "
+            "a patch, with exactly the same authorized objects and these envelope values:\n"
+            f"batch={batch_index}/{batch_count}\n"
+            f"analyzer_run_id={plan['analyzer_run_id']}\n"
+            f"plan_id={plan['plan_id']}\n"
+            f"lease_id={lease_id}\n"
+            f"idempotency_key={idempotency_key}\n"
+            f"base_bundle_revision={plan['bundle_revision']}\n"
+            "Authorized work_items="
+            + json.dumps(work_items, ensure_ascii=False, sort_keys=True)
         )
 
 
@@ -653,6 +1013,33 @@ def _normalize_changeset_content_hashes(changeset: object) -> None:
             change["content_sha256"] = hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 
+def _sanitize_invalid_link_json(changeset: object) -> None:
+    """Downgrade malformed model-authored links to plain visible labels."""
+    if not isinstance(changeset, dict):
+        return
+    object_changes = changeset.get("object_changes")
+    if not isinstance(object_changes, list):
+        return
+
+    def valid_json(payload: str) -> bool:
+        try:
+            return isinstance(json.loads(payload), dict)
+        except json.JSONDecodeError:
+            return False
+
+    def sanitize_link(match: re.Match[str]) -> str:
+        return match.group(0) if valid_json(match.group(2)) else match.group(1)
+
+    def sanitize_comment(match: re.Match[str]) -> str:
+        return match.group(0) if valid_json(match.group(1)) else ""
+
+    for change in object_changes:
+        if not isinstance(change, dict) or not isinstance(change.get("content"), str):
+            continue
+        content = _MARKDOWN_LINK_WITH_METADATA_RE.sub(sanitize_link, change["content"])
+        change["content"] = _LINK_METADATA_RE.sub(sanitize_comment, content)
+
+
 def _parse_codex_usage(stdout: str, *, analyzer_duration_ms: int) -> dict[str, Any]:
     usage: dict[str, Any] | None = None
     model: str | None = None
@@ -697,6 +1084,107 @@ def _parse_codex_usage(stdout: str, *, analyzer_duration_ms: int) -> dict[str, A
         "output_tokens": output_tokens,
         "analyzer_duration_ms": analyzer_duration_ms,
     }
+
+
+def _aggregate_codex_usage(usages: list[dict[str, Any]]) -> dict[str, Any]:
+    duration = sum(max(int(item.get("analyzer_duration_ms") or 0), 0) for item in usages)
+    if not usages or any(item.get("source") != "codex_cli_jsonl" for item in usages):
+        return {
+            "source": "unavailable",
+            "model": None,
+            "input_tokens": None,
+            "cached_input_tokens": None,
+            "output_tokens": None,
+            "analyzer_duration_ms": duration,
+        }
+    models = {
+        str(item["model"])
+        for item in usages
+        if isinstance(item.get("model"), str) and item["model"]
+    }
+    return {
+        "source": "codex_cli_jsonl",
+        "model": next(iter(models)) if len(models) == 1 else None,
+        "input_tokens": sum(int(item["input_tokens"]) for item in usages),
+        "cached_input_tokens": sum(int(item["cached_input_tokens"]) for item in usages),
+        "output_tokens": sum(int(item["output_tokens"]) for item in usages),
+        "analyzer_duration_ms": duration,
+    }
+
+
+def _validate_batch_coverage(
+    changeset: dict[str, Any],
+    *,
+    work_items: list[dict[str, Any]],
+) -> None:
+    changes = {
+        str(item.get("object_id")): item
+        for item in changeset.get("object_changes", [])
+        if isinstance(item, dict)
+    }
+    work = {str(item.get("object_id")): item for item in work_items}
+    if set(changes) != set(work):
+        raise KnowledgeV5BatchCoverageError(
+            "Local Codex Knowledge V5 analysis did not return exactly one change for every "
+            "authorized work item."
+        )
+    expected_types = {
+        "changed_thread": "codex_session",
+        "personal_manual": "personal_manual",
+    }
+    for object_id, work_item in work.items():
+        change = changes[object_id]
+        if (
+            change.get("object_type") != expected_types.get(str(work_item.get("work_type")))
+            or change.get("operation") != work_item.get("operation")
+            or change.get("expected_revision") != work_item.get("expected_revision")
+            or change.get("canonical_format") != "markdown"
+        ):
+            raise KnowledgeV5BatchCoverageError(
+                "Local Codex Knowledge V5 change does not match its authorized work item."
+            )
+
+
+def _changeset_links(changeset: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    links: dict[str, dict[str, Any]] = {}
+    for change in changeset.get("object_changes", []):
+        if not isinstance(change, dict) or not isinstance(change.get("content"), str):
+            continue
+        for raw_metadata in _LINK_METADATA_RE.findall(change["content"]):
+            try:
+                metadata = json.loads(raw_metadata)
+            except json.JSONDecodeError as exc:
+                raise RuntimeError("Local Codex emitted invalid Link v1 JSON.") from exc
+            link_id = str(metadata.get("link_id") or "")
+            if not link_id or link_id in links:
+                raise RuntimeError("Local Codex emitted duplicate or missing Link v1 identity.")
+            links[link_id] = metadata
+    return links
+
+
+def _validate_association_pass(
+    *,
+    before: dict[str, Any],
+    after: dict[str, Any],
+    business_source_ids: set[str],
+) -> None:
+    before_links = _changeset_links(before)
+    after_links = _changeset_links(after)
+    if not set(before_links).issubset(after_links):
+        raise KnowledgeV5AssociationPassError(
+            "Knowledge V5 association pass removed an existing Link v1 fact."
+        )
+    for link_id, metadata in after_links.items():
+        if link_id in before_links:
+            if metadata != before_links[link_id]:
+                raise KnowledgeV5AssociationPassError(
+                    "Knowledge V5 association pass changed existing Link v1 facts."
+                )
+            continue
+        if str(metadata.get("target_object_id")) not in business_source_ids:
+            raise KnowledgeV5AssociationPassError(
+                "Knowledge V5 association pass added a link outside Memova business sources."
+            )
 
 
 def _validate_changeset(
