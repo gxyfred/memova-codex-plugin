@@ -1,7 +1,7 @@
 # Memova Codex Conversation Collector M0-M4 + Knowledge V5
 
 This plugin-bundled directory implements the local, version-neutral foundation for Memova Codex
-conversation sync. The current local development target is `1.4.0`; it retains the strict,
+conversation sync. The current local development target is `1.5.0`; it retains the strict,
 consumer-neutral archive contract and adds the automatic Knowledge V5 analyzer loop after durable
 archive ACK.
 

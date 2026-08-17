@@ -330,6 +330,82 @@ class OAuthAndRestTests(unittest.TestCase):
             self.assertEqual(sink.send(batch), accepted)
         token.assert_called_with(force_refresh=True)
 
+    def test_rest_sink_retries_transient_transport_failure_with_same_request(self) -> None:
+        oauth = self._oauth(MemoryCredentialStore())
+        delays: list[float] = []
+        sink = RestSink(
+            api_base="https://api.memova.test",
+            oauth=oauth,
+            consent={"status": "active"},
+            retry_attempts=3,
+            retry_backoff_seconds=0.5,
+            sleeper=delays.append,
+        )
+        sink._consent_registered = True
+        batch = {"batch_id": "batch", "idempotency_key": "key"}
+        accepted = {
+            "status": "accepted",
+            "batch_id": "batch",
+            "idempotency_key": "key",
+            "archive_status": "durable",
+        }
+        with patch(
+            "memova_collector.sinks._json_request",
+            side_effect=[TimeoutError("transient read timeout"), (202, accepted)],
+        ) as request:
+            self.assertEqual(sink.send(batch), accepted)
+
+        self.assertEqual(request.call_count, 2)
+        self.assertEqual(request.call_args_list[0], request.call_args_list[1])
+        self.assertEqual(delays, [0.5])
+
+    def test_rest_sink_retries_transient_http_status_with_bounded_backoff(self) -> None:
+        oauth = self._oauth(MemoryCredentialStore())
+        delays: list[float] = []
+        sink = RestSink(
+            api_base="https://api.memova.test",
+            oauth=oauth,
+            consent={"status": "active"},
+            retry_attempts=3,
+            retry_backoff_seconds=0.25,
+            sleeper=delays.append,
+        )
+        sink._consent_registered = True
+        batch = {"batch_id": "batch", "idempotency_key": "key"}
+        with patch(
+            "memova_collector.sinks._json_request",
+            side_effect=[
+                OAuthHttpError(503, {}),
+                OAuthHttpError(429, {}),
+                OAuthHttpError(503, {}),
+            ],
+        ) as request:
+            with self.assertRaises(OAuthHttpError) as raised:
+                sink.send(batch)
+
+        self.assertEqual(raised.exception.status_code, 503)
+        self.assertEqual(request.call_count, 3)
+        self.assertEqual(delays, [0.25, 0.5])
+
+    def test_rest_sink_does_not_retry_permanent_client_error(self) -> None:
+        oauth = self._oauth(MemoryCredentialStore())
+        sink = RestSink(
+            api_base="https://api.memova.test",
+            oauth=oauth,
+            consent={"status": "active"},
+            sleeper=MagicMock(),
+        )
+        sink._consent_registered = True
+        with patch(
+            "memova_collector.sinks._json_request",
+            side_effect=OAuthHttpError(422, {}),
+        ) as request:
+            with self.assertRaises(OAuthHttpError):
+                sink.send({"batch_id": "batch", "idempotency_key": "key"})
+
+        request.assert_called_once()
+        sink.sleeper.assert_not_called()
+
     def test_rest_sink_rejects_ack_without_durable_archive_confirmation(self) -> None:
         oauth = self._oauth(MemoryCredentialStore())
         sink = RestSink(
