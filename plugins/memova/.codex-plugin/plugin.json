@@ -1,6 +1,6 @@
 {
   "name": "memova",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "Run Memova workflows and sync opt-in Codex history into the Knowledge V5 Wiki.",
   "author": {
     "name": "Memova",
@@ -26,7 +26,7 @@
   "interface": {
     "displayName": "Memova",
     "shortDescription": "Open Knowledge V5 setup, diagnosis, tasks, and legacy vault tools.",
-    "longDescription": "Connect Codex to Memova through OAuth MCP for knowledge-base and automation workflows. Use @memova to review tasks, configure the consent-gated conversation Collector, and maintain the Knowledge V5 Wiki. Version 1.5.0 keeps the neutral raw archive, analyzes independent small batches concurrently with adaptive splitting, and safely normalizes malformed model-authored link envelopes before a verified Memova business-source association pass. Existing V2/V3 tools remain available only for the staged transition.",
+    "longDescription": "Connect Codex to Memova through OAuth MCP for knowledge-base and automation workflows. Use @memova to review tasks, configure the consent-gated conversation Collector, and maintain the Knowledge V5 Wiki. Version 1.5.1 keeps the neutral raw archive and verified business-source association pass while deterministically preserving every Codex Session title from the integrity-bound Bundle. Existing V2/V3 tools remain available only for the staged transition.",
     "developerName": "Memova",
     "category": "Productivity",
     "capabilities": [

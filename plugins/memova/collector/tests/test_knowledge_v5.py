@@ -646,6 +646,88 @@ class KnowledgeV5Tests(unittest.TestCase):
                     idempotency_key="knowledge-v5-changeset:empty",
                 )
 
+    def test_runner_restores_authoritative_codex_session_title(self) -> None:
+        thread_id = "30000000-0000-4000-8000-000000000009"
+        manifest = {
+            "inputs": [
+                {
+                    "input_type": "changed_thread",
+                    "thread_id": thread_id,
+                    "relative_path": f"inputs/changed-threads/{thread_id}.json",
+                }
+            ]
+        }
+        output = io.BytesIO()
+        with zipfile.ZipFile(output, "w") as archive:
+            archive.writestr("SKILL.md", "# Analyzer\n")
+            archive.writestr("bundle.json", json.dumps(manifest))
+            archive.writestr("wiki-index.md", "# Wiki\n")
+            archive.writestr(
+                "contracts/changeset-v1.schema.json",
+                json.dumps({"type": "object"}),
+            )
+            archive.writestr(
+                f"inputs/changed-threads/{thread_id}.json",
+                json.dumps(
+                    {
+                        "thread_id": thread_id,
+                        "title": "  Authoritative\n Session   Title  ",
+                    }
+                ),
+            )
+        content = output.getvalue()
+        plan = _plan(bundle=content)
+        plan["work_items"] = [
+            {
+                "work_type": "changed_thread",
+                "object_id": thread_id,
+                "operation": "create",
+                "expected_revision": None,
+                "source_hash": "a" * 64,
+            }
+        ]
+
+        def fake_process(command, **kwargs):
+            changeset = _changeset(
+                lease_id=LEASE_ID,
+                idempotency_key="knowledge-v5-changeset:title",
+            )
+            change = _manual_change(
+                content="# Rewritten model title\n\nDigest and links stay unchanged.\n"
+            )
+            change.update(
+                {
+                    "object_id": thread_id,
+                    "object_type": "codex_session",
+                    "operation": "create",
+                    "expected_revision": None,
+                }
+            )
+            changeset["object_changes"] = [change]
+            output_path = Path(command[command.index("--output-last-message") + 1])
+            output_path.write_text(json.dumps(changeset), encoding="utf-8")
+            return type("Completed", (), {"returncode": 0})()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result = CodexKnowledgeV5Runner(
+                state_dir=Path(temp_dir),
+                process_runner=fake_process,
+            ).analyze(
+                bundle=content,
+                plan=plan,
+                lease_id=LEASE_ID,
+                idempotency_key="knowledge-v5-changeset:title",
+            )
+
+        change = result["object_changes"][0]
+        self.assertIn("# Authoritative Session Title\n", change["content"])
+        self.assertNotIn("Rewritten model title", change["content"])
+        self.assertIn("Digest and links stay unchanged.", change["content"])
+        self.assertEqual(
+            change["content_sha256"],
+            hashlib.sha256(change["content"].encode("utf-8")).hexdigest(),
+        )
+
     def test_runner_uses_dedicated_business_association_pass(self) -> None:
         thread_id = "30000000-0000-4000-8000-000000000011"
         business_id = "30000000-0000-4000-8000-000000000012"
