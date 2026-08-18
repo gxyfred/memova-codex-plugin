@@ -39,6 +39,9 @@ _MARKDOWN_DOCUMENT_HEADER_RE = re.compile(
     r"\A---\r?\n.*?\r?\n---(?:\r?\n|\Z)",
     re.DOTALL,
 )
+_CODEX_SESSION_H1_RE = re.compile(
+    r"\A(?:[ \t]*\r?\n)*# [^\r\n]*(?:\r?\n|\Z)",
+)
 _LINK_METADATA_RE = re.compile(r"<!--memova-link:v1\s+(\{[^\n]*\})-->")
 _MARKDOWN_LINK_WITH_METADATA_RE = re.compile(
     r"\[([^\]\n]+)\]\(memova://object/[^\)\n]+\)"
@@ -258,6 +261,7 @@ class CodexKnowledgeV5Runner:
             self._extract_bundle(bundle, workspace)
             self._write_analyzer_thread_index(workspace)
             work_item_batches = self._work_item_batches(workspace=workspace, plan=plan)
+            authoritative_thread_titles = self._authoritative_thread_titles(workspace)
             if not work_item_batches:
                 raise RuntimeError("Knowledge V5 analyzer plan contains no work items.")
             schema_path = workspace / "contracts" / "changeset-v1.schema.json"
@@ -277,6 +281,7 @@ class CodexKnowledgeV5Runner:
                         idempotency_key=idempotency_key,
                         work_items=list(work_items),
                         business_source_ids=business_source_ids,
+                        authoritative_thread_titles=authoritative_thread_titles,
                         batch_index=batch_index,
                         batch_count=batch_count,
                         split_path="root",
@@ -318,6 +323,7 @@ class CodexKnowledgeV5Runner:
         idempotency_key: str,
         work_items: list[dict[str, Any]],
         business_source_ids: set[str],
+        authoritative_thread_titles: dict[str, str],
         batch_index: int,
         batch_count: int,
         split_path: str,
@@ -349,6 +355,11 @@ class CodexKnowledgeV5Runner:
                 ),
             )
             usages.append(usage)
+            _restore_codex_session_titles(
+                batch_changeset,
+                authoritative_thread_titles=authoritative_thread_titles,
+            )
+            _normalize_changeset_content_hashes(batch_changeset)
             _validate_changeset(
                 batch_changeset,
                 plan=plan,
@@ -375,6 +386,11 @@ class CodexKnowledgeV5Runner:
                     ),
                 )
                 usages.append(association_usage)
+                _restore_codex_session_titles(
+                    associated,
+                    authoritative_thread_titles=authoritative_thread_titles,
+                )
+                _normalize_changeset_content_hashes(associated)
                 _validate_changeset(
                     associated,
                     plan=plan,
@@ -421,6 +437,7 @@ class CodexKnowledgeV5Runner:
                 idempotency_key=idempotency_key,
                 work_items=work_items[:middle],
                 business_source_ids=business_source_ids,
+                authoritative_thread_titles=authoritative_thread_titles,
                 batch_index=batch_index,
                 batch_count=batch_count,
                 split_path=f"{split_path}a",
@@ -433,6 +450,7 @@ class CodexKnowledgeV5Runner:
                 idempotency_key=idempotency_key,
                 work_items=work_items[middle:],
                 business_source_ids=business_source_ids,
+                authoritative_thread_titles=authoritative_thread_titles,
                 batch_index=batch_index,
                 batch_count=batch_count,
                 split_path=f"{split_path}b",
@@ -567,6 +585,25 @@ class CodexKnowledgeV5Runner:
         if manual_items:
             batches.append(manual_items)
         return batches
+
+    @staticmethod
+    def _authoritative_thread_titles(workspace: Path) -> dict[str, str]:
+        manifest = json.loads((workspace / "bundle.json").read_text(encoding="utf-8"))
+        titles: dict[str, str] = {}
+        for item in manifest.get("inputs", []):
+            if not isinstance(item, dict) or item.get("input_type") != "changed_thread":
+                continue
+            thread_id = str(item.get("thread_id") or "")
+            relative_path = str(item.get("relative_path") or "")
+            if not thread_id or not relative_path:
+                raise RuntimeError("Knowledge V5 changed-thread input is incomplete.")
+            source_path = workspace.joinpath(*PurePosixPath(relative_path).parts)
+            source = json.loads(source_path.read_text(encoding="utf-8"))
+            if str(source.get("thread_id") or "") != thread_id:
+                raise RuntimeError("Knowledge V5 changed-thread input identity is invalid.")
+            normalized = " ".join(str(source.get("title") or "").split()).strip()
+            titles[thread_id] = normalized[:255] or "Untitled Codex Session"
+        return titles
 
     @staticmethod
     def _write_analyzer_thread_index(workspace: Path) -> None:
@@ -1011,6 +1048,34 @@ def _normalize_changeset_content_hashes(changeset: object) -> None:
                     )
                     change["content"] = content
             change["content_sha256"] = hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+def _restore_codex_session_titles(
+    changeset: object,
+    *,
+    authoritative_thread_titles: dict[str, str],
+) -> None:
+    """Restore protected Session H1 values from integrity-bound Bundle inputs."""
+    if not isinstance(changeset, dict):
+        return
+    object_changes = changeset.get("object_changes")
+    if not isinstance(object_changes, list):
+        return
+    for change in object_changes:
+        if not isinstance(change, dict) or change.get("object_type") != "codex_session":
+            continue
+        title = authoritative_thread_titles.get(str(change.get("object_id") or ""))
+        content = change.get("content")
+        if title is None or not isinstance(content, str):
+            continue
+        header_match = _MARKDOWN_DOCUMENT_HEADER_RE.match(content)
+        header = header_match.group(0) if header_match is not None else ""
+        body = content[header_match.end() :] if header_match is not None else content
+        remainder = _CODEX_SESSION_H1_RE.sub("", body, count=1).lstrip("\r\n")
+        canonical_body = f"# {title}\n"
+        if remainder:
+            canonical_body += f"\n{remainder}"
+        change["content"] = f"{header}{canonical_body}"
 
 
 def _sanitize_invalid_link_json(changeset: object) -> None:
