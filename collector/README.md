@@ -1,7 +1,7 @@
-# Memova Codex Conversation Collector M0-M4 + Knowledge V5
+# Independent Memova Codex Conversation Collector M0-M4 + Knowledge V5
 
-This plugin-bundled directory implements the local, version-neutral foundation for Memova Codex
-conversation sync. The current local development target is `1.5.1`; it retains the strict,
+This top-level directory implements the separately distributed Memova Codex Collector. It is not
+part of the public Plugin package under `plugins/memova/`. Collector `1.6.0` retains the strict,
 consumer-neutral archive contract and adds the automatic Knowledge V5 analyzer loop after durable
 archive ACK.
 
@@ -17,15 +17,16 @@ archive ACK.
   preserve every ordered user message and assistant commentary/final answer, filter non-visible and
   tool/file/terminal data, track edits/deletes, use a durable SQLite outbox, and advance
   target-scoped checkpoints only after ACK.
-- **M3 stable local operation:** bundle the Collector inside the plugin; install immutable verified
-  runtime versions in a user-scoped directory; prevent overlapping runs with an exclusive stale-safe
-  lock; provide an explicit-only setup/status/control Skill; write content-free optional Hook hints;
-  and render/activate macOS launchd, Windows Task Scheduler, or Linux systemd user schedules after
-  consent and a recorded live preview.
-- **M4 authenticated cloud archive:** use the signed-in MCP session to mint a short-lived,
-  single-use PKCE pairing grant; exchange it for a separate device-bound Collector credential kept
-  only in the OS credential store; register device consent; deliver target-scoped incremental
-  batches to Memova REST; require a matching durable ACK; and expose thread/device/all deletion.
+- **M3 stable local operation:** ship the Collector through its own signed installer; install
+  immutable verified runtime versions in a user-scoped directory; prevent overlapping runs with an
+  exclusive stale-safe lock; write content-free optional Hook hints; and render/activate macOS
+  launchd, Windows Task Scheduler, or Linux systemd user schedules after independent consent and a
+  recorded live preview.
+- **M4 authenticated cloud archive:** use the Collector's own browser Authorization Code + PKCE
+  flow by default; keep its device-bound credential only in the OS credential store; register
+  device consent; deliver target-scoped incremental batches to Memova REST; require a matching
+  durable ACK; and expose thread/device/all deletion. A short-lived MCP pairing grant remains a
+  compatibility path for private/team deployments, not a public Plugin installation step.
 - **Knowledge V5 analyzer loop:** after a successful archive ACK (and once on first V5 startup),
   request a server sync plan and workspace lease, verify and extract the complete Wiki Bundle into
   an isolated private workspace, invoke `codex exec` with `--ephemeral`, `--sandbox read-only`, and
@@ -94,33 +95,32 @@ automatically and requires no separate Scheduled Task.
 From the repository root:
 
 ```bash
-export PYTHONPATH=plugins/memova/collector
+export PYTHONPATH=collector
 
 python3 -m memova_collector capabilities
 python3 -m memova_collector policy
 
 python3 -m memova_collector setup \
   --state-dir /secure/local/memova-collector \
-  --accept-policy
+  --accept-policy \
+  --accept-privacy-notice-version memova_collector_privacy_2026-08-19 \
+  --accept-user-agreement-version memova_collector_terms_2026-08-19
 
 # Optional full project observations (minimal identity is the fresh default):
 python3 -m memova_collector setup \
   --state-dir /secure/local/memova-collector \
   --accept-policy \
+  --accept-privacy-notice-version memova_collector_privacy_2026-08-19 \
+  --accept-user-agreement-version memova_collector_terms_2026-08-19 \
   --include-project-context
 
 python3 -m memova_collector preview \
   --state-dir /secure/local/memova-collector \
-  --fixture plugins/memova/collector/tests/fixtures/app-server-history-v1.json
-
-python3 -m memova_collector prepare-pairing \
-  --state-dir /secure/local/memova-collector \
-  --api-base https://api.memova.ai
+  --fixture collector/tests/fixtures/app-server-history-v1.json
 
 python3 -m memova_collector connect \
   --state-dir /secure/local/memova-collector \
-  --api-base https://api.memova.ai \
-  --pairing-grant-prompt
+  --api-base https://api.memova.ai
 
 python3 -m memova_collector sync-once \
   --state-dir /secure/local/memova-collector \
@@ -167,17 +167,17 @@ tasks; omit them only when an all-history preview is intentional.
 Read-only plan:
 
 ```bash
-python3 plugins/memova/skills/memova-conversation-sync/scripts/manage_conversation_sync.py plan
+python3 collector/scripts/manage_conversation_sync.py plan
 ```
 
 The mutating commands require `--confirm` and are designed to be called only after the Skill shows
 the target and receives user approval:
 
 ```bash
-python3 plugins/memova/skills/memova-conversation-sync/scripts/manage_conversation_sync.py install --confirm
-python3 plugins/memova/skills/memova-conversation-sync/scripts/manage_conversation_sync.py scheduler-plan
-python3 plugins/memova/skills/memova-conversation-sync/scripts/manage_conversation_sync.py write-scheduler --confirm
-python3 plugins/memova/skills/memova-conversation-sync/scripts/manage_conversation_sync.py activate-scheduler --confirm
+python3 collector/scripts/manage_conversation_sync.py install --confirm
+python3 collector/scripts/manage_conversation_sync.py scheduler-plan
+python3 collector/scripts/manage_conversation_sync.py write-scheduler --confirm
+python3 collector/scripts/manage_conversation_sync.py activate-scheduler --confirm
 ```
 
 `write-scheduler` refuses to run without active consent, a recorded live preview, and Collector
@@ -189,10 +189,8 @@ archive instead of deleting local conversation exports.
 ## Verification
 
 ```bash
-PYTHONPATH=plugins/memova/collector \
-  python3 -m unittest discover -s plugins/memova/collector/tests -v
-python3 -m compileall -q plugins/memova/collector plugins/memova/hooks \
-  plugins/memova/skills/memova-conversation-sync/scripts
+PYTHONPATH=collector python3 -m unittest discover -s collector/tests -v
+python3 -m compileall -q collector
 ```
 
 No staging or production environment is changed by these local tests.

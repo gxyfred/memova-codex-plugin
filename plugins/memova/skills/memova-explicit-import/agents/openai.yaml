@@ -1,0 +1,15 @@
+interface:
+  display_name: "Memova Explicit Import"
+  short_description: "Preview and import only selected content."
+  default_prompt: "Use $memova-explicit-import to preview and import the content I explicitly select."
+
+policy:
+  allow_implicit_invocation: true
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "memova"
+      description: "Memova OAuth MCP server for bounded selected-content import."
+      transport: "streamable_http"
+      url: "https://api.memova.ai/mcp"

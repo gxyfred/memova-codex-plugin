@@ -15,14 +15,23 @@
     "retention_mode": {"const": "until_user_or_account_deletion"},
     "policy": {
       "type": "object",
-      "required": ["schema_version", "purpose", "included", "excluded", "controls", "transport"],
+      "required": ["schema_version", "purpose", "included", "excluded", "controls", "transport", "legal"],
       "properties": {
         "schema_version": {"const": "memova_conversation_collection_policy_v1"},
         "purpose": {"const": "private_memova_archive_and_user_requested_knowledge_derivation"},
         "included": {"type": "object"},
         "excluded": {"type": "object"},
         "controls": {"type": "array", "items": {"type": "string"}, "minItems": 5},
-        "transport": {"type": "object"}
+        "transport": {"type": "object"},
+        "legal": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["privacy_notice_version", "user_agreement_version"],
+          "properties": {
+            "privacy_notice_version": {"const": "memova_collector_privacy_2026-08-19"},
+            "user_agreement_version": {"const": "memova_collector_terms_2026-08-19"}
+          }
+        }
       }
     }
   }

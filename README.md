@@ -9,26 +9,20 @@ This plugin bundles:
 - the `memova-workflow` skill for reviewing and running existing Codex automation tasks,
 - the `memova-vault-setup` skill for iCloud-first Memova knowledge-base setup,
 - the `memova-vault-diagnose` skill for validating and repairing a Memova V2/V3 managed root,
-- the explicit-only `memova-conversation-sync` skill for managing the user-scoped Collector,
-- optional content-free Hook audit markers and three-platform background-scheduler definitions,
+- the `memova-explicit-import` skill for bounded user-selected text with preview and local
+  Restricted Data filtering,
 - Memova starter prompts and plugin presentation metadata.
 
-The `1.5.1` development line contains the consent-gated Codex conversation Collector under
-`plugins/memova/collector/`. The existing M4 archive uses one-login MCP pairing with a separate device-bound Collector
-credential, OS credential storage, an idempotent Memova REST sink with durable server ACK, and
-an owner/workspace-scoped non-authorizing repository HMAC key used only for privacy-safe project
-context. Version 1.5.1 retains the 1.5.0 bounded retries and independent small-batch analysis, and
-restores every Codex Session heading from the integrity-bound Bundle after each model pass so an
-optional association pass cannot rewrite the authoritative task title. It keeps adaptive splitting,
-safely normalizes malformed model-authored link envelopes, builds a temporary authorized title
-index, and separates digest generation from the Memova business-source association
-pass on top of the Knowledge V5 post-archive loop: sync plan, workspace lease, verified
-Wiki Bundle download, ephemeral read-only `codex exec`, server-authorized changeset, and durable ACK
-recovery. Analyzer workspaces are excluded from future collection. It also supports
-thread/device/all deletion plus retain-until-deleted controls. The optional
-5-minute macOS launchd, Windows Task
-Scheduler, or Linux systemd user task activates only after consent, live preview, and OAuth gates.
-No production deployment is enabled by this repository change.
+Version `1.6.0` physically separates the public plugin package from complete-history collection.
+The public package under `plugins/memova/` contains no Collector runtime, App Server history reader,
+Hook, or scheduler installer. It imports only text selected in the current request, shows exact
+scope/hash/count information, and removes detected passwords, API keys, access tokens, private keys,
+and similar Restricted Data before the user approves an MCP write. A successful selected import
+both receives a durable archive ACK and deterministically commits the exact approved text as a
+canonical Knowledge V5 Codex Session; search rollout and semantic enrichment remain separate.
+
+Independent complete-history collection is maintained separately under top-level `collector/`; it
+is not part of the marketplace plugin path, public Plugin menu, starter prompts, or installation.
 
 ## Should This Repo Be Public?
 
@@ -46,8 +40,7 @@ A private repo can also work for internal testing, but every user must have GitH
 codex plugin marketplace add git@github.com:gxyfred/memova-codex-plugin.git
 ```
 
-This repo does not contain Memova user data or OAuth tokens. Runtime Collector tokens are stored
-only in the user's OS credential store, separately from the MCP login.
+This repo does not contain Memova user data or OAuth tokens.
 
 ## Release Coordination
 
@@ -66,17 +59,9 @@ ready. Existing V2/V3 tools remain present during the staged transition; V5 does
 ## Requirements
 
 - Codex CLI or Codex app installed and signed in.
-- Python 3.11 or newer available as `python3` (or `py -3` on Windows). The Collector scheduler runs
-  the same interpreter used during installation; there is no bundled Python runtime.
-- A supported Codex App Server for live conversation reads. Capability preflight fails closed before
-  reading tasks when the local protocol is incompatible.
-- macOS Keychain, Windows Credential Manager, or Linux Secret Service (`secret-tool`) for Collector
-  OAuth. There is no plaintext credential fallback.
 - A Memova account.
 - Access to this GitHub repository.
-- Network access to `https://api.memova.ai/mcp`, `https://api.memova.ai/v1/external-conversations`,
-  and `https://api.memova.ai/v1/knowledge-v5`
-  when conversation cloud sync is enabled.
+- Network access to `https://api.memova.ai/mcp` for public Plugin workflows.
 
 ## Quick Start
 
@@ -165,23 +150,20 @@ In Codex, type:
 Codex should open a short Memova menu:
 
 ```text
-1. Set up Knowledge V5
+1. Import selected content
 2. Review my automation tasks
 3. Run latest note automation tasks
-4. Diagnose Knowledge V5
-5. Set up legacy V2/V3 vault
-6. Diagnose legacy V2/V3 vault
+4. Set up legacy V2/V3 vault
+5. Diagnose legacy V2/V3 vault
 ```
 
 Reply with a number, or select one of the plugin starter prompts:
 
 ```text
 Open Memova menu.
-Set up Knowledge V5.
+Import selected content into Memova.
 Review my automation tasks.
 Run latest note automation tasks.
-Diagnose Knowledge V5.
-Open legacy V2/V3 vault tools.
 ```
 
 You can still ask directly:
@@ -189,12 +171,12 @@ You can still ask directly:
 ```text
 @memova Run latest note automation tasks.
 @memova Review my automation tasks.
-@memova Diagnose Knowledge V5.
+@memova Import this selected content.
 @memova Set up legacy V2/V3 vault.
 ```
 
 The menu is the safe default entrypoint. It does not run a write-heavy workflow just because the
-user typed bare `@memova`; it routes the user to V5 setup/diagnosis, read-only automation task
+user typed bare `@memova`; it routes the user to selected-content import, read-only automation task
 review, latest-note automation task execution, or explicit legacy vault tools.
 
 The menu itself does not fetch Memova data. MCP-backed selections require the Memova MCP login above.
@@ -450,59 +432,25 @@ python3 plugins/memova/skills/memova-vault-setup/scripts/diagnose_memova_vault.p
   --repair-plan
 ```
 
-## Set Up Private Codex Conversation Sync
+## Import Explicitly Selected Content
 
-Conversation sync is explicit-only. Installing or updating the plugin does not read task history,
-authorize Memova, upload content, or activate a scheduler. Start with:
+Start with `@memova Import this selected content.` The public Plugin accepts only pasted/current
+excerpt text, an attached text resource, or an exact task/date-range export already supplied by the
+client/user. A task id or date range alone does not authorize history enumeration.
 
-```text
-@memova Set up private Codex conversation sync.
-```
-
-The staged flow installs an immutable user-scoped Collector runtime, records collection consent,
-runs a local zero-content-retention preview, obtains a separate device-bound Collector credential
-through an MCP pairing grant, and only then offers a 5-minute OS scheduler. The archive includes
-complete user-visible user/assistant messages, including intermediate commentary; it excludes
-system/developer prompts, hidden reasoning, tool/terminal/file payloads, binaries, and subagent
-traces. Visible messages may themselves contain sensitive text and are not silently rewritten.
-
-Each scheduled run lists active and archived task metadata, reads only changed tasks, sends only
-new/edited/deleted items, and advances its target-scoped checkpoint only after a durable backend
-ACK. It does not resend the full history on every interval.
-
-For the first production-shaped acceptance run, 1.3.0 supports an exact three-task boundary:
-
-```bash
-python3 "<installed-launcher>" sync-once \
-  --state-dir "<state-dir>" \
-  --live \
-  --allow-experimental-app-server \
-  --sink rest \
-  --api-base https://api.memova.ai \
-  --thread-id "<approved-codex-task-id-1>" \
-  --thread-id "<approved-codex-task-id-2>" \
-  --thread-id "<approved-codex-task-id-3>"
-```
-
-This mode reads/checkpoints only the three approved tasks and refuses pending outbox batches
-containing other tasks. Running it against production still requires a separate explicit approval because it
-uploads real conversation content. Bundled Hooks are optional content-free audit markers only; in
-1.4.0 they do not trigger collection. The scheduler is the background mechanism.
-
-The raw archive remains consumer-neutral. After its durable ACK, the same Collector run requests a
-Knowledge V5 plan, downloads the authorized Wiki Bundle, invokes an ephemeral read-only Codex
-analyzer, and submits a resumable changeset. Archive ACK alone does not mean V5 finished; check the
-`knowledge_v5` result or run local `diagnose`. Personal Manual is one V5 document generated through
-that server-authorized flow. V5 does not dual-write Knowledge V3.
+Before upload, the Plugin produces a bounded local preview with source label, exact byte/character
+counts, original/sanitized hashes, and Restricted Data finding counts. The user approves the exact
+sanitized bytes immediately before the MCP write. The Plugin never uses App Server, Codex internal
+JSONL/SQLite, filesystem scans, or UI scraping as a fallback.
 
 ## What The Menu And Workflow Do
 
 When triggered, the bundled `memova-menu` skill tells Codex to:
 
 1. Run the low-frequency plugin version check.
-2. Run the one-time knowledge-base setup reminder check.
-3. Show a numbered menu for Knowledge V5 setup/diagnosis, automation task review, latest-note
-   automation task execution, and explicit legacy vault compatibility.
+2. Show a numbered menu for selected-content import, automation task review, latest-note automation
+   task execution, and explicit legacy vault compatibility.
+3. Run the one-time knowledge-base setup reminder only after a legacy vault option is selected.
 4. Treat a simple numeric reply like `1` or `2` as the selected Memova action in the current
    thread.
 5. Keep automation task review read-only unless the user explicitly asks to execute a task.

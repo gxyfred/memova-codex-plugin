@@ -34,7 +34,7 @@ class ContractTests(unittest.TestCase):
         )
 
         self.assertEqual(BATCH_SCHEMA_VERSION, "memova_external_conversation_batch_v2")
-        self.assertEqual(COLLECTOR_VERSION, "1.5.1")
+        self.assertEqual(COLLECTOR_VERSION, "1.6.0")
         self.assertEqual(batch["schema_version"], BATCH_SCHEMA_VERSION)
 
     def test_project_context_policy_has_explicit_three_level_modes(self) -> None:

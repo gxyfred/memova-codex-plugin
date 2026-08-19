@@ -3,7 +3,7 @@
     "memova": {
       "type": "http",
       "url": "https://api.memova.ai/mcp",
-      "note": "Memova OAuth MCP server. Knowledge and automation workflows request their base scopes; Collector pairing additionally requires conversations.connect and may require explicit reauthorization."
+      "note": "Memova OAuth MCP server for selected imports, knowledge, and automation workflows."
     }
   }
 }

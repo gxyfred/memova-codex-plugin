@@ -16,11 +16,15 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-PLUGIN_ROOT = Path(__file__).resolve().parents[3]
-BUNDLED_COLLECTOR = PLUGIN_ROOT / "collector"
+BUNDLED_COLLECTOR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BUNDLED_COLLECTOR))
 
-from memova_collector.contracts import COLLECTOR_VERSION, CONSENT_SCHEMA_VERSION  # noqa: E402
+from memova_collector.contracts import (  # noqa: E402
+    COLLECTOR_VERSION,
+    CONSENT_SCHEMA_VERSION,
+    PRIVACY_NOTICE_VERSION,
+    USER_AGREEMENT_VERSION,
+)
 from memova_collector.ledger import inspect_ledger  # noqa: E402
 from memova_collector.oauth import CollectorOAuthClient  # noqa: E402
 from memova_collector.scheduler import (  # noqa: E402
@@ -110,7 +114,11 @@ def _hash_file(path: Path) -> str:
 
 def _source_files() -> list[Path]:
     files: list[Path] = []
-    for root in (BUNDLED_COLLECTOR / "memova_collector", BUNDLED_COLLECTOR / "schemas"):
+    for root in (
+        BUNDLED_COLLECTOR / "memova_collector",
+        BUNDLED_COLLECTOR / "schemas",
+        BUNDLED_COLLECTOR / "docs",
+    ):
         files.extend(
             path
             for path in root.rglob("*")
@@ -123,7 +131,7 @@ def _bundle_manifest() -> dict[str, Any]:
     return {
         "schema_version": "memova_collector_runtime_manifest_v1",
         "collector_version": COLLECTOR_VERSION,
-        "source": "memova-codex-plugin",
+        "source": "memova-collector-distribution",
         "files": {
             str(path.relative_to(BUNDLED_COLLECTOR)): _hash_file(path) for path in _source_files()
         },
@@ -190,6 +198,11 @@ def _readiness(
     snapshot = inspect_ledger(paths["state_dir"] / "collector.sqlite3")
     metadata = snapshot.get("metadata", {}) if snapshot else {}
     preview_source = metadata.get("preview_source")
+    legal = ((consent or {}).get("policy") or {}).get("legal", {})
+    legal_current = bool(
+        legal.get("privacy_notice_version") == PRIVACY_NOTICE_VERSION
+        and legal.get("user_agreement_version") == USER_AGREEMENT_VERSION
+    )
     try:
         oauth_status = CollectorOAuthClient(api_base).status()
     except RuntimeError as exc:
@@ -199,7 +212,9 @@ def _readiness(
             consent
             and consent.get("schema_version") == CONSENT_SCHEMA_VERSION
             and consent.get("status") == "active"
+            and legal_current
         ),
+        "legal_acceptance_current": legal_current,
         "live_preview_completed": bool(
             preview_source == "live" and metadata.get("preview_completed_at")
         ),
@@ -298,6 +313,7 @@ def command_install(args: argparse.Namespace) -> int:
                 ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
             )
             shutil.copytree(BUNDLED_COLLECTOR / "schemas", staging / "schemas")
+            shutil.copytree(BUNDLED_COLLECTOR / "docs", staging / "docs")
             _atomic_json(staging / "manifest.json", expected)
             os.replace(staging, paths["version_root"])
         except Exception:
