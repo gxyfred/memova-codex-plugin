@@ -35,6 +35,15 @@ class PublicPluginBoundaryTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertNotIn("collector", path.read_text(encoding="utf-8").lower())
 
+    def test_manifest_exposes_at_most_three_default_prompts(self) -> None:
+        manifest = json.loads(
+            (PLUGIN / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
+        )
+
+        prompts = manifest["interface"]["defaultPrompt"]
+        self.assertLessEqual(len(prompts), 3)
+        self.assertIn("Import selected content into Memova.", prompts)
+
 
 if __name__ == "__main__":
     unittest.main()

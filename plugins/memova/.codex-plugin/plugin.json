@@ -39,8 +39,7 @@
     "defaultPrompt": [
       "Open Memova menu.",
       "Import selected content into Memova.",
-      "Review my Memova automation tasks.",
-      "Run my latest note automation tasks."
+      "Review or run my Memova automation tasks."
     ],
     "brandColor": "#3366FF",
     "composerIcon": "./assets/icon.svg",
