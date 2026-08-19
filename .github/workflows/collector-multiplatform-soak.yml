@@ -7,22 +7,18 @@ on:
       - "codex/**"
     paths:
       - ".github/workflows/collector-multiplatform-soak.yml"
-      - "plugins/memova/collector/**"
-      - "plugins/memova/hooks/**"
+      - "collector/**"
+      - "collector/hooks/**"
       - "plugins/memova/scripts/**"
-      - "plugins/memova/skills/memova-conversation-sync/**"
-      - "plugins/memova/skills/memova-vault-setup/**"
-      - "plugins/memova/skills/memova-vault-diagnose/**"
+      - "plugins/memova/skills/**"
       - "plugins/memova/.codex-plugin/plugin.json"
   pull_request:
     paths:
       - ".github/workflows/collector-multiplatform-soak.yml"
-      - "plugins/memova/collector/**"
-      - "plugins/memova/hooks/**"
+      - "collector/**"
+      - "collector/hooks/**"
       - "plugins/memova/scripts/**"
-      - "plugins/memova/skills/memova-conversation-sync/**"
-      - "plugins/memova/skills/memova-vault-setup/**"
-      - "plugins/memova/skills/memova-vault-diagnose/**"
+      - "plugins/memova/skills/**"
       - "plugins/memova/.codex-plugin/plugin.json"
   workflow_dispatch:
     inputs:
@@ -67,35 +63,37 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $env:PYTHONPATH = "plugins/memova/collector"
-          python -m unittest discover -s plugins/memova/collector/tests -v
-          python -m compileall -q plugins/memova/collector plugins/memova/hooks plugins/memova/skills/memova-conversation-sync/scripts
+          $env:PYTHONPATH = "collector"
+          python -m unittest discover -s collector/tests -v
+          python -m unittest discover -s tests -v
+          python -m compileall -q collector
           python plugins/memova/skills/memova-vault-setup/scripts/setup_fixture_harness.py
 
       - name: Run Collector unit and contract tests (Linux)
         if: runner.os == 'Linux'
         shell: bash
         run: |
-          export PYTHONPATH=plugins/memova/collector
-          python -m unittest discover -s plugins/memova/collector/tests -v
-          python -m compileall -q plugins/memova/collector plugins/memova/hooks plugins/memova/skills/memova-conversation-sync/scripts
+          export PYTHONPATH=collector
+          python -m unittest discover -s collector/tests -v
+          python -m unittest discover -s tests -v
+          python -m compileall -q collector
           python plugins/memova/skills/memova-vault-setup/scripts/setup_fixture_harness.py
 
       - name: Run native Windows restart soak
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $env:PYTHONPATH = "plugins/memova/collector"
-          python plugins/memova/collector/scripts/run_multiplatform_soak.py --cycles "$env:SOAK_CYCLES" --interval-seconds 1 --device-id "${{ matrix.device_id }}"
+          $env:PYTHONPATH = "collector"
+          python collector/scripts/run_multiplatform_soak.py --cycles "$env:SOAK_CYCLES" --interval-seconds 1 --device-id "${{ matrix.device_id }}"
 
       - name: Run native Linux restart soak with Secret Service
         if: runner.os == 'Linux'
         shell: bash
         run: |
           dbus-run-session -- bash -euo pipefail -c '
-            export PYTHONPATH=plugins/memova/collector
+            export PYTHONPATH=collector
             printf %s "temporary-runner-keyring" | gnome-keyring-daemon --unlock >/dev/null
-            python plugins/memova/collector/scripts/run_multiplatform_soak.py \
+            python collector/scripts/run_multiplatform_soak.py \
               --cycles "$SOAK_CYCLES" \
               --interval-seconds 1 \
               --device-id "${{ matrix.device_id }}"

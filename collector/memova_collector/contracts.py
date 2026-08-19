@@ -5,13 +5,15 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
-COLLECTOR_VERSION = "1.5.1"
+COLLECTOR_VERSION = "1.6.0"
 BATCH_SCHEMA_VERSION = "memova_external_conversation_batch_v2"
 ACK_SCHEMA_VERSION = "memova_external_conversation_batch_ack_v1"
 CONSENT_SCHEMA_VERSION = "memova_conversation_sync_consent_v1"
 STATUS_SCHEMA_VERSION = "memova_conversation_sync_status_v1"
 DELETE_SCHEMA_VERSION = "memova_external_conversation_delete_v1"
 HOOK_HINT_SCHEMA_VERSION = "memova_codex_hook_hint_v1"
+PRIVACY_NOTICE_VERSION = "memova_collector_privacy_2026-08-19"
+USER_AGREEMENT_VERSION = "memova_collector_terms_2026-08-19"
 
 ALLOWED_ITEM_TYPES = frozenset({"userMessage", "agentMessage"})
 EXCLUDED_ITEM_TYPES = frozenset(
@@ -115,6 +117,10 @@ def default_collection_policy(
             "hooks": "optional_content_free_activity_audit_only_not_a_sync_trigger",
             "scheduler": "optional_user_scoped_incremental_rest_sync",
             "remote_upload": "oauth_pkce_with_server_ack",
+        },
+        "legal": {
+            "privacy_notice_version": PRIVACY_NOTICE_VERSION,
+            "user_agreement_version": USER_AGREEMENT_VERSION,
         },
     }
 

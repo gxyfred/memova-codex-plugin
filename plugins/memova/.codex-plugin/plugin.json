@@ -1,7 +1,7 @@
 {
   "name": "memova",
-  "version": "1.5.1",
-  "description": "Run Memova workflows and sync opt-in Codex history into the Knowledge V5 Wiki.",
+  "version": "1.6.0",
+  "description": "Run Memova workflows and explicitly import selected content into Memova.",
   "author": {
     "name": "Memova",
     "url": "https://memova.ai"
@@ -17,16 +17,15 @@
     "knowledge-base",
     "llm-wiki",
     "productivity",
-    "conversation-sync",
-    "collector"
+    "selected-import",
+    "privacy"
   ],
   "skills": "./skills/",
-  "hooks": "./hooks/hooks.json",
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Memova",
-    "shortDescription": "Open Knowledge V5 setup, diagnosis, tasks, and legacy vault tools.",
-    "longDescription": "Connect Codex to Memova through OAuth MCP for knowledge-base and automation workflows. Use @memova to review tasks, configure the consent-gated conversation Collector, and maintain the Knowledge V5 Wiki. Version 1.5.1 keeps the neutral raw archive and verified business-source association pass while deterministically preserving every Codex Session title from the integrity-bound Bundle. Existing V2/V3 tools remain available only for the staged transition.",
+    "shortDescription": "Import selected content and run Memova workflows.",
+    "longDescription": "Connect Codex to Memova through OAuth MCP for knowledge-base and automation workflows. Imports are limited to content the user explicitly selects in the current request, show a bounded preview, and locally remove detected passwords, API keys, tokens, and private keys before upload. The plugin does not enumerate Codex history or install background collection. Existing V2/V3 vault tools remain available only for compatibility.",
     "developerName": "Memova",
     "category": "Productivity",
     "capabilities": [
@@ -35,13 +34,12 @@
       "Workflow"
     ],
     "websiteURL": "https://memova.ai",
+    "privacyPolicyURL": "https://memova.ai/privacy",
+    "termsOfServiceURL": "https://memova.ai/terms",
     "defaultPrompt": [
       "Open Memova menu.",
-      "Set up Knowledge V5.",
-      "Review my automation tasks.",
-      "Run latest note automation tasks.",
-      "Diagnose Knowledge V5.",
-      "Open legacy V2/V3 vault tools."
+      "Import selected content into Memova.",
+      "Review or run my Memova automation tasks."
     ],
     "brandColor": "#3366FF",
     "composerIcon": "./assets/icon.svg",

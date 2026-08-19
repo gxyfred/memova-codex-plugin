@@ -14,7 +14,9 @@ from .app_server import JsonRpcAppServerClient, ThreadSource
 from .capability import inspect_capabilities
 from .contracts import (
     CONSENT_SCHEMA_VERSION,
+    PRIVACY_NOTICE_VERSION,
     STATUS_SCHEMA_VERSION,
+    USER_AGREEMENT_VERSION,
     build_consent_record,
     default_collection_policy,
     utc_now,
@@ -75,6 +77,14 @@ def _load_consent(state_dir: Path) -> dict[str, Any]:
         raise RuntimeError("Collector consent contract is unsupported; setup must be repeated.")
     if payload.get("status") != "active":
         raise RuntimeError("Collector consent is not active.")
+    legal = (payload.get("policy") or {}).get("legal") or {}
+    if (
+        legal.get("privacy_notice_version") != PRIVACY_NOTICE_VERSION
+        or legal.get("user_agreement_version") != USER_AGREEMENT_VERSION
+    ):
+        raise RuntimeError(
+            "Collector privacy/terms acceptance is outdated; review policy and repeat setup."
+        )
     return payload
 
 
@@ -119,11 +129,20 @@ def _requested_project_context_mode(args: argparse.Namespace) -> str:
 
 def command_setup(args: argparse.Namespace) -> int:
     project_context_mode = _requested_project_context_mode(args)
-    if not args.accept_policy:
+    legal_versions_accepted = (
+        args.accept_privacy_notice_version == PRIVACY_NOTICE_VERSION
+        and args.accept_user_agreement_version == USER_AGREEMENT_VERSION
+    )
+    if not args.accept_policy or not legal_versions_accepted:
         _print_json(
             {
                 "status": "consent_required",
-                "message": "Review `policy`, then repeat setup with --accept-policy.",
+                "message": (
+                    "Review `policy`, the Collector Privacy Notice, and User Agreement; then "
+                    "repeat setup with the exact acceptance versions."
+                ),
+                "required_privacy_notice_version": PRIVACY_NOTICE_VERSION,
+                "required_user_agreement_version": USER_AGREEMENT_VERSION,
                 "archive_notice": (
                     "Enabling sync archives complete visible Codex history in Memova until "
                     "you delete a thread, this device's archive, all Codex data, or your "
@@ -190,6 +209,8 @@ def command_setup(args: argparse.Namespace) -> int:
             "retention_mode": "until_user_or_account_deletion",
             "project_context_enabled": project_context_mode != "disabled",
             "project_context_mode": project_context_mode,
+            "privacy_notice_version": PRIVACY_NOTICE_VERSION,
+            "user_agreement_version": USER_AGREEMENT_VERSION,
             "next_action": "preview_then_connect",
         },
     )
@@ -696,6 +717,8 @@ def build_parser() -> argparse.ArgumentParser:
     setup = subparsers.add_parser("setup")
     _add_state_dir(setup)
     setup.add_argument("--accept-policy", action="store_true")
+    setup.add_argument("--accept-privacy-notice-version")
+    setup.add_argument("--accept-user-agreement-version")
     setup.add_argument("--consent-id")
     setup.add_argument("--device-id")
     setup.add_argument("--memova-account-hint")

@@ -42,6 +42,10 @@ class CliTests(unittest.TestCase):
                         "--state-dir",
                         str(state_dir),
                         "--accept-policy",
+                        "--accept-privacy-notice-version",
+                        "memova_collector_privacy_2026-08-19",
+                        "--accept-user-agreement-version",
+                        "memova_collector_terms_2026-08-19",
                     ]
                 )
             self.assertEqual(result, 0)
@@ -63,6 +67,10 @@ class CliTests(unittest.TestCase):
                         "--state-dir",
                         str(full_state),
                         "--accept-policy",
+                        "--accept-privacy-notice-version",
+                        "memova_collector_privacy_2026-08-19",
+                        "--accept-user-agreement-version",
+                        "memova_collector_terms_2026-08-19",
                         "--include-project-context",
                     ]
                 )

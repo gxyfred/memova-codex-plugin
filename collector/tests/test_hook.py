@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-HOOK = Path(__file__).parents[2] / "hooks" / "write_sync_hint.py"
+HOOK = Path(__file__).parents[1] / "hooks" / "write_sync_hint.py"
 
 
 class HookTests(unittest.TestCase):

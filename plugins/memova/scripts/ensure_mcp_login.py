@@ -23,7 +23,6 @@ BASE_SCOPES = (
     "knowledge.read",
     "knowledge.write",
 )
-CONVERSATION_CONNECT_SCOPE = "conversations.connect"
 AUTHORIZE_URL_RE = re.compile(r"https://\S+")
 SCOPE_RE = re.compile(r"^[a-z][a-z0-9_.:-]*$")
 
@@ -38,16 +37,10 @@ def main() -> int:
         help="Only report the current MCP auth state.",
     )
     parser.add_argument(
-        "--include-conversation-connect",
-        action="store_true",
-        help="Request the conversations.connect MCP scope used for Collector pairing.",
-    )
-    parser.add_argument(
         "--reauthorize",
         action="store_true",
         help=(
-            "Run OAuth even when Codex reports an existing Memova login. Required to guarantee "
-            "a newly requested scope because `codex mcp list` does not expose granted scopes."
+            "Run OAuth even when Codex reports an existing Memova login."
         ),
     )
     parser.add_argument(
@@ -61,31 +54,18 @@ def main() -> int:
         parser.error("--check-only and --reauthorize cannot be combined")
 
     requested_scopes = list(BASE_SCOPES)
-    if args.include_conversation_connect:
-        requested_scopes.append(CONVERSATION_CONNECT_SCOPE)
     login_command = build_login_command(requested_scopes)
 
     before = _mcp_status(login_command)
     if before.get("auth") == "OAuth" and not args.reauthorize:
-        scope_verification = (
-            "unverified_existing_login"
-            if args.include_conversation_connect
-            else "not_required_for_base_login_check"
-        )
         _write_json(
             {
-                "status": (
-                    "already_logged_in_scope_unverified"
-                    if args.include_conversation_connect
-                    else "already_logged_in"
-                ),
+                "status": "already_logged_in",
                 "before": before,
                 "after": before,
                 "requested_scopes": requested_scopes,
-                "scope_verification": scope_verification,
-                "reauthorization_required_to_guarantee_scopes": bool(
-                    args.include_conversation_connect
-                ),
+                "scope_verification": "not_required_for_base_login_check",
+                "reauthorization_required_to_guarantee_scopes": False,
                 "manual_login_command": " ".join(login_command),
             }
         )
@@ -103,26 +83,14 @@ def main() -> int:
     )
     after = _mcp_status(login_command)
     login_completed = after.get("auth") == "OAuth" and login.get("login_returncode") == 0
-    status = (
-        "login_completed_scope_requested"
-        if login_completed and args.include_conversation_connect
-        else "login_completed"
-        if login_completed
-        else "login_incomplete"
-    )
+    status = "login_completed" if login_completed else "login_incomplete"
     _write_json(
         {
             "status": status,
             "before": before,
             "after": after,
             "requested_scopes": requested_scopes,
-            "scope_verification": (
-                "requested_by_login_command_not_introspectable"
-                if login_completed and args.include_conversation_connect
-                else "base_login_completed"
-                if login_completed
-                else "not_verified"
-            ),
+            "scope_verification": "base_login_completed" if login_completed else "not_verified",
             **login,
         }
     )

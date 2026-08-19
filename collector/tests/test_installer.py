@@ -10,16 +10,10 @@ import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 
-from memova_collector.contracts import CONSENT_SCHEMA_VERSION
+from memova_collector.contracts import build_consent_record
 from memova_collector.ledger import Ledger
 
-MANAGER = (
-    Path(__file__).parents[2]
-    / "skills"
-    / "memova-conversation-sync"
-    / "scripts"
-    / "manage_conversation_sync.py"
-)
+MANAGER = Path(__file__).parents[1] / "scripts" / "manage_conversation_sync.py"
 
 
 class InstallerTests(unittest.TestCase):
@@ -44,6 +38,8 @@ class InstallerTests(unittest.TestCase):
             runtime = Path(current["runtime"])
             self.assertTrue((runtime / "memova_collector" / "cli.py").exists())
             self.assertTrue((runtime / "manifest.json").exists())
+            self.assertTrue((runtime / "docs" / "privacy-policy.md").exists())
+            self.assertTrue((runtime / "docs" / "user-agreement.md").exists())
 
     def test_scheduler_definition_requires_consent_live_preview_and_oauth(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -71,7 +67,12 @@ class InstallerTests(unittest.TestCase):
 
             state_dir.mkdir(parents=True)
             (state_dir / "consent.json").write_text(
-                json.dumps({"schema_version": CONSENT_SCHEMA_VERSION, "status": "active"}),
+                json.dumps(
+                    build_consent_record(
+                        consent_id="consent-installer-test",
+                        device_id="device-installer-test",
+                    )
+                ),
                 encoding="utf-8",
             )
             with Ledger(state_dir / "collector.sqlite3") as ledger:
