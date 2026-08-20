@@ -1,8 +1,8 @@
-# OpenAI Plugin Submission — Memova 1.6.0
+# OpenAI Plugin Submission — Memova 1.6.1
 
 ## Release notes
 
-Memova 1.6.0 adds a privacy-minimized selected-content import into Knowledge V5. The Plugin accepts
+Memova 1.6.1 adds a privacy-minimized selected-content import into Knowledge V5. The Plugin accepts
 only text explicitly selected in the current request, shows exact scope/hash/count information,
 filters common credential patterns locally, and requires approval of the sanitized preview before
 upload. It does not enumerate Codex history or install background collection. Existing automation
@@ -13,6 +13,11 @@ tools and six complete-history Collector controls remain implemented for interna
 are not advertised or accepted by the public MCP endpoint. The Plugin contains six reviewed Skills:
 menu, Knowledge V5, explicit import, automation workflow, legacy vault setup, and legacy vault
 diagnosis.
+
+The public Plugin, marketplace-resolved manifest, production Memova API/MCP server, OpenAI Draft,
+and GitHub release are coordinated as `1.6.1`. The separately distributed complete-history
+Collector remains `1.6.0` because its code, consent, transport, and installer bytes are unchanged.
+Knowledge V5, MCP protocol dates, and schema identifiers are independent compatibility versions.
 
 Production MCP: `https://api.memova.ai/mcp`
 
@@ -94,7 +99,7 @@ conversation history or the Memova account.
 
 Record these after the exact release candidate is deployed:
 
-- Git commit and Plugin release tag for `1.6.0`.
+- Git commit and Plugin release tag for `1.6.1`.
 - Backend production image/digest and successful JPE/US deployment runs.
 - Scan Tools result for the live production MCP catalog.
 - Reviewer-login OAuth smoke, including refresh and revoke, with no credentials in logs.
