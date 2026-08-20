@@ -49,7 +49,7 @@ the latest Memova note:
 
 1. Run the plugin version check described above.
 2. Run the one-time knowledge-base setup reminder check described above.
-3. Call `list_latest_note_automation_tasks` with `status=["pending","running"]`,
+3. Call `list_latest_note_automation_tasks` with `statuses=["pending","running"]`,
    `claimable_only=true`, and a reasonable `limit` such as `20`.
    If this MCP tool is unavailable, run `codex mcp list`. If `memova` is listed with Auth
    `Not logged in`, run `python3 plugins/memova/scripts/ensure_mcp_login.py` from the plugin root.

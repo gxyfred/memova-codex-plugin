@@ -89,15 +89,16 @@ When the user asks to set up their Memova knowledge base:
 3. If there is exactly one ready/running setup, use it.
    If there are no pending setups, stop and tell the user to create/mark a setup package from the
    Memova app first, or disconnect/reconnect Memova OAuth in Codex with the same Memova account used
-   in the iOS app. If there are multiple, summarize them and ask which one to run. After the user
-   selects one setup session, call `fail_knowledge_base_setup` for every other ready/running setup
-   session returned by the pending list, using:
+   in the iOS app. If there are multiple, summarize them and ask which one to run. Then show the ids
+   of the other ready/running sessions and ask for adjacent confirmation before marking them
+   superseded. Only after that confirmation, call `fail_knowledge_base_setup` for the unselected
+   sessions, using:
    - `failure_code`: `setup.superseded_by_selected_session`
    - `failure_message`: `Superseded because the user selected another knowledge-base setup session.`
    - `payload`: include `selected_setup_session_id` and `discarded_setup_session_id`
 
-   Continue only with the selected setup session. This prevents abandoned older setup attempts from
-   appearing again on the next setup run.
+   Continue only with the selected setup session. If the user does not approve superseding the
+   others, leave them unchanged and say they may appear again on the next setup run.
 4. Call `get_knowledge_base_setup_context` for the selected `setup_session_id`.
 5. Call `append_knowledge_base_setup_progress` with a concise message that setup has started.
 6. Write the MCP `setup_package` object to a temporary JSON file under `/tmp`, then run:

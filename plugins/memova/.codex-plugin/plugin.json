@@ -1,7 +1,7 @@
 {
   "name": "memova",
   "version": "1.6.0",
-  "description": "Run Memova workflows and explicitly import selected content into Memova.",
+  "description": "Use Knowledge V5, run Memova workflows, and import selected content.",
   "author": {
     "name": "Memova",
     "url": "https://memova.ai"
@@ -24,8 +24,8 @@
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Memova",
-    "shortDescription": "Import selected content and run Memova workflows.",
-    "longDescription": "Connect Codex to Memova through OAuth MCP for knowledge-base and automation workflows. Imports are limited to content the user explicitly selects in the current request, show a bounded preview, and locally remove detected passwords, API keys, tokens, and private keys before upload. The plugin does not enumerate Codex history or install background collection. Existing V2/V3 vault tools remain available only for compatibility.",
+    "shortDescription": "Use Knowledge V5 and run private Memova workflows.",
+    "longDescription": "Connect Codex to Memova through OAuth MCP for bounded Knowledge V5 retrieval, reviewed memory proposals, automation workflows, and explicit selected-content import. Imports are limited to content the user explicitly selects in the current request, show a bounded preview, and locally remove detected passwords, API keys, tokens, and private keys before upload. The plugin does not enumerate Codex history or install background collection. Existing V2/V3 vault tools remain available only for compatibility.",
     "developerName": "Memova",
     "category": "Productivity",
     "capabilities": [
@@ -38,8 +38,8 @@
     "termsOfServiceURL": "https://memova.ai/terms",
     "defaultPrompt": [
       "Open Memova menu.",
-      "Import selected content into Memova.",
-      "Review or run my Memova automation tasks."
+      "Search and use my Memova Knowledge V5.",
+      "Import selected content into Memova."
     ],
     "brandColor": "#3366FF",
     "composerIcon": "./assets/icon.svg",

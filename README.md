@@ -6,6 +6,7 @@ This plugin bundles:
 
 - the Memova OAuth MCP server at `https://api.memova.ai/mcp`,
 - the `memova-menu` skill for a lightweight `@memova` workflow menu,
+- the `memova-knowledge` skill for bounded Knowledge V5 retrieval and reviewed memory proposals,
 - the `memova-workflow` skill for reviewing and running existing Codex automation tasks,
 - the `memova-vault-setup` skill for iCloud-first Memova knowledge-base setup,
 - the `memova-vault-diagnose` skill for validating and repairing a Memova V2/V3 managed root,
@@ -102,7 +103,7 @@ Codex can expose its tools. The plugin normally starts this login automatically 
 setup or automation workflow needs Memova MCP and the local server is `Not logged in`. It runs:
 
 ```bash
-codex mcp login memova --scopes notes.read,actions.read,actions.write,automation.read,automation.write,knowledge.read,knowledge.write
+codex mcp login memova --scopes notes.read,automation.read,automation.write,knowledge.read,knowledge.write
 ```
 
 and attempts to open one browser authorization URL. The user still approves Memova OAuth in the
@@ -126,7 +127,7 @@ If the helper cannot start `codex` because of WindowsApps or sandbox permissions
 login command directly in Windows Terminal or PowerShell:
 
 ```powershell
-codex mcp login memova --scopes notes.read,actions.read,actions.write,automation.read,automation.write,knowledge.read,knowledge.write
+codex mcp login memova --scopes notes.read,automation.read,automation.write,knowledge.read,knowledge.write
 ```
 
 You can verify the state with:
@@ -150,20 +151,20 @@ In Codex, type:
 Codex should open a short Memova menu:
 
 ```text
-1. Import selected content
-2. Review my automation tasks
-3. Run latest note automation tasks
-4. Set up legacy V2/V3 vault
-5. Diagnose legacy V2/V3 vault
+1. Search and use my Knowledge V5
+2. Propose a Knowledge V5 update
+3. Import selected content
+4. Review my automation tasks
+5. Run latest note automation tasks
+6. Legacy V2/V3 vault setup or diagnosis
 ```
 
 Reply with a number, or select one of the plugin starter prompts:
 
 ```text
 Open Memova menu.
+Search and use my Memova Knowledge V5.
 Import selected content into Memova.
-Review my automation tasks.
-Run latest note automation tasks.
 ```
 
 You can still ask directly:
@@ -176,8 +177,9 @@ You can still ask directly:
 ```
 
 The menu is the safe default entrypoint. It does not run a write-heavy workflow just because the
-user typed bare `@memova`; it routes the user to selected-content import, read-only automation task
-review, latest-note automation task execution, or explicit legacy vault tools.
+user typed bare `@memova`; it routes the user to Knowledge V5 retrieval/proposals,
+selected-content import, read-only automation task review, latest-note automation task execution,
+or explicit legacy vault tools.
 
 The menu itself does not fetch Memova data. MCP-backed selections require the Memova MCP login above.
 If Codex says setup or automation MCP tools are unavailable, check `codex mcp list`; `Not logged in`
@@ -228,9 +230,9 @@ Codex will:
 9. Report success or failure back to Memova through MCP, including
    `memova_input_root_relative_path`.
 
-If multiple old setup sessions are still ready/running, Codex asks which one to use, then marks the
-unselected setup sessions failed with `failure_code=setup.superseded_by_selected_session` so they do
-not keep showing up in future setup runs.
+If multiple old setup sessions are still ready/running, Codex asks which one to use. It shows the
+unselected session ids and obtains adjacent confirmation before marking any of them failed with
+`failure_code=setup.superseded_by_selected_session`; otherwise they remain unchanged.
 
 Before reporting success, the helper returns `identity_validation`. Codex must only call
 `complete_knowledge_base_setup` when that status is `ok`; otherwise the local manifest files do not
@@ -515,7 +517,7 @@ If Memova tools are unavailable:
   Memova account as the iOS app setup.
 - If automatic browser opening fails, copy the printed `authorization_url` into a browser. If the
   helper cannot execute `codex` because of WindowsApps or sandbox permissions, run
-  `codex mcp login memova --scopes notes.read,actions.read,actions.write,automation.read,automation.write`
+`codex mcp login memova --scopes notes.read,automation.read,automation.write,knowledge.read,knowledge.write`
   directly in Windows Terminal or PowerShell, then restart Codex or start a new thread.
 - If setup packages exist in the app but Codex sees none, the most likely cause is that Codex OAuth
   is connected to a different Memova account than the iOS app.

@@ -1,0 +1,15 @@
+interface:
+  display_name: "Memova Knowledge V5"
+  short_description: "Search knowledge or propose a reviewed memory update."
+  default_prompt: "Use $memova-knowledge to search and use my Memova Knowledge V5."
+
+policy:
+  allow_implicit_invocation: false
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "memova"
+      description: "Memova OAuth MCP server for bounded Knowledge V5 retrieval and proposals."
+      transport: "streamable_http"
+      url: "https://api.memova.ai/mcp"
