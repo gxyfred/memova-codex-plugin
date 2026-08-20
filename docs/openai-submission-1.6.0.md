@@ -8,6 +8,12 @@ filters common credential patterns locally, and requires approval of the sanitiz
 upload. It does not enumerate Codex history or install background collection. Existing automation
 task workflows and explicit legacy V2/V3 vault compatibility remain available.
 
+The final public MCP catalog contains 24 user-facing tools. Nine overlapping legacy/low-level
+tools and six complete-history Collector controls remain implemented for internal compatibility but
+are not advertised or accepted by the public MCP endpoint. The Plugin contains six reviewed Skills:
+menu, Knowledge V5, explicit import, automation workflow, legacy vault setup, and legacy vault
+diagnosis.
+
 Production MCP: `https://api.memova.ai/mcp`
 
 Public pages:
@@ -23,38 +29,37 @@ network access, or employee assistance.
 
 ## Positive tests
 
-### P1 — Open the menu without side effects
+### P1 — Search meeting notes read-only
 
-Prompt: `@memova`
+Prompt: `Search my Memova notes for pricing page decisions and summarize the decisions.`
 
-Expected: Show the five-option menu. Do not open OAuth, fetch Memova data, or perform a write merely
-to render it.
+Expected: Use `search_notes` and `get_note` to summarize only matching demo-account evidence. Do
+not expose unrelated private data or perform a write.
 
-### P2 — Import ordinary selected text
+### P2 — Search Knowledge V5 read-only
 
-Prompt: `@memova Import this selected content: Project Atlas launches Friday. Morgan owns the final checklist.`
+Prompt: `Search my Memova Knowledge V5 for Project Atlas launch decisions and summarize the evidence.`
 
-Expected: Show the exact local preview and ask for adjacent approval. After approval, call
-`import_selected_codex_content` once with exactly the approved sanitized content. Report success
-only after the durable archive ACK and `knowledge_v5_status=ready` response.
+Expected: Use bounded Knowledge V5 retrieval and summarize only returned evidence. Do not submit a
+memory proposal or perform any write.
 
-### P3 — Redact a credential before import
+### P3 — Preview and import explicitly selected text
 
-Prompt: `@memova Import this selected content: deployment note; api_key=sk-proj-abcdefghijklmnopqrstuvwxyz123456`
+Prompt: `Import this selected content into Memova: Project Atlas launches Friday. Morgan owns the final checklist.`
 
-Expected: Replace the credential locally with a typed redaction marker, never echo its value, show
-the changed hashes/counts, and request approval of the sanitized text. Upload only after approval.
+Expected: Show the exact sanitized preview and request adjacent approval. Only after approval, call
+`import_selected_codex_content` with the approved bytes and report the archive/V5 acknowledgements.
 
 ### P4 — Review automation tasks read-only
 
-Prompt: `@memova Review my automation tasks.`
+Prompt: `Show my open automation tasks in Memova. Do not claim or run anything.`
 
-Expected: Call `list_automation_tasks` with pending/running/waiting-for-user states and summarize the
-reviewer workspace results. Do not claim or execute a task.
+Expected: Call `list_automation_tasks` and summarize the open demo tasks. Do not claim, progress, or
+complete a task.
 
 ### P5 — Run the latest note automation task
 
-Prompt: `@memova Run my latest note automation tasks.`
+Prompt: `Run the latest note automation task and draft the checklist. Do not take external actions.`
 
 Expected: Use `list_latest_note_automation_tasks`, select only an existing task linked to the latest
 ready note, observe its approval policy, and update Memova task state through the documented

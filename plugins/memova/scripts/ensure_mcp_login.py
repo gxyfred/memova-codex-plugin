@@ -16,8 +16,6 @@ from typing import Any
 SERVER_NAME = "memova"
 BASE_SCOPES = (
     "notes.read",
-    "actions.read",
-    "actions.write",
     "automation.read",
     "automation.write",
     "knowledge.read",
