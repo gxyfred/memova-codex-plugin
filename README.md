@@ -14,7 +14,8 @@ This plugin bundles:
   Restricted Data filtering,
 - Memova starter prompts and plugin presentation metadata.
 
-Version `1.6.0` physically separates the public plugin package from complete-history collection.
+Version `1.6.1` physically separates the public plugin package from complete-history collection
+and aligns the reviewed Knowledge V5 skill/menu with the focused 24-tool production MCP catalog.
 The public package under `plugins/memova/` contains no Collector runtime, App Server history reader,
 Hook, or scheduler installer. It imports only text selected in the current request, shows exact
 scope/hash/count information, and removes detected passwords, API keys, access tokens, private keys,
@@ -24,6 +25,8 @@ canonical Knowledge V5 Codex Session; search rollout and semantic enrichment rem
 
 Independent complete-history collection is maintained separately under top-level `collector/`; it
 is not part of the marketplace plugin path, public Plugin menu, starter prompts, or installation.
+Collector remains independently versioned at `1.6.0` because this `1.6.1` public Plugin/MCP release
+does not change Collector code, consent, transport, or installer bytes.
 
 ## Should This Repo Be Public?
 
