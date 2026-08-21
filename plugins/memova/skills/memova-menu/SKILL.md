@@ -1,6 +1,6 @@
 ---
 name: memova-menu
-description: Show the current Memova workflow menu when the user invokes @memova without a specific request, asks to open the Memova menu, chooses a Memova starter prompt, or replies with a numbered Memova menu option. Route to Knowledge V5, explicit import, automation, or legacy vault tools without starting a write-heavy workflow.
+description: Show the current Memova workflow menu when the user invokes @memova without a specific request, asks to open the Memova menu, chooses a Memova starter prompt, or replies with a numbered Memova menu option. Route to Personal Manual, Knowledge V5, explicit import, automation, or legacy vault tools without starting a write-heavy workflow.
 ---
 
 # Memova Menu
@@ -43,12 +43,13 @@ with:
 ```text
 Memova
 
-1. Search and use my Knowledge V5
-2. Propose a Knowledge V5 update
-3. Import selected content
-4. Review my automation tasks
-5. Run latest note automation tasks
-6. Legacy V2/V3 vault setup or diagnosis
+1. Create or update my Personal Manual
+2. Search and use my Knowledge V5
+3. Propose a Knowledge V5 update
+4. Import selected content
+5. Review my automation tasks
+6. Run latest note automation tasks
+7. Legacy V2/V3 vault setup or diagnosis
 
 Reply with a number, or tell me what you want to do.
 ```
@@ -61,26 +62,29 @@ If the previous assistant message showed the Memova menu and the user replies wi
 one of the option names, treat it as a Memova menu selection even if the new user message does not
 repeat `@memova`.
 
-- `1`, "search", "knowledge", or "Knowledge V5": Follow the read-only workflow in
+- `1` or "Personal Manual": Follow
+  `plugins/memova/skills/memova-personal-manual/SKILL.md`. History access and upload each require
+  their own adjacent explicit approval.
+- `2`, "search", "knowledge", or "Knowledge V5": Follow the read-only workflow in
   `plugins/memova/skills/memova-knowledge/SKILL.md`.
-- `2`, "propose", or "knowledge update": Follow the proposal workflow in
+- `3`, "propose", or "knowledge update": Follow the proposal workflow in
   `plugins/memova/skills/memova-knowledge/SKILL.md`. Show the exact candidate and obtain adjacent
   approval before calling `propose_memory_update`.
-- `3`, "import", or "selected content": Follow
+- `4`, "import", or "selected content": Follow
   `plugins/memova/skills/memova-explicit-import/SKILL.md`. The user must still approve the exact
   sanitized preview before the MCP write.
-- `4` or "automation tasks": Follow the automation task review workflow in
+- `5` or "automation tasks": Follow the automation task review workflow in
   `plugins/memova/skills/memova-workflow/SKILL.md`. It should call `list_automation_tasks` with
   statuses `pending`, `running`, and `waiting_for_user`, `claimable_only=false`, and a reasonable
   limit such as `20`. Summarize user-visible task titles/objectives, status, owner, source
   note/meeting titles when present, practical availability, and approval state. Keep internal ids
   and raw lease details out of the default response. Do not claim or execute tasks unless the user
   explicitly asks.
-- `5` or "latest note": Follow the latest-note automation task workflow in
+- `6` or "latest note": Follow the latest-note automation task workflow in
   `plugins/memova/skills/memova-workflow/SKILL.md`. This workflow must only use existing
   automation tasks linked to the latest ready note's meeting. It must not call
   `extract_action_items`, `accept_action_candidate`, or `ensure_task_from_action`.
-- `6` or "legacy vault": Ask whether the user wants setup or diagnosis. Run the one-time legacy
+- `7` or "legacy vault": Ask whether the user wants setup or diagnosis. Run the one-time legacy
   reminder, then follow `plugins/memova/skills/memova-vault-setup/SKILL.md` for setup or
   `plugins/memova/skills/memova-vault-diagnose/SKILL.md` for diagnosis.
 - Do not run Memova MCP login merely to show the menu.

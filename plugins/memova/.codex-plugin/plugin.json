@@ -1,7 +1,7 @@
 {
   "name": "memova",
-  "version": "1.6.1",
-  "description": "Use Knowledge V5, run Memova workflows, and import selected content.",
+  "version": "1.7.0",
+  "description": "Create a Personal Manual, use Knowledge V5, and run Memova workflows.",
   "author": {
     "name": "Memova",
     "url": "https://memova.ai"
@@ -18,14 +18,15 @@
     "llm-wiki",
     "productivity",
     "selected-import",
+    "personal-manual",
     "privacy"
   ],
   "skills": "./skills/",
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Memova",
-    "shortDescription": "Use Knowledge V5 and run private Memova workflows.",
-    "longDescription": "Connect Codex to Memova through OAuth MCP for bounded Knowledge V5 retrieval, reviewed memory proposals, automation workflows, and explicit selected-content import. Imports are limited to content the user explicitly selects in the current request, show a bounded preview, and locally remove detected passwords, API keys, tokens, and private keys before upload. The plugin does not enumerate Codex history or install background collection. Existing V2/V3 vault tools remain available only for compatibility.",
+    "shortDescription": "Create a Personal Manual and use private Memova workflows.",
+    "longDescription": "Connect Codex to Memova through OAuth MCP for explicit Personal Manual generation, bounded Knowledge V5 retrieval, reviewed memory proposals, automation workflows, and selected-content import. The Personal Manual workflow reads only a bounded task set approved by the user, locally filters it to user/assistant text, creates matching Markdown and standalone HTML, and uploads only those final files after preview confirmation. It never runs in the background.",
     "developerName": "Memova",
     "category": "Productivity",
     "capabilities": [
@@ -37,9 +38,9 @@
     "privacyPolicyURL": "https://memova.ai/privacy",
     "termsOfServiceURL": "https://memova.ai/terms",
     "defaultPrompt": [
+      "Create my Memova Personal Manual.",
       "Open Memova menu.",
-      "Search and use my Memova Knowledge V5.",
-      "Import selected content into Memova."
+      "Search and use my Memova Knowledge V5."
     ],
     "brandColor": "#3366FF",
     "composerIcon": "./assets/icon.svg",
