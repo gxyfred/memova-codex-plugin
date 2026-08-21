@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import importlib.util
 import io
+import json
+import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 
 
@@ -46,6 +49,53 @@ class SelectedImportPreviewTests(unittest.TestCase):
             )
             with self.assertRaises(RuntimeError):
                 MODULE._read_input(args)
+        finally:
+            MODULE.sys.stdin = original_stdin
+
+    def test_default_stdout_is_human_readable_and_machine_record_is_private(self) -> None:
+        text = "Q3 beta note with no credentials."
+        original_stdin = MODULE.sys.stdin
+        stdout = io.StringIO()
+        try:
+            with tempfile.TemporaryDirectory() as temporary_directory:
+                record_path = Path(temporary_directory) / "preview-record.json"
+                MODULE.sys.stdin = io.TextIOWrapper(
+                    io.BytesIO(text.encode("utf-8")), encoding="utf-8"
+                )
+                with redirect_stdout(stdout):
+                    return_code = MODULE.main(
+                        [
+                            "--stdin",
+                            "--selection-kind",
+                            "excerpt",
+                            "--source-label",
+                            "Q3 beta note",
+                            "--source-reference",
+                            "current-chat:selected-excerpt",
+                            "--record-file",
+                            str(record_path),
+                        ]
+                    )
+
+                self.assertEqual(return_code, 0)
+                visible = stdout.getvalue()
+                self.assertIn("Memova selected-content import preview", visible)
+                self.assertIn(text, visible)
+                self.assertIn("Nothing has been imported yet", visible)
+                for internal_field in (
+                    "preview_id",
+                    "source_reference",
+                    "sha256",
+                    "scan_version",
+                    "finding_counts_by_type",
+                ):
+                    self.assertNotIn(internal_field, visible)
+
+                record = json.loads(record_path.read_text(encoding="utf-8"))
+                self.assertIn("preview_id", record)
+                self.assertEqual(record["source_reference"], "current-chat:selected-excerpt")
+                self.assertEqual(record["sanitized_content"], text)
+                self.assertEqual(record_path.stat().st_mode & 0o777, 0o600)
         finally:
             MODULE.sys.stdin = original_stdin
 

@@ -112,7 +112,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Opaque client/user selection id; defaults to the original content hash.",
     )
     parser.add_argument("--output-file")
-    parser.add_argument("--include-sanitized", action="store_true")
+    parser.add_argument(
+        "--record-file",
+        required=True,
+        help="Private JSON machine record used for the later confirmed MCP call.",
+    )
     return parser
 
 
@@ -171,9 +175,28 @@ def main(argv: list[str] | None = None) -> int:
             },
             "output_file": output_path,
         }
-        if args.include_sanitized:
-            payload["sanitized_content"] = sanitized
-        print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
+        payload["sanitized_content"] = sanitized
+        record_target = Path(args.record_file).expanduser()
+        _atomic_write(
+            record_target,
+            json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        )
+        finding_count = int(payload["restricted_data"]["finding_count"])
+        if finding_count:
+            restricted_summary = (
+                f"Detected and redacted {finding_count} restricted-data value(s); "
+                "matched values are not shown."
+            )
+        else:
+            restricted_summary = "No restricted data was detected."
+        print("Memova selected-content import preview")
+        print(f"Source: {args.source_label.strip()}")
+        print(f"Restricted-data check: {restricted_summary}")
+        print("Nothing has been imported yet.")
+        print("Sanitized content:")
+        print("---")
+        print(sanitized)
+        print("---")
         return 0
     except (OSError, RuntimeError) as exc:
         print(json.dumps({"status": "error", "error": str(exc)}, ensure_ascii=False))
