@@ -16,7 +16,7 @@ This plugin bundles:
   Restricted Data filtering,
 - Memova starter prompts and plugin presentation metadata.
 
-Version `1.7.0` adds the explicit Personal Manual Skill and its two-tool MCP contract while keeping
+Version `1.8.0` adds the explicit Personal Manual Skill and its two-tool MCP contract while keeping
 history access bounded, foreground-only, and locally filtered to user/assistant text. The Skill
 renders matching Markdown and standalone HTML, then uploads only those two confirmed files.
 The public package under `plugins/memova/` contains no Collector runtime, Hook, or scheduler
@@ -30,7 +30,7 @@ canonical Knowledge V5 Codex Session; search rollout and semantic enrichment rem
 
 Independent complete-history collection is maintained separately under top-level `collector/`; it
 is not part of the marketplace plugin path, public Plugin menu, starter prompts, or installation.
-Collector remains independently versioned at `1.6.0` because this `1.7.0` public Plugin/MCP release
+Collector remains independently versioned at `1.6.0` because this `1.8.0` public Plugin/MCP release
 does not change Collector code, consent, transport, or installer bytes.
 
 ## Should This Repo Be Public?
