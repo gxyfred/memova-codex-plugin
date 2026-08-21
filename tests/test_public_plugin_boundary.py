@@ -29,7 +29,7 @@ class PublicPluginBoundaryTests(unittest.TestCase):
         menu = (PLUGIN / "skills" / "memova-menu" / "SKILL.md").read_text(encoding="utf-8")
         for option in (
             "1. Search and use my Knowledge V5",
-            "2. Propose a Knowledge V5 update",
+            "2. Create or update a Knowledge Entry",
             "3. Import selected content",
             "4. Review my automation tasks",
             "5. Run latest note automation tasks",
@@ -45,7 +45,7 @@ class PublicPluginBoundaryTests(unittest.TestCase):
             (PLUGIN / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
         )
         self.assertNotIn("hooks", manifest)
-        self.assertEqual(manifest["version"], "1.6.1")
+        self.assertEqual(manifest["version"], "1.7.0")
 
     def test_public_mcp_login_cannot_request_collector_pairing_scope(self) -> None:
         helper = (PLUGIN / "scripts" / "ensure_mcp_login.py").read_text(encoding="utf-8")
@@ -53,6 +53,28 @@ class PublicPluginBoundaryTests(unittest.TestCase):
         self.assertNotIn("include-conversation-connect", helper)
         self.assertNotIn('"actions.read"', helper)
         self.assertNotIn('"actions.write"', helper)
+
+    def test_exact_codex_task_url_is_single_task_authorization(self) -> None:
+        explicit_import = (
+            PLUGIN / "skills" / "memova-explicit-import" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("exact `codex://threads/<uuid>`", explicit_import)
+        self.assertIn("`codex_app__read_thread`", explicit_import)
+        self.assertIn("never authorizes `codex_app__list_threads`", explicit_import)
+        self.assertIn("retain only `userMessage.content` and `agentMessage.text`", explicit_import)
+
+    def test_knowledge_write_skill_uses_v5_native_reviewed_entry_tools(self) -> None:
+        knowledge = (PLUGIN / "skills" / "memova-knowledge" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        for tool in (
+            "create_knowledge_entry_proposal",
+            "get_knowledge_entry_proposal",
+            "apply_knowledge_entry_proposal",
+            "reject_knowledge_entry_proposal",
+        ):
+            self.assertIn(tool, knowledge)
+        self.assertNotIn("`propose_memory_update`", knowledge)
 
     def test_latest_note_skill_uses_the_deployed_statuses_argument(self) -> None:
         workflow = (PLUGIN / "skills" / "memova-workflow" / "SKILL.md").read_text(

@@ -6,7 +6,7 @@ This plugin bundles:
 
 - the Memova OAuth MCP server at `https://api.memova.ai/mcp`,
 - the `memova-menu` skill for a lightweight `@memova` workflow menu,
-- the `memova-knowledge` skill for bounded Knowledge V5 retrieval and reviewed memory proposals,
+- the `memova-knowledge` skill for bounded Knowledge V5 retrieval and reviewed Knowledge Entries,
 - the `memova-workflow` skill for reviewing and running existing Codex automation tasks,
 - the `memova-vault-setup` skill for iCloud-first Memova knowledge-base setup,
 - the `memova-vault-diagnose` skill for validating and repairing a Memova V2/V3 managed root,
@@ -14,18 +14,20 @@ This plugin bundles:
   Restricted Data filtering,
 - Memova starter prompts and plugin presentation metadata.
 
-Version `1.6.1` physically separates the public plugin package from complete-history collection
-and aligns the reviewed Knowledge V5 skill/menu with the focused 24-tool production MCP catalog.
-The public package under `plugins/memova/` contains no Collector runtime, App Server history reader,
-Hook, or scheduler installer. It imports only text selected in the current request, shows exact
-scope/hash/count information, and removes detected passwords, API keys, access tokens, private keys,
-and similar Restricted Data before the user approves an MCP write. A successful selected import
+Version `1.7.0` adds reviewed first-class V5 Knowledge Entry writes and exact user-supplied Codex
+task URL imports while keeping history access bounded, foreground-only, and locally filtered to
+user/assistant text. The public package under `plugins/memova/` contains no Collector runtime, App
+Server history reader, Hook, or scheduler installer. Explicit import may read one exact
+user-supplied task URL but never list tasks; it discards non-message data before preview, shows the
+exact sanitized text and a human-readable scope while keeping machine hashes/counts private, and
+removes detected passwords, API keys, access tokens, private keys, and similar Restricted Data
+before the user approves an MCP write. A successful selected import
 both receives a durable archive ACK and deterministically commits the exact approved text as a
 canonical Knowledge V5 Codex Session; search rollout and semantic enrichment remain separate.
 
 Independent complete-history collection is maintained separately under top-level `collector/`; it
 is not part of the marketplace plugin path, public Plugin menu, starter prompts, or installation.
-Collector remains independently versioned at `1.6.0` because this `1.6.1` public Plugin/MCP release
+Collector remains independently versioned at `1.6.0` because this `1.7.0` public Plugin/MCP release
 does not change Collector code, consent, transport, or installer bytes.
 
 ## Should This Repo Be Public?
@@ -439,14 +441,16 @@ python3 plugins/memova/skills/memova-vault-setup/scripts/diagnose_memova_vault.p
 
 ## Import Explicitly Selected Content
 
-Start with `@memova Import this selected content.` The public Plugin accepts only pasted/current
-excerpt text, an attached text resource, or an exact task/date-range export already supplied by the
-client/user. A task id or date range alone does not authorize history enumeration.
+Start with `@memova Import this selected content.` The public Plugin accepts pasted/current excerpt
+text, an attached text resource, an exact task/date-range export already supplied by the
+client/user, or one exact `codex://threads/<uuid>` URL the user explicitly asks to summarize/import.
+That URL authorizes only `codex_app__read_thread` for the named task, never task listing or
+neighboring-task access. A guessed/bare id or date range alone does not authorize history access.
 
 Before upload, the Plugin produces a bounded local preview with source label, exact byte/character
 counts, original/sanitized hashes, and Restricted Data finding counts. The user approves the exact
-sanitized bytes immediately before the MCP write. The Plugin never uses App Server, Codex internal
-JSONL/SQLite, filesystem scans, or UI scraping as a fallback.
+sanitized bytes immediately before the MCP write. The Plugin never uses task-list APIs for an exact
+URL import, Codex internal JSONL/SQLite, filesystem scans, or UI scraping as a fallback.
 
 ## What The Menu And Workflow Do
 

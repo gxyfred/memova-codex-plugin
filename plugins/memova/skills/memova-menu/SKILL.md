@@ -44,7 +44,7 @@ with:
 Memova
 
 1. Search and use my Knowledge V5
-2. Propose a Knowledge V5 update
+2. Create or update a Knowledge Entry
 3. Import selected content
 4. Review my automation tasks
 5. Run latest note automation tasks
@@ -63,9 +63,9 @@ repeat `@memova`.
 
 - `1`, "search", "knowledge", or "Knowledge V5": Follow the read-only workflow in
   `plugins/memova/skills/memova-knowledge/SKILL.md`.
-- `2`, "propose", or "knowledge update": Follow the proposal workflow in
+- `2`, "propose", "Knowledge Entry", or "knowledge update": Follow the proposal workflow in
   `plugins/memova/skills/memova-knowledge/SKILL.md`. Show the exact candidate and obtain adjacent
-  approval before calling `propose_memory_update`.
+  approval before calling `apply_knowledge_entry_proposal`.
 - `3`, "import", or "selected content": Follow
   `plugins/memova/skills/memova-explicit-import/SKILL.md`. The user must still approve the exact
   sanitized preview before the MCP write.
