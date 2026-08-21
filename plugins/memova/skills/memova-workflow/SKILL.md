@@ -1,6 +1,6 @@
 ---
 name: memova-workflow
-description: Use when the user explicitly asks Memova to review or run existing Codex automation tasks, especially tasks linked to the latest ready Memova note, ask for approval when needed, or write progress/results back to Memova. For bare @memova, menu requests, or numbered menu choices, use memova-menu instead.
+description: Review or run existing Memova automation tasks when the user asks to list unfinished tasks, assess whether they are internally executable or waiting for confirmation, run a selected task, or write progress/results back to Memova. Preserve waiting_for_user as guarded. For bare @memova, menu requests, or numbered menu choices, use memova-menu instead.
 ---
 
 # Memova Workflow
@@ -34,6 +34,9 @@ Use this skill only when the user explicitly invokes Memova, selects a Memova st
 - Do not send email, send messages, create calendar events, make purchases, create external accounts, or modify external systems without explicit user approval.
 - Never store or echo secrets, access tokens, refresh tokens, or raw credentials.
 - Keep progress writes concise and non-sensitive. Store links, IDs, and summaries instead of full files or large payloads.
+- Keep schema names, machine provenance/version tags, fixture markers, and synthetic-data labels
+  internal by default. Translate them into plain language such as "the reviewer demo records" or
+  "synthetic Memova data" instead of echoing raw tags in progress or final responses.
 - If a task requires a codebase, inspect the current workspace before editing. If the workspace is unrelated or missing, ask the user which repo to use or create a Memova approval request.
 
 ## Bare Memova Invocation
@@ -64,9 +67,12 @@ the latest Memova note:
 5. If a latest note exists but has no claimable automation tasks, summarize the latest note/meeting
    identifiers and say there are no unfinished Codex automation tasks for it. Do not create new
    tasks.
-6. If tasks are returned, summarize the task ids, objectives, source note/meeting, status, and
-   safety constraints. If there are multiple tasks, choose the first clearly safe task or ask the
-   user which one to run when the right order is ambiguous.
+6. If tasks are returned, summarize user-visible titles/objectives, source note/meeting titles,
+   status, owner, approval needs, and safety constraints. Keep task, note, meeting, action, lease,
+   and event ids internal by default. Show an internal id only when the user asks for technical
+   details or when human-readable details cannot disambiguate the target. If there are multiple
+   tasks, choose the first clearly safe task or ask the user which one to run when the right order
+   is ambiguous.
 7. Claim one task at a time with `claim_task`, then call `get_task_context`.
 8. Before execution, append a short `append_task_progress` event that states the chosen task and execution plan.
 9. Execute safe work in the current Codex workspace. Keep edits scoped to the task and follow the repo's local instructions.
@@ -93,7 +99,18 @@ When the user asks to review Memova automation tasks without immediately executi
    normal shell. After successful login, tell the user to start a new Codex thread if this thread
    still does not expose the Memova MCP tools. If `memova` is not listed, tell the user to
    upgrade/reinstall the Memova plugin and restart Codex.
-4. Summarize task ids, objective, source note/context, status, lease state, and approval policy.
+4. Summarize user-visible task titles/objectives, source note or meeting titles, status, owner,
+   practical lease availability, and approval policy. Do not show internal task, note, action,
+   lease, event, request, or workspace ids by default; keep them for tool calls and audit only.
+   Treat `waiting_for_user` as requiring user attention and as not directly runnable. The absence
+   of a separate open approval-request row does not turn a `waiting_for_user` task into an approved
+   task; report that as missing/inconsistent confirmation detail and keep the task guarded until
+   its context or a later user decision explicitly resumes it.
+   When the user asks whether the task can be performed entirely inside Memova, answer **No — it
+   is waiting for the user**. Never describe any part of a `waiting_for_user` task as currently
+   performable, runnable, executable, allowed, or ready merely because its capability list or
+   approval policy would otherwise allow drafting. Missing confirmation metadata is an
+   inconsistency to surface, not permission to proceed.
 5. Do not claim tasks or write progress for read-only views unless the user asks to run a specific
    task.
 
@@ -116,7 +133,11 @@ For Memova-persisted tasks, prefer `create_approval_request` so the decision is 
 
 End with:
 
-- the Memova note or task ids used,
-- what was completed or written back,
-- what still needs user approval or follow-up,
+- the user-visible Memova note/task titles used and why they were relevant;
+- what was completed or written back;
+- what still needs user approval or follow-up; and
 - any local verification that was run.
+
+Keep internal ids, claim tokens, hashes, request ids, and raw lifecycle event details out of the
+default final response. They remain available for tool calls, logs, audit, and explicit technical
+follow-up.

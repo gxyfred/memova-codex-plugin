@@ -4,7 +4,7 @@ interface:
   default_prompt: "Use $memova-workflow to run my latest note automation tasks."
 
 policy:
-  allow_implicit_invocation: false
+  allow_implicit_invocation: true
 
 dependencies:
   tools:

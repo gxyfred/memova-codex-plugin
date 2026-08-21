@@ -72,8 +72,9 @@ repeat `@memova`.
 - `4` or "automation tasks": Follow the automation task review workflow in
   `plugins/memova/skills/memova-workflow/SKILL.md`. It should call `list_automation_tasks` with
   statuses `pending`, `running`, and `waiting_for_user`, `claimable_only=false`, and a reasonable
-  limit such as `20`. Summarize task ids, objective, status, source note/meeting context when
-  present, lease state, and approval state. Do not claim or execute tasks unless the user
+  limit such as `20`. Summarize user-visible task titles/objectives, status, owner, source
+  note/meeting titles when present, practical availability, and approval state. Keep internal ids
+  and raw lease details out of the default response. Do not claim or execute tasks unless the user
   explicitly asks.
 - `5` or "latest note": Follow the latest-note automation task workflow in
   `plugins/memova/skills/memova-workflow/SKILL.md`. This workflow must only use existing

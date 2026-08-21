@@ -61,6 +61,19 @@ class PublicPluginBoundaryTests(unittest.TestCase):
         self.assertIn('statuses=["pending","running"]', workflow)
         self.assertNotIn('status=["pending","running"]', workflow)
 
+    def test_workflow_skill_is_discoverable_for_natural_language_task_reviews(self) -> None:
+        workflow = (PLUGIN / "skills" / "memova-workflow" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        openai_yaml = (
+            PLUGIN / "skills" / "memova-workflow" / "agents" / "openai.yaml"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("list unfinished tasks", workflow)
+        self.assertIn("waiting for confirmation", workflow)
+        self.assertIn("Preserve waiting_for_user as guarded", workflow)
+        self.assertIn("allow_implicit_invocation: true", openai_yaml)
+
     def test_public_user_facing_metadata_does_not_advertise_collector(self) -> None:
         paths = (
             PLUGIN / ".codex-plugin" / "plugin.json",
@@ -79,6 +92,37 @@ class PublicPluginBoundaryTests(unittest.TestCase):
         prompts = manifest["interface"]["defaultPrompt"]
         self.assertLessEqual(len(prompts), 3)
         self.assertIn("Import selected content into Memova.", prompts)
+
+    def test_user_facing_skills_hide_internal_audit_fields_by_default(self) -> None:
+        explicit_import = (
+            PLUGIN / "skills" / "memova-explicit-import" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        workflow = (PLUGIN / "skills" / "memova-workflow" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        menu = (PLUGIN / "skills" / "memova-menu" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("Do not show preview ids", explicit_import)
+        self.assertIn("Hard user-interface boundary", explicit_import)
+        self.assertIn("Treat accidental exposure of any such field as a failed preview", explicit_import)
+        self.assertIn("do not call the import tool", explicit_import)
+        self.assertIn("technical preview fields to the MCP tool unchanged", explicit_import)
+        self.assertIn("Keep task, note, meeting, action, lease", workflow)
+        self.assertIn("Keep internal ids, claim tokens, hashes", workflow)
+        self.assertIn("Treat `waiting_for_user` as requiring user attention", workflow)
+        self.assertIn("does not turn a `waiting_for_user` task into an approved", workflow)
+        self.assertIn("answer **No — it", workflow)
+        self.assertIn("is waiting for the user**", workflow)
+        self.assertIn("Never describe any part of a `waiting_for_user` task as currently", workflow)
+        self.assertIn("not permission to proceed", workflow)
+        self.assertIn("machine provenance/version tags", workflow)
+        self.assertIn("synthetic Memova data", workflow)
+        self.assertIn("Keep internal ids", menu)
+
+        self.assertNotIn("summarize the task ids", workflow.lower())
+        self.assertNotIn("Summarize task ids", menu)
 
 
 if __name__ == "__main__":
