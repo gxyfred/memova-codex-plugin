@@ -6,9 +6,9 @@ This plugin bundles:
 
 - the Memova OAuth MCP server at `https://api.memova.ai/mcp`,
 - the `memova-menu` skill for a lightweight `@memova` workflow menu,
-- the `memova-personal-manual` skill for bounded history analysis, deterministic Markdown/HTML
-  rendering, preview, and atomic Note upload,
-- the `memova-knowledge` skill for bounded Knowledge V5 retrieval and reviewed memory proposals,
+- the `memova-personal-manual` skill for bounded history analysis and atomic Personal Manual Note
+  publication,
+- the `memova-knowledge` skill for bounded Knowledge V5 retrieval and reviewed Knowledge Entries,
 - the `memova-workflow` skill for reviewing and running existing Codex automation tasks,
 - the `memova-vault-setup` skill for iCloud-first Memova knowledge-base setup,
 - the `memova-vault-diagnose` skill for validating and repairing a Memova V2/V3 managed root,
@@ -16,15 +16,13 @@ This plugin bundles:
   Restricted Data filtering,
 - Memova starter prompts and plugin presentation metadata.
 
-Version `1.8.0` adds the explicit Personal Manual Skill and its two-tool MCP contract while keeping
-history access bounded, foreground-only, and locally filtered to user/assistant text. The Skill
-renders matching Markdown and standalone HTML, then uploads only those two confirmed files.
-The public package under `plugins/memova/` contains no Collector runtime, Hook, or scheduler
-installer. Only the Personal Manual Skill may use Codex task tools, only for a bounded set approved
-for that foreground run, and it uploads no source history. Explicit import remains limited to text
-selected in the current request, shows exact scope/hash/count information, and removes detected
-passwords, API keys, access tokens, private keys, and similar Restricted Data before the user
-approves an MCP write. A successful selected import
+Version `1.8.0` adds the Personal Manual Skill on top of the reviewed first-class V5 Knowledge Entry
+contract from `1.7.0`. Personal Manual history access is foreground-only, bounded by one confirmed
+source scope, and locally filtered to user/assistant text. The Skill uploads only the final Markdown,
+validated public document data, and private aggregate metadata; it never uploads source history.
+The public package under `plugins/memova/` contains no Collector runtime, App Server history reader,
+Hook, or scheduler installer. Exact-task selected import remains separately previewed and approved,
+removes detected Restricted Data, and a successful selected import
 both receives a durable archive ACK and deterministically commits the exact approved text as a
 canonical Knowledge V5 Codex Session; search rollout and semantic enrichment remain separate.
 
@@ -444,14 +442,16 @@ python3 plugins/memova/skills/memova-vault-setup/scripts/diagnose_memova_vault.p
 
 ## Import Explicitly Selected Content
 
-Start with `@memova Import this selected content.` The public Plugin accepts only pasted/current
-excerpt text, an attached text resource, or an exact task/date-range export already supplied by the
-client/user. A task id or date range alone does not authorize history enumeration.
+Start with `@memova Import this selected content.` The public Plugin accepts pasted/current excerpt
+text, an attached text resource, an exact task/date-range export already supplied by the
+client/user, or one exact `codex://threads/<uuid>` URL the user explicitly asks to summarize/import.
+That URL authorizes only `codex_app__read_thread` for the named task, never task listing or
+neighboring-task access. A guessed/bare id or date range alone does not authorize history access.
 
 Before upload, the Plugin produces a bounded local preview with source label, exact byte/character
 counts, original/sanitized hashes, and Restricted Data finding counts. The user approves the exact
-sanitized bytes immediately before the MCP write. The Plugin never uses App Server, Codex internal
-JSONL/SQLite, filesystem scans, or UI scraping as a fallback.
+sanitized bytes immediately before the MCP write. The Plugin never uses task-list APIs for an exact
+URL import, Codex internal JSONL/SQLite, filesystem scans, or UI scraping as a fallback.
 
 ## What The Menu And Workflow Do
 

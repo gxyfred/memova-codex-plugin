@@ -1,7 +1,7 @@
 {
   "name": "memova",
   "version": "1.8.0",
-  "description": "Create a Personal Manual, use Knowledge V5, and run Memova workflows.",
+  "description": "Create a Personal Manual, use Knowledge V5, and manage reviewed Knowledge Entries.",
   "author": {
     "name": "Memova",
     "url": "https://memova.ai"
@@ -26,7 +26,7 @@
   "interface": {
     "displayName": "Memova",
     "shortDescription": "Create a Personal Manual and use private Memova workflows.",
-    "longDescription": "Connect Codex to Memova through OAuth MCP for explicit Personal Manual generation, bounded Knowledge V5 retrieval, reviewed memory proposals, automation workflows, and selected-content import. The Personal Manual workflow reads only a bounded task set approved by the user, locally filters it to user/assistant text, creates matching Markdown and standalone HTML, and uploads only those final files after preview confirmation. It never runs in the background.",
+    "longDescription": "Connect Codex to Memova through OAuth MCP for Personal Manual generation, bounded Knowledge V5 retrieval, reviewed first-class Knowledge Entry creation and revision, automation workflows, and selected-content import. Personal Manual generation reads only the one confirmed bounded source scope, keeps source history local, and automatically publishes the final manual as a Memova Note.",
     "developerName": "Memova",
     "category": "Productivity",
     "capabilities": [
@@ -39,8 +39,9 @@
     "termsOfServiceURL": "https://memova.ai/terms",
     "defaultPrompt": [
       "Create my Memova Personal Manual.",
-      "Open Memova menu.",
-      "Search and use my Memova Knowledge V5."
+      "Search and use my Memova Knowledge V5.",
+      "Create or update a reviewed Knowledge Entry in Memova.",
+      "Open Memova menu."
     ],
     "brandColor": "#3366FF",
     "composerIcon": "./assets/icon.svg",

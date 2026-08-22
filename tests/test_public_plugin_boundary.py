@@ -31,7 +31,7 @@ class PublicPluginBoundaryTests(unittest.TestCase):
         for option in (
             "1. Create or update my Personal Manual",
             "2. Search and use my Knowledge V5",
-            "3. Propose a Knowledge V5 update",
+            "3. Create or update a Knowledge Entry",
             "4. Import selected content",
             "5. Review my automation tasks",
             "6. Run latest note automation tasks",
@@ -65,6 +65,28 @@ class PublicPluginBoundaryTests(unittest.TestCase):
         self.assertIn("Do not call Memova MCP with raw history", manual)
         self.assertIn("upsert_personal_manual", manual)
         self.assertIn("exact two files", manual)
+
+    def test_exact_codex_task_url_is_single_task_authorization(self) -> None:
+        explicit_import = (
+            PLUGIN / "skills" / "memova-explicit-import" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("exact `codex://threads/<uuid>`", explicit_import)
+        self.assertIn("`codex_app__read_thread`", explicit_import)
+        self.assertIn("never authorizes `codex_app__list_threads`", explicit_import)
+        self.assertIn("retain only `userMessage.content` and `agentMessage.text`", explicit_import)
+
+    def test_knowledge_write_skill_uses_v5_native_reviewed_entry_tools(self) -> None:
+        knowledge = (PLUGIN / "skills" / "memova-knowledge" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        for tool in (
+            "create_knowledge_entry_proposal",
+            "get_knowledge_entry_proposal",
+            "apply_knowledge_entry_proposal",
+            "reject_knowledge_entry_proposal",
+        ):
+            self.assertIn(tool, knowledge)
+        self.assertNotIn("`propose_memory_update`", knowledge)
 
     def test_latest_note_skill_uses_the_deployed_statuses_argument(self) -> None:
         workflow = (PLUGIN / "skills" / "memova-workflow" / "SKILL.md").read_text(

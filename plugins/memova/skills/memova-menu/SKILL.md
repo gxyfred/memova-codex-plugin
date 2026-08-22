@@ -45,7 +45,7 @@ Memova
 
 1. Create or update my Personal Manual
 2. Search and use my Knowledge V5
-3. Propose a Knowledge V5 update
+3. Create or update a Knowledge Entry
 4. Import selected content
 5. Review my automation tasks
 6. Run latest note automation tasks
@@ -63,13 +63,13 @@ one of the option names, treat it as a Memova menu selection even if the new use
 repeat `@memova`.
 
 - `1` or "Personal Manual": Follow
-  `plugins/memova/skills/memova-personal-manual/SKILL.md`. History access and upload each require
-  their own adjacent explicit approval.
+  `plugins/memova/skills/memova-personal-manual/SKILL.md`. Ask once for source-scope confirmation;
+  generation, upload, and link publication then continue automatically.
 - `2`, "search", "knowledge", or "Knowledge V5": Follow the read-only workflow in
   `plugins/memova/skills/memova-knowledge/SKILL.md`.
-- `3`, "propose", or "knowledge update": Follow the proposal workflow in
+- `3`, "propose", "Knowledge Entry", or "knowledge update": Follow the proposal workflow in
   `plugins/memova/skills/memova-knowledge/SKILL.md`. Show the exact candidate and obtain adjacent
-  approval before calling `propose_memory_update`.
+  approval before calling `apply_knowledge_entry_proposal`.
 - `4`, "import", or "selected content": Follow
   `plugins/memova/skills/memova-explicit-import/SKILL.md`. The user must still approve the exact
   sanitized preview before the MCP write.
