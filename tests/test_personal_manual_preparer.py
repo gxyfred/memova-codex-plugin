@@ -19,6 +19,24 @@ PREPARER = (
     / "scripts"
     / "prepare_personal_manual.py"
 )
+WORK_ARCHETYPES = (
+    "The Refiner",
+    "The Maker",
+    "The Scout",
+    "The Pathfinder",
+    "The Builder",
+    "The Curator",
+    "The Cartographer",
+    "The Visionary",
+    "The Listener",
+    "The Improviser",
+    "The Forager",
+    "The Explorer",
+    "The Examiner",
+    "The Guide",
+    "The Gatherer",
+    "The Conductor",
+)
 DISCLAIMER = (
     "These results describe patterns visible in your available AI conversations. They may change "
     "across roles, tasks, and periods of life, and you can correct any interpretation that does "
@@ -175,12 +193,74 @@ class PersonalManualPreparerTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("unavailable ChatGPT history must have zero counts", result.stderr)
 
+    def test_preparer_accepts_the_exact_sixteen_archetype_names(self) -> None:
+        module = _load_preparer_module()
+        for archetype in WORK_ARCHETYPES:
+            self.assertEqual(module._canonical_archetype(archetype), archetype)
+            self.assertEqual(module._canonical_archetype(archetype.upper()), archetype)
+
+    def test_preparer_rejects_unknown_or_mismatched_archetypes(self) -> None:
+        module = _load_preparer_module()
+        with self.assertRaisesRegex(ValueError, "unsupported Work Archetype"):
+            module._canonical_archetype("The Placeholder")
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            manual = root / "manual.md"
+            scores = root / "scores.csv"
+            sources = root / "sources.csv"
+            manual.write_text(MANUAL, encoding="utf-8")
+            _write_csv(
+                scores,
+                ["category", "key", "value", "confidence"],
+                [
+                    ["archetype", "work_archetype", "The Guide", ""],
+                    *[["dimension", f"dimension_{index}", "50", "0.5"] for index in range(1, 5)],
+                    ["overall", "archetype_confidence", "50", ""],
+                ],
+            )
+            _write_csv(
+                sources,
+                ["source_type", "conversation_count", "turn_count", "status"],
+                [["codex", "1", "2", "available"], ["chatgpt", "0", "0", "unavailable"]],
+            )
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(PREPARER),
+                    "--manual-md",
+                    str(manual),
+                    "--scores-csv",
+                    str(scores),
+                    "--sources-csv",
+                    str(sources),
+                    "--output-dir",
+                    str(root / "output"),
+                ],
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("Work Archetype values must match", result.stderr)
+
 
 def _write_csv(path: Path, headers: list[str], rows: list[list[str]]) -> None:
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle)
         writer.writerow(headers)
         writer.writerows(rows)
+
+
+def _load_preparer_module():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("personal_manual_preparer", PREPARER)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("unable to load Personal Manual preparer")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 if __name__ == "__main__":

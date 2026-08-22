@@ -58,6 +58,10 @@ content rubric and fixed English output contract. Produce these three UTF-8 file
 2. `personal-manual-scores.csv` — local archetype, dimensions, overall confidence, and facet audit.
 3. `personal-manual-sources.csv` — local Codex/ChatGPT conversation and turn counts/status.
 
+The Markdown `Work Archetype` line and the scores CSV must use the same canonical name from the
+16-Archetype table in the generation prompt. The preparer rejects unknown names or a mismatch; do
+not repair either value by guessing a different Archetype.
+
 Do not create HTML locally. Memova's backend owns the versioned archetype catalog, assets, HTML
 template, renderer, and stable public URL.
 

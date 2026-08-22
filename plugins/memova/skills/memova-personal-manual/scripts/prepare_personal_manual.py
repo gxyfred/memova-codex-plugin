@@ -22,6 +22,24 @@ DISCLAIMER = (
     "across roles, tasks, and periods of life, and you can correct any interpretation that does "
     "not fit."
 )
+WORK_ARCHETYPES = (
+    "The Refiner",
+    "The Maker",
+    "The Scout",
+    "The Pathfinder",
+    "The Builder",
+    "The Curator",
+    "The Cartographer",
+    "The Visionary",
+    "The Listener",
+    "The Improviser",
+    "The Forager",
+    "The Explorer",
+    "The Examiner",
+    "The Guide",
+    "The Gatherer",
+    "The Conductor",
+)
 
 FIELD_MARKERS = (
     ("how_i_think", "How I think", "prose"),
@@ -72,6 +90,8 @@ def main() -> int:
     document = parse_manual(markdown)
     score_data = parse_scores(scores_path)
     source_statistics = parse_sources(sources_path)
+    if document["work_archetype"] != score_data["work_archetype"]:
+        raise ValueError("Markdown and scores CSV Work Archetype values must match")
     document["work_archetype"] = score_data["work_archetype"]
     document["dimension_scores"] = score_data["dimension_scores"]
 
@@ -182,9 +202,10 @@ def parse_scores(path: Path) -> dict[str, Any]:
         if identity in keyed:
             raise ValueError(f"duplicate score row: {identity}")
         keyed[identity] = row["value"].strip()
-    archetype = keyed.get(("archetype", "work_archetype"), "")
-    if not archetype:
+    raw_archetype = keyed.get(("archetype", "work_archetype"), "")
+    if not raw_archetype:
         raise ValueError("scores CSV is missing archetype/work_archetype")
+    archetype = _canonical_archetype(raw_archetype)
     dimensions = {
         key: _score(keyed.get(("dimension", key)), key)
         for key in ("dimension_1", "dimension_2", "dimension_3", "dimension_4")
@@ -238,7 +259,15 @@ def _extract_archetype(lines: list[str]) -> str:
             matches.append(match.group(1))
     if len(matches) != 1:
         raise ValueError("manual must contain exactly one Work Archetype line")
-    return matches[0]
+    return _canonical_archetype(matches[0])
+
+
+def _canonical_archetype(value: str) -> str:
+    normalized = value.strip().casefold()
+    for archetype in WORK_ARCHETYPES:
+        if normalized == archetype.casefold():
+            return archetype
+    raise ValueError(f"unsupported Work Archetype: {value}")
 
 
 def _heading_text(line: str) -> str:

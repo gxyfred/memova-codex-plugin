@@ -20,6 +20,8 @@ Version `1.8.0` adds the Personal Manual Skill on top of the reviewed first-clas
 contract from `1.7.0`. Personal Manual history access is foreground-only, bounded by one confirmed
 source scope, and locally filtered to user/assistant text. The Skill uploads only the final Markdown,
 validated public document data, and private aggregate metadata; it never uploads source history.
+The 1.8.0 preparer accepts exactly the 16 canonical Work Archetype names from the generation
+contract and rejects Markdown/CSV Archetype mismatches before any MCP upload.
 The public package under `plugins/memova/` contains no Collector runtime, App Server history reader,
 Hook, or scheduler installer. Exact-task selected import remains separately previewed and approved,
 removes detected Restricted Data, and a successful selected import
