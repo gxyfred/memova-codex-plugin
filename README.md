@@ -157,20 +157,21 @@ In Codex, type:
 Codex should open a short Memova menu:
 
 ```text
-1. Search and use my Knowledge V5
-2. Propose a Knowledge V5 update
-3. Import selected content
-4. Review my automation tasks
-5. Run latest note automation tasks
-6. Legacy V2/V3 vault setup or diagnosis
+1. Create or update my Personal Manual
+2. Search and use my Knowledge V5
+3. Create or update a Knowledge Entry
+4. Import selected content
+5. Review my automation tasks
+6. Run latest note automation tasks
+7. Legacy V2/V3 vault setup or diagnosis
 ```
 
 Reply with a number, or select one of the plugin starter prompts:
 
 ```text
-Open Memova menu.
+Create my Memova Personal Manual.
 Search and use my Memova Knowledge V5.
-Import selected content into Memova.
+Create or update a reviewed Knowledge Entry in Memova.
 ```
 
 You can still ask directly:
@@ -184,8 +185,17 @@ You can still ask directly:
 
 The menu is the safe default entrypoint. It does not run a write-heavy workflow just because the
 user typed bare `@memova`; it routes the user to Knowledge V5 retrieval/proposals,
-selected-content import, read-only automation task review, latest-note automation task execution,
-or explicit legacy vault tools.
+Personal Manual generation, selected-content import, read-only automation task review,
+latest-note automation task execution, or explicit legacy vault tools.
+
+## Create A Personal Manual
+
+Start with `Create my Memova Personal Manual.` The Skill asks once before reading a bounded source
+set of up to 50 accessible Codex/ChatGPT conversations, then proceeds automatically. It keeps the
+Markdown, scores CSV, and source-count CSV locally; only the validated Markdown, public document,
+four dimensions, Archetype, overall confidence, and aggregate source statistics are sent through
+MCP. Memova renders the script-free HTML and returns the stable public URL. Raw conversation text
+and facet scores are never uploaded.
 
 The menu itself does not fetch Memova data. MCP-backed selections require the Memova MCP login above.
 If Codex says setup or automation MCP tools are unavailable, check `codex mcp list`; `Not logged in`

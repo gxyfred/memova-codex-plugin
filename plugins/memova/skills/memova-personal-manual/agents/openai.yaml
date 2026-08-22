@@ -1,6 +1,6 @@
 interface:
   display_name: "Memova Personal Manual"
-  short_description: "Create and save your private Personal Manual."
+  short_description: "Create and publish your Memova Personal Manual."
   default_prompt: "Use $memova-personal-manual to generate my Personal Manual from an approved set of Codex tasks."
 
 policy:
@@ -10,6 +10,6 @@ dependencies:
   tools:
     - type: "mcp"
       value: "memova"
-      description: "Memova OAuth MCP server for Personal Manual status and atomic upload."
+      description: "Memova OAuth MCP server for atomic Personal Manual Note publication."
       transport: "streamable_http"
       url: "https://api.memova.ai/mcp"

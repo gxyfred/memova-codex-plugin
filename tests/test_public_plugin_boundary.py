@@ -61,10 +61,13 @@ class PublicPluginBoundaryTests(unittest.TestCase):
         manual = (
             PLUGIN / "skills" / "memova-personal-manual" / "SKILL.md"
         ).read_text(encoding="utf-8")
-        self.assertIn("Retain only `userMessage.content` and `agentMessage.text`", manual)
-        self.assertIn("Do not call Memova MCP with raw history", manual)
+        self.assertIn("`userMessage.content`", manual)
+        self.assertIn("`agentMessage.text`", manual)
+        self.assertIn("Never send history or per-conversation records to Memova MCP", manual)
         self.assertIn("upsert_personal_manual", manual)
-        self.assertIn("exact two files", manual)
+        self.assertIn("Produce these three UTF-8 files", manual)
+        self.assertIn("Do not create HTML locally", manual)
+        self.assertIn("workflow's only confirmation", manual)
 
     def test_exact_codex_task_url_is_single_task_authorization(self) -> None:
         explicit_import = (

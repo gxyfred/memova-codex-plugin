@@ -40,8 +40,7 @@
     "defaultPrompt": [
       "Create my Memova Personal Manual.",
       "Search and use my Memova Knowledge V5.",
-      "Create or update a reviewed Knowledge Entry in Memova.",
-      "Open Memova menu."
+      "Create or update a reviewed Knowledge Entry in Memova."
     ],
     "brandColor": "#3366FF",
     "composerIcon": "./assets/icon.svg",
