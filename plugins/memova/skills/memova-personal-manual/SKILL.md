@@ -83,10 +83,10 @@ python3 scripts/prepare_personal_manual.py \
 ```
 
 Omit `--expected-note-version-id` when status reports no existing Manual. The preparer parses the
-fixed headings deterministically, discards facet rows from the upload, validates truthful source
-counts, and creates `personal-manual-upload.json`. If it fails because the generated format is
-invalid, repair the format once without changing supported meaning, then rerun it. If validation
-still fails, stop without uploading.
+fixed headings and both five-keyword rows deterministically, discards facet rows from the upload,
+validates truthful source counts, and creates `personal-manual-upload.json`. If it fails because the
+generated format is invalid, repair the format once without changing supported meaning, then rerun
+it. If validation still fails, stop without uploading.
 
 ## Upload and finish automatically
 

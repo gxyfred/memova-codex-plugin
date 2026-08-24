@@ -146,6 +146,14 @@ class PersonalManualPreparerTests(unittest.TestCase):
                 payload["document"]["manual"]["people_that_help_me_thrive"],
                 "People who challenge assumptions constructively.",
             )
+            self.assertEqual(
+                payload["document"]["manual"]["people_keywords"],
+                ["Grounded", "Candid", "Perceptive", "Dependable", "Independent"],
+            )
+            self.assertEqual(
+                payload["document"]["manual"]["environment_keywords"],
+                ["Autonomy", "Continuity", "Rigor", "Humanity", "Momentum"],
+            )
             self.assertNotIn("Gregariousness", json.dumps(payload))
             self.assertNotIn("html_content", payload)
             self.assertNotIn("upload_confirmed", payload)
@@ -198,6 +206,24 @@ class PersonalManualPreparerTests(unittest.TestCase):
         for archetype in WORK_ARCHETYPES:
             self.assertEqual(module._canonical_archetype(archetype), archetype)
             self.assertEqual(module._canonical_archetype(archetype.upper()), archetype)
+
+    def test_preparer_requires_five_distinct_single_word_keywords(self) -> None:
+        module = _load_preparer_module()
+        with self.assertRaisesRegex(ValueError, "exactly five keywords"):
+            module._parse_keyword_prose(
+                ["Calm, Candid, Steady, Curious", "Supporting prose."],
+                "People that help me thrive",
+            )
+        with self.assertRaisesRegex(ValueError, "single English words"):
+            module._parse_keyword_prose(
+                ["Calm, Open minded, Steady, Curious, Direct", "Supporting prose."],
+                "People that help me thrive",
+            )
+        with self.assertRaisesRegex(ValueError, "must be distinct"):
+            module._parse_keyword_prose(
+                ["Calm, Candid, calm, Curious, Direct", "Supporting prose."],
+                "People that help me thrive",
+            )
 
     def test_preparer_rejects_unknown_or_mismatched_archetypes(self) -> None:
         module = _load_preparer_module()

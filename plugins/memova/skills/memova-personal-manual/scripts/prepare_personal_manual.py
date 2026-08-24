@@ -61,6 +61,10 @@ FIELD_MARKERS = (
     ("person_i_am_trying_to_become", "The person I am trying to become", "prose"),
     ("advice_from_memova", "Advice from Memova", "list"),
 )
+KEYWORD_OUTPUT_FIELDS = {
+    "people_that_help_me_thrive": "people_keywords",
+    "environments_that_help_me_thrive": "environment_keywords",
+}
 SECTION_HEADINGS = {
     "1. how i operate",
     "2. what moves and grounds me",
@@ -181,7 +185,8 @@ def parse_manual(markdown: str) -> dict[str, Any]:
         if kind == "list":
             value: Any = _parse_list(content_lines, marker)
         elif kind == "keyword_prose":
-            value = _parse_keyword_prose(content_lines, marker)
+            keywords, value = _parse_keyword_prose(content_lines, marker)
+            manual[KEYWORD_OUTPUT_FIELDS[key]] = keywords
         else:
             value = _parse_prose(content_lines, marker)
         manual[key] = value
@@ -295,16 +300,23 @@ def _parse_prose(lines: list[str], marker: str) -> str:
     return value
 
 
-def _parse_keyword_prose(lines: list[str], marker: str) -> str:
+def _parse_keyword_prose(lines: list[str], marker: str) -> tuple[list[str], str]:
     values = [line.strip() for line in lines if line.strip()]
-    if values and _looks_like_keywords(values[0]):
-        values = values[1:]
-    return _parse_prose(values, marker)
+    if not values:
+        raise ValueError(f"{marker} must contain a keyword line and prose")
+    keywords = _parse_keywords(values[0], marker)
+    return keywords, _parse_prose(values[1:], marker)
 
 
-def _looks_like_keywords(value: str) -> bool:
+def _parse_keywords(value: str, marker: str) -> list[str]:
     parts = [item.strip() for item in re.split(r"[,·]", value) if item.strip()]
-    return 2 <= len(parts) <= 5 and all(len(item.split()) <= 3 for item in parts)
+    if len(parts) != 5:
+        raise ValueError(f"{marker} must contain exactly five keywords")
+    if not all(re.fullmatch(r"[A-Za-z]+(?:[-'][A-Za-z]+)*", item) for item in parts):
+        raise ValueError(f"{marker} keywords must be single English words")
+    if len({item.casefold() for item in parts}) != 5:
+        raise ValueError(f"{marker} keywords must be distinct")
+    return parts
 
 
 def _parse_list(lines: list[str], marker: str) -> list[str]:

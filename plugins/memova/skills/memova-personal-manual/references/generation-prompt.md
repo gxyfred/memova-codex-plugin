@@ -131,9 +131,10 @@ psychological or corporate jargon.
 ## `personal-manual.md` contract
 
 Write exactly these headings in this order. Do not add headings. Keep `Work Archetype:` on one
-line. For list sections, use Markdown `- ` bullets. The two keyword lines under People and
-Environments may contain up to five comma-separated keywords; they remain content-audit text and
-the backend currently uses its archetype catalog for displayed keywords.
+line. For list sections, use Markdown `- ` bullets. Under both People and Environments, generate
+exactly five distinct, concise, single-word English keywords on one comma-separated line. These
+keywords describe this user and are dynamic Manual content; do not derive them from the Work
+Archetype or reuse an Archetype-level keyword set.
 
 ```text
 Work Archetype: [The Conductor/The Gatherer/...]
@@ -155,10 +156,10 @@ How I communicate
 How to work with me
 - [Up to three observable recommendations covering decisions, feedback, disagreement, autonomy, and follow-through.]
 People that help me thrive
-[Up to five comma-separated keywords]
+[Exactly five distinct, concise, single-word English keywords, comma-separated]
 [35–45 word explanation of complementary interpersonal qualities.]
 Environments that help me thrive
-[Up to five comma-separated keywords]
+[Exactly five distinct, concise, single-word English keywords, comma-separated]
 [40–50 word explanation of conditions for engagement, development, and sustainable progress.]
 4. What Makes Me Distinctive
 My strengths
