@@ -19,6 +19,15 @@ PREPARER = (
     / "scripts"
     / "prepare_personal_manual.py"
 )
+GENERATION_PROMPT = (
+    ROOT
+    / "plugins"
+    / "memova"
+    / "skills"
+    / "memova-personal-manual"
+    / "references"
+    / "generation-prompt.md"
+)
 WORK_ARCHETYPES = (
     "The Refiner",
     "The Maker",
@@ -85,6 +94,16 @@ Advice from Memova
 
 
 class PersonalManualPreparerTests(unittest.TestCase):
+    def test_generation_prompt_applies_fixed_offset_after_sparse_evidence_shrink(self) -> None:
+        prompt = GENERATION_PROMPT.read_text(encoding="utf-8")
+
+        shrink = prompt.index("produce `shrunk_score`")
+        offset = prompt.index("score = max(0, min(100, shrunk_score - 15))")
+        rounding = prompt.index("Round to the nearest whole number")
+
+        self.assertLess(shrink, offset)
+        self.assertLess(offset, rounding)
+
     def test_preparer_emits_markdown_local_csvs_and_minimal_upload_json(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

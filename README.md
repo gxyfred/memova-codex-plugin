@@ -16,7 +16,9 @@ This plugin bundles:
   Restricted Data filtering,
 - Memova starter prompts and plugin presentation metadata.
 
-Version `1.8.0` adds the Personal Manual Skill on top of the reviewed first-class V5 Knowledge Entry
+Version `1.8.1` calibrates every final Personal Manual dimension score with a bounded `-15` offset
+after sparse-evidence shrink, while preserving the 0–100 score contract. Version `1.8.0` added the
+Personal Manual Skill on top of the reviewed first-class V5 Knowledge Entry
 contract from `1.7.0`. Personal Manual history access is foreground-only, bounded by one confirmed
 source scope, and locally filtered to user/assistant text. The Skill uploads only the final Markdown,
 validated public document data, and private aggregate metadata; it never uploads source history.
@@ -30,7 +32,7 @@ canonical Knowledge V5 Codex Session; search rollout and semantic enrichment rem
 
 Independent complete-history collection is maintained separately under top-level `collector/`; it
 is not part of the marketplace plugin path, public Plugin menu, starter prompts, or installation.
-Collector remains independently versioned at `1.6.0` because this `1.8.0` public Plugin/MCP release
+Collector remains independently versioned at `1.6.0` because this `1.8.1` public Plugin/MCP release
 does not change Collector code, consent, transport, or installer bytes.
 
 ## Should This Repo Be Public?

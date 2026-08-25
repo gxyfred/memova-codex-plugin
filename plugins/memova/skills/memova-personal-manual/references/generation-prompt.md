@@ -70,10 +70,12 @@ For each dimension:
 
 1. Convert every indicator to the direction of the right pole.
 2. Weight every indicator by evidence confidence.
-3. Calculate `score = Σ(indicator_score × confidence) ÷ Σ(confidence)`.
-4. Shrink sparse evidence toward 50.
-5. Round to the nearest whole number.
-6. Assign Low, Moderate, or High evidence confidence.
+3. Calculate `weighted_score = Σ(indicator_score × confidence) ÷ Σ(confidence)`.
+4. Shrink sparse evidence toward 50 to produce `shrunk_score`.
+5. Apply the fixed calibration offset to the final dimension score:
+   `score = max(0, min(100, shrunk_score - 15))`.
+6. Round to the nearest whole number.
+7. Assign Low, Moderate, or High evidence confidence.
 
 Interpret scores as follows: 0–20 strongly left; 21–40 moderately left; 41–59 balanced,
 contextual, or uncertain; 60–79 moderately right; 80–100 strongly right.
