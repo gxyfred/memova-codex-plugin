@@ -6,6 +6,8 @@ This plugin bundles:
 
 - the Memova OAuth MCP server at `https://api.memova.ai/mcp`,
 - the `memova-menu` skill for a lightweight `@memova` workflow menu,
+- the `memova-personal-manual` skill for bounded history analysis and atomic Personal Manual Note
+  publication,
 - the `memova-knowledge` skill for bounded Knowledge V5 retrieval and reviewed Knowledge Entries,
 - the `memova-workflow` skill for reviewing and running existing Codex automation tasks,
 - the `memova-vault-setup` skill for iCloud-first Memova knowledge-base setup,
@@ -14,20 +16,21 @@ This plugin bundles:
   Restricted Data filtering,
 - Memova starter prompts and plugin presentation metadata.
 
-Version `1.7.0` adds reviewed first-class V5 Knowledge Entry writes and exact user-supplied Codex
-task URL imports while keeping history access bounded, foreground-only, and locally filtered to
-user/assistant text. The public package under `plugins/memova/` contains no Collector runtime, App
-Server history reader, Hook, or scheduler installer. Explicit import may read one exact
-user-supplied task URL but never list tasks; it discards non-message data before preview, shows the
-exact sanitized text and a human-readable scope while keeping machine hashes/counts private, and
-removes detected passwords, API keys, access tokens, private keys, and similar Restricted Data
-before the user approves an MCP write. A successful selected import
+Version `1.8.0` adds the Personal Manual Skill on top of the reviewed first-class V5 Knowledge Entry
+contract from `1.7.0`. Personal Manual history access is foreground-only, bounded by one confirmed
+source scope, and locally filtered to user/assistant text. The Skill uploads only the final Markdown,
+validated public document data, and private aggregate metadata; it never uploads source history.
+The 1.8.0 preparer accepts exactly the 16 canonical Work Archetype names from the generation
+contract and rejects Markdown/CSV Archetype mismatches before any MCP upload.
+The public package under `plugins/memova/` contains no Collector runtime, App Server history reader,
+Hook, or scheduler installer. Exact-task selected import remains separately previewed and approved,
+removes detected Restricted Data, and a successful selected import
 both receives a durable archive ACK and deterministically commits the exact approved text as a
 canonical Knowledge V5 Codex Session; search rollout and semantic enrichment remain separate.
 
 Independent complete-history collection is maintained separately under top-level `collector/`; it
 is not part of the marketplace plugin path, public Plugin menu, starter prompts, or installation.
-Collector remains independently versioned at `1.6.0` because this `1.7.0` public Plugin/MCP release
+Collector remains independently versioned at `1.6.0` because this `1.8.0` public Plugin/MCP release
 does not change Collector code, consent, transport, or installer bytes.
 
 ## Should This Repo Be Public?
@@ -108,7 +111,7 @@ Codex can expose its tools. The plugin normally starts this login automatically 
 setup or automation workflow needs Memova MCP and the local server is `Not logged in`. It runs:
 
 ```bash
-codex mcp login memova --scopes notes.read,automation.read,automation.write,knowledge.read,knowledge.write
+codex mcp login memova --scopes notes.read,personal_manual.write,automation.read,automation.write,knowledge.read,knowledge.write
 ```
 
 and attempts to open one browser authorization URL. The user still approves Memova OAuth in the
@@ -132,7 +135,7 @@ If the helper cannot start `codex` because of WindowsApps or sandbox permissions
 login command directly in Windows Terminal or PowerShell:
 
 ```powershell
-codex mcp login memova --scopes notes.read,automation.read,automation.write,knowledge.read,knowledge.write
+codex mcp login memova --scopes notes.read,personal_manual.write,automation.read,automation.write,knowledge.read,knowledge.write
 ```
 
 You can verify the state with:
@@ -156,20 +159,21 @@ In Codex, type:
 Codex should open a short Memova menu:
 
 ```text
-1. Search and use my Knowledge V5
-2. Propose a Knowledge V5 update
-3. Import selected content
-4. Review my automation tasks
-5. Run latest note automation tasks
-6. Legacy V2/V3 vault setup or diagnosis
+1. Create or update my Personal Manual
+2. Search and use my Knowledge V5
+3. Create or update a Knowledge Entry
+4. Import selected content
+5. Review my automation tasks
+6. Run latest note automation tasks
+7. Legacy V2/V3 vault setup or diagnosis
 ```
 
 Reply with a number, or select one of the plugin starter prompts:
 
 ```text
-Open Memova menu.
+Create my Memova Personal Manual.
 Search and use my Memova Knowledge V5.
-Import selected content into Memova.
+Create or update a reviewed Knowledge Entry in Memova.
 ```
 
 You can still ask directly:
@@ -183,8 +187,17 @@ You can still ask directly:
 
 The menu is the safe default entrypoint. It does not run a write-heavy workflow just because the
 user typed bare `@memova`; it routes the user to Knowledge V5 retrieval/proposals,
-selected-content import, read-only automation task review, latest-note automation task execution,
-or explicit legacy vault tools.
+Personal Manual generation, selected-content import, read-only automation task review,
+latest-note automation task execution, or explicit legacy vault tools.
+
+## Create A Personal Manual
+
+Start with `Create my Memova Personal Manual.` The Skill asks once before reading a bounded source
+set of up to 50 accessible Codex/ChatGPT conversations, then proceeds automatically. It keeps the
+Markdown, scores CSV, and source-count CSV locally; only the validated Markdown, public document,
+four dimensions, Archetype, overall confidence, and aggregate source statistics are sent through
+MCP. Memova renders the script-free HTML and returns the stable public URL. Raw conversation text
+and facet scores are never uploaded.
 
 The menu itself does not fetch Memova data. MCP-backed selections require the Memova MCP login above.
 If Codex says setup or automation MCP tools are unavailable, check `codex mcp list`; `Not logged in`
@@ -457,8 +470,8 @@ URL import, Codex internal JSONL/SQLite, filesystem scans, or UI scraping as a f
 When triggered, the bundled `memova-menu` skill tells Codex to:
 
 1. Run the low-frequency plugin version check.
-2. Show a numbered menu for selected-content import, automation task review, latest-note automation
-   task execution, and explicit legacy vault compatibility.
+2. Show a numbered menu for Personal Manual generation, selected-content import, automation task
+   review, latest-note automation task execution, and explicit legacy vault compatibility.
 3. Run the one-time knowledge-base setup reminder only after a legacy vault option is selected.
 4. Treat a simple numeric reply like `1` or `2` as the selected Memova action in the current
    thread.
@@ -524,7 +537,7 @@ If Memova tools are unavailable:
   Memova account as the iOS app setup.
 - If automatic browser opening fails, copy the printed `authorization_url` into a browser. If the
   helper cannot execute `codex` because of WindowsApps or sandbox permissions, run
-`codex mcp login memova --scopes notes.read,automation.read,automation.write,knowledge.read,knowledge.write`
+`codex mcp login memova --scopes notes.read,personal_manual.write,automation.read,automation.write,knowledge.read,knowledge.write`
   directly in Windows Terminal or PowerShell, then restart Codex or start a new thread.
 - If setup packages exist in the app but Codex sees none, the most likely cause is that Codex OAuth
   is connected to a different Memova account than the iOS app.
@@ -546,8 +559,8 @@ python3 -m json.tool plugins/memova/.mcp.json >/dev/null
 Validate skill metadata and helper scripts:
 
 ```bash
-ruby -e 'require "yaml"; YAML.load_file("plugins/memova/skills/memova-menu/agents/openai.yaml"); YAML.load_file("plugins/memova/skills/memova-workflow/agents/openai.yaml"); YAML.load_file("plugins/memova/skills/memova-vault-setup/agents/openai.yaml"); YAML.load_file("plugins/memova/skills/memova-vault-diagnose/agents/openai.yaml"); puts "yaml ok"'
-python3 -m py_compile plugins/memova/scripts/*.py plugins/memova/skills/memova-vault-setup/scripts/*.py
+ruby -e 'require "yaml"; YAML.load_file("plugins/memova/skills/memova-menu/agents/openai.yaml"); YAML.load_file("plugins/memova/skills/memova-personal-manual/agents/openai.yaml"); YAML.load_file("plugins/memova/skills/memova-workflow/agents/openai.yaml"); YAML.load_file("plugins/memova/skills/memova-vault-setup/agents/openai.yaml"); YAML.load_file("plugins/memova/skills/memova-vault-diagnose/agents/openai.yaml"); puts "yaml ok"'
+python3 -m py_compile plugins/memova/scripts/*.py plugins/memova/skills/memova-personal-manual/scripts/*.py plugins/memova/skills/memova-vault-setup/scripts/*.py
 python3 plugins/memova/skills/memova-vault-setup/scripts/create_memova_vault.py discover
 python3 plugins/memova/skills/memova-vault-setup/scripts/setup_fixture_harness.py --json
 python3 plugins/memova/scripts/ensure_mcp_login.py --check-only

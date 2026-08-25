@@ -18,6 +18,7 @@ class PublicPluginBoundaryTests(unittest.TestCase):
             skill_names,
             {
                 "memova-menu",
+                "memova-personal-manual",
                 "memova-knowledge",
                 "memova-explicit-import",
                 "memova-workflow",
@@ -28,12 +29,13 @@ class PublicPluginBoundaryTests(unittest.TestCase):
 
         menu = (PLUGIN / "skills" / "memova-menu" / "SKILL.md").read_text(encoding="utf-8")
         for option in (
-            "1. Search and use my Knowledge V5",
-            "2. Create or update a Knowledge Entry",
-            "3. Import selected content",
-            "4. Review my automation tasks",
-            "5. Run latest note automation tasks",
-            "6. Legacy V2/V3 vault setup or diagnosis",
+            "1. Create or update my Personal Manual",
+            "2. Search and use my Knowledge V5",
+            "3. Create or update a Knowledge Entry",
+            "4. Import selected content",
+            "5. Review my automation tasks",
+            "6. Run latest note automation tasks",
+            "7. Legacy V2/V3 vault setup or diagnosis",
         ):
             self.assertIn(option, menu)
 
@@ -45,7 +47,7 @@ class PublicPluginBoundaryTests(unittest.TestCase):
             (PLUGIN / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
         )
         self.assertNotIn("hooks", manifest)
-        self.assertEqual(manifest["version"], "1.7.0")
+        self.assertEqual(manifest["version"], "1.8.0")
 
     def test_public_mcp_login_cannot_request_collector_pairing_scope(self) -> None:
         helper = (PLUGIN / "scripts" / "ensure_mcp_login.py").read_text(encoding="utf-8")
@@ -53,6 +55,19 @@ class PublicPluginBoundaryTests(unittest.TestCase):
         self.assertNotIn("include-conversation-connect", helper)
         self.assertNotIn('"actions.read"', helper)
         self.assertNotIn('"actions.write"', helper)
+        self.assertIn('"personal_manual.write"', helper)
+
+    def test_personal_manual_skill_keeps_raw_history_out_of_mcp(self) -> None:
+        manual = (
+            PLUGIN / "skills" / "memova-personal-manual" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("`userMessage.content`", manual)
+        self.assertIn("`agentMessage.text`", manual)
+        self.assertIn("Never send history or per-conversation records to Memova MCP", manual)
+        self.assertIn("upsert_personal_manual", manual)
+        self.assertIn("Produce these three UTF-8 files", manual)
+        self.assertIn("Do not create HTML locally", manual)
+        self.assertIn("workflow's only confirmation", manual)
 
     def test_exact_codex_task_url_is_single_task_authorization(self) -> None:
         explicit_import = (
@@ -113,7 +128,7 @@ class PublicPluginBoundaryTests(unittest.TestCase):
 
         prompts = manifest["interface"]["defaultPrompt"]
         self.assertLessEqual(len(prompts), 3)
-        self.assertIn("Import selected content into Memova.", prompts)
+        self.assertIn("Create my Memova Personal Manual.", prompts)
 
     def test_user_facing_skills_hide_internal_audit_fields_by_default(self) -> None:
         explicit_import = (

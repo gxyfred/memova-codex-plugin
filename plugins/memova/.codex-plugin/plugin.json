@@ -1,7 +1,7 @@
 {
   "name": "memova",
-  "version": "1.7.0",
-  "description": "Use Knowledge V5, run Memova workflows, and import selected content.",
+  "version": "1.8.0",
+  "description": "Create a Personal Manual, use Knowledge V5, and manage reviewed Knowledge Entries.",
   "author": {
     "name": "Memova",
     "url": "https://memova.ai"
@@ -18,14 +18,15 @@
     "llm-wiki",
     "productivity",
     "selected-import",
+    "personal-manual",
     "privacy"
   ],
   "skills": "./skills/",
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Memova",
-    "shortDescription": "Create reviewed Knowledge Entries and use Memova workflows.",
-    "longDescription": "Connect Codex to Memova through OAuth MCP for bounded Knowledge V5 retrieval, reviewed first-class Knowledge Entry creation and revision, automation workflows, and selected-content import. An exact user-supplied Codex task URL authorizes reading only that task; the workflow locally filters it to user/assistant text and never lists tasks or runs in the background.",
+    "shortDescription": "Create a Personal Manual and use private Memova workflows.",
+    "longDescription": "Connect Codex to Memova through OAuth MCP for Personal Manual generation, bounded Knowledge V5 retrieval, reviewed first-class Knowledge Entry creation and revision, automation workflows, and selected-content import. Personal Manual generation reads only the one confirmed bounded source scope, keeps source history local, and automatically publishes the final manual as a Memova Note.",
     "developerName": "Memova",
     "category": "Productivity",
     "capabilities": [
@@ -37,9 +38,9 @@
     "privacyPolicyURL": "https://memova.ai/privacy",
     "termsOfServiceURL": "https://memova.ai/terms",
     "defaultPrompt": [
+      "Create my Memova Personal Manual.",
       "Search and use my Memova Knowledge V5.",
-      "Create or update a reviewed Knowledge Entry in Memova.",
-      "Import selected content into Memova."
+      "Create or update a reviewed Knowledge Entry in Memova."
     ],
     "brandColor": "#3366FF",
     "composerIcon": "./assets/icon.svg",
