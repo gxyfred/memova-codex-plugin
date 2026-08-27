@@ -1,7 +1,7 @@
 interface:
   display_name: "Memova Personal Manual"
   short_description: "Create and publish your Memova Personal Manual."
-  default_prompt: "Use $memova-personal-manual to generate my Personal Manual from an approved set of Codex tasks."
+  default_prompt: "Use $memova-personal-manual."
 
 policy:
   allow_implicit_invocation: true

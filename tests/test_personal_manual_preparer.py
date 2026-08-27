@@ -101,7 +101,7 @@ class PersonalManualPreparerTests(unittest.TestCase):
         history = skill.index("## Read the bounded history locally")
 
         self.assertLess(contract, history)
-        self.assertIn("contract_version=personal_manual_generation_v1", skill)
+        self.assertIn("contract_version=personal_manual_generation_v2", skill)
         self.assertIn("do not fall back to a local copy", " ".join(skill.split()))
         self.assertTrue(LOCAL_ARTIFACTS.exists())
         self.assertFalse((LOCAL_ARTIFACTS.parent / "generation-prompt.md").exists())
@@ -150,7 +150,7 @@ class PersonalManualPreparerTests(unittest.TestCase):
                 stderr=subprocess.PIPE,
                 check=True,
             )
-            metadata = json.loads(result.stdout)
+            self.assertEqual(result.stdout, "")
             self.assertEqual(
                 {path.name for path in output.iterdir()},
                 {
@@ -175,15 +175,18 @@ class PersonalManualPreparerTests(unittest.TestCase):
                 payload["document"]["manual"]["environment_keywords"],
                 ["Autonomy", "Continuity", "Rigor", "Humanity", "Momentum"],
             )
-            self.assertNotIn("Gregariousness", json.dumps(payload))
+            audit = payload["private_metadata"]["personal_manual_audit"]
+            self.assertEqual(audit["format_version"], "personal_manual_audit_csv_v1")
+            self.assertIn("facet,Gregariousness,61,0.6", audit["scores_csv"])
+            self.assertEqual(audit["scores_csv"], _read_raw(scores))
+            self.assertEqual(audit["sources_csv"], _read_raw(sources))
             self.assertNotIn("html_content", payload)
             self.assertNotIn("upload_confirmed", payload)
             self.assertEqual(
                 payload["private_metadata"]["generation_contract_version"],
-                "personal_manual_generation_v1",
+                "personal_manual_generation_v2",
             )
             self.assertEqual(payload["private_metadata"]["source_statistics"]["chatgpt_status"], "unavailable")
-            self.assertEqual(Path(metadata["upload_json_path"]), (output / "personal-manual-upload.json").resolve())
 
     def test_preparer_rejects_false_unavailable_chatgpt_counts(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -199,6 +202,7 @@ class PersonalManualPreparerTests(unittest.TestCase):
                     ["archetype", "work_archetype", "The Conductor", ""],
                     *[["dimension", f"dimension_{index}", "50", "0.5"] for index in range(1, 5)],
                     ["overall", "archetype_confidence", "50", ""],
+                    ["facet", "Ideas", "50", "0.5"],
                 ],
             )
             _write_csv(
@@ -268,6 +272,7 @@ class PersonalManualPreparerTests(unittest.TestCase):
                     ["archetype", "work_archetype", "The Guide", ""],
                     *[["dimension", f"dimension_{index}", "50", "0.5"] for index in range(1, 5)],
                     ["overall", "archetype_confidence", "50", ""],
+                    ["facet", "Ideas", "50", "0.5"],
                 ],
             )
             _write_csv(
@@ -301,6 +306,11 @@ def _write_csv(path: Path, headers: list[str], rows: list[list[str]]) -> None:
         writer = csv.writer(handle)
         writer.writerow(headers)
         writer.writerows(rows)
+
+
+def _read_raw(path: Path) -> str:
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        return handle.read()
 
 
 def _load_preparer_module():

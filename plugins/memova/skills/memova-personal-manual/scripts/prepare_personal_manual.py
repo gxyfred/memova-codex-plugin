@@ -5,6 +5,7 @@ import argparse
 import csv
 import hashlib
 import json
+import math
 import re
 import shutil
 import uuid
@@ -12,12 +13,15 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = "personal_manual_v1"
-GENERATION_CONTRACT_VERSION = "personal_manual_generation_v1"
+GENERATION_CONTRACT_VERSION = "personal_manual_generation_v2"
+AUDIT_FORMAT_VERSION = "personal_manual_audit_csv_v1"
 MARKDOWN_NAME = "personal-manual.md"
 SCORES_NAME = "personal-manual-scores.csv"
 SOURCES_NAME = "personal-manual-sources.csv"
 UPLOAD_NAME = "personal-manual-upload.json"
 MAX_MARKDOWN_BYTES = 300_000
+MAX_SCORES_CSV_BYTES = 64 * 1024
+MAX_SOURCES_CSV_BYTES = 16 * 1024
 DISCLAIMER = (
     "These results describe patterns visible in your available AI conversations. They may change "
     "across roles, tasks, and periods of life, and you can correct any interpretation that does "
@@ -40,6 +44,27 @@ WORK_ARCHETYPES = (
     "The Guide",
     "The Gatherer",
     "The Conductor",
+)
+AUDIT_FACET_NAMES = frozenset(
+    {
+        "aesthetics",
+        "adventurousness",
+        "ambiguity acceptance",
+        "assertiveness",
+        "breadth",
+        "deliberation",
+        "divergent exploration",
+        "excitement-seeking",
+        "feelings",
+        "friendliness",
+        "gregariousness",
+        "ideas",
+        "imagination",
+        "modesty",
+        "order",
+        "positive emotionality",
+        "self-discipline",
+    }
 )
 
 FIELD_MARKERS = (
@@ -90,6 +115,12 @@ def main() -> int:
     scores_path = Path(args.scores_csv).expanduser().resolve()
     sources_path = Path(args.sources_csv).expanduser().resolve()
     markdown = manual_path.read_text(encoding="utf-8")
+    scores_csv = _read_utf8_verbatim(
+        scores_path, maximum=MAX_SCORES_CSV_BYTES
+    )
+    sources_csv = _read_utf8_verbatim(
+        sources_path, maximum=MAX_SOURCES_CSV_BYTES
+    )
     if len(markdown.encode("utf-8")) > MAX_MARKDOWN_BYTES:
         raise ValueError(f"manual Markdown exceeds {MAX_MARKDOWN_BYTES} UTF-8 bytes")
     document = parse_manual(markdown)
@@ -112,6 +143,11 @@ def main() -> int:
             "archetype_confidence": score_data["archetype_confidence"],
             "generation_contract_version": GENERATION_CONTRACT_VERSION,
             "source_statistics": source_statistics,
+            "personal_manual_audit": {
+                "format_version": AUDIT_FORMAT_VERSION,
+                "scores_csv": scores_csv,
+                "sources_csv": sources_csv,
+            },
         },
     }
     canonical = json.dumps(stable, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
@@ -147,20 +183,6 @@ def main() -> int:
             path.chmod(0o600)
         except OSError:
             pass
-    print(
-        json.dumps(
-            {
-                "markdown_path": str(markdown_output),
-                "scores_csv_path": str(scores_output),
-                "sources_csv_path": str(sources_output),
-                "upload_json_path": str(upload_output),
-                "work_archetype": score_data["work_archetype"],
-                "source_statistics": source_statistics,
-            },
-            ensure_ascii=False,
-            sort_keys=True,
-        )
-    )
     return 0
 
 
@@ -202,13 +224,37 @@ def parse_manual(markdown: str) -> dict[str, Any]:
 
 
 def parse_scores(path: Path) -> dict[str, Any]:
-    rows = _csv_rows(path, {"category", "key", "value", "confidence"})
+    rows = _csv_rows(path, ("category", "key", "value", "confidence"))
+    if not 7 <= len(rows) <= 24:
+        raise ValueError("scores CSV must contain between 7 and 24 rows")
     keyed: dict[tuple[str, str], str] = {}
+    facet_count = 0
     for row in rows:
         identity = (row["category"].strip().casefold(), row["key"].strip())
         if identity in keyed:
             raise ValueError(f"duplicate score row: {identity}")
         keyed[identity] = row["value"].strip()
+        category, key = identity
+        if category == "facet":
+            if key.casefold() not in AUDIT_FACET_NAMES:
+                raise ValueError(f"unsupported facet: {key}")
+            _score(row["value"].strip(), key)
+            _confidence(row["confidence"], f"{key} confidence")
+            facet_count += 1
+        elif category == "dimension" and key in {
+            "dimension_1", "dimension_2", "dimension_3", "dimension_4"
+        }:
+            _confidence(row["confidence"], f"{key} confidence")
+        elif identity in {
+            ("archetype", "work_archetype"),
+            ("overall", "archetype_confidence"),
+        }:
+            if row["confidence"].strip():
+                raise ValueError(f"{key} confidence column must be empty")
+        else:
+            raise ValueError(f"unsupported score row: {identity}")
+    if facet_count == 0:
+        raise ValueError("scores CSV must contain at least one supported facet row")
     raw_archetype = keyed.get(("archetype", "work_archetype"), "")
     if not raw_archetype:
         raise ValueError("scores CSV is missing archetype/work_archetype")
@@ -228,7 +274,7 @@ def parse_scores(path: Path) -> dict[str, Any]:
 
 
 def parse_sources(path: Path) -> dict[str, Any]:
-    rows = _csv_rows(path, {"source_type", "conversation_count", "turn_count", "status"})
+    rows = _csv_rows(path, ("source_type", "conversation_count", "turn_count", "status"))
     by_source = {row["source_type"].strip().casefold(): row for row in rows}
     if set(by_source) != {"codex", "chatgpt"}:
         raise ValueError("sources CSV must contain exactly one codex and one chatgpt row")
@@ -336,13 +382,15 @@ def _parse_list(lines: list[str], marker: str) -> list[str]:
     return values
 
 
-def _csv_rows(path: Path, fields: set[str]) -> list[dict[str, str]]:
-    with path.open("r", encoding="utf-8-sig", newline="") as handle:
-        reader = csv.DictReader(handle)
-        if set(reader.fieldnames or ()) != fields:
-            raise ValueError(f"{path.name} columns must be {sorted(fields)}")
+def _csv_rows(path: Path, fields: tuple[str, ...]) -> list[dict[str, str]]:
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle, strict=True)
+        if tuple(reader.fieldnames or ()) != fields:
+            raise ValueError(f"{path.name} columns must be {list(fields)}")
         rows = list(reader)
-    if not rows:
+    if not rows or any(
+        None in row or any(item is None for item in row.values()) for row in rows
+    ):
         raise ValueError(f"{path.name} must contain data rows")
     return rows
 
@@ -365,9 +413,29 @@ def _count(value: str, field: str, *, maximum: int) -> int:
     return count
 
 
+def _confidence(value: str, field: str) -> float:
+    try:
+        confidence = float(value.strip())
+    except ValueError as exc:
+        raise ValueError(f"{field} must be numeric") from exc
+    if not math.isfinite(confidence) or not 0 <= confidence <= 1:
+        raise ValueError(f"{field} must be between 0 and 1")
+    return confidence
+
+
 def _copy_if_different(source: Path, target: Path) -> None:
     if source != target:
         shutil.copyfile(source, target)
+
+
+def _read_utf8_verbatim(path: Path, *, maximum: int) -> str:
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        value = handle.read()
+    if len(value.encode("utf-8")) > maximum:
+        raise ValueError(f"{path.name} exceeds {maximum} UTF-8 bytes")
+    if "\x00" in value:
+        raise ValueError(f"{path.name} must not contain NUL bytes")
+    return value
 
 
 if __name__ == "__main__":

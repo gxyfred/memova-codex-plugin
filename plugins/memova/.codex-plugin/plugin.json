@@ -1,6 +1,6 @@
 {
   "name": "memova",
-  "version": "1.8.2",
+  "version": "1.9.0",
   "description": "Create a Personal Manual, use Knowledge V5, and manage reviewed Knowledge Entries.",
   "author": {
     "name": "Memova",
@@ -26,7 +26,7 @@
   "interface": {
     "displayName": "Memova",
     "shortDescription": "Create a Personal Manual and use private Memova workflows.",
-    "longDescription": "Connect Codex to Memova through OAuth MCP for Personal Manual generation, bounded Knowledge V5 retrieval, reviewed first-class Knowledge Entry creation and revision, automation workflows, and selected-content import. Personal Manual generation reads only the one confirmed bounded source scope, keeps source history local, and automatically publishes the final manual as a Memova Note.",
+    "longDescription": "Connect Codex to Memova through OAuth MCP for Personal Manual generation, bounded Knowledge V5 retrieval, reviewed first-class Knowledge Entry creation and revision, automation workflows, and selected-content import. An explicit Personal Manual request analyzes up to 50 locally accessible conversations, sends derived scoring and aggregate source statistics but no conversation content, and automatically publishes the final manual as a Memova Note.",
     "developerName": "Memova",
     "category": "Productivity",
     "capabilities": [
@@ -38,7 +38,7 @@
     "privacyPolicyURL": "https://memova.ai/privacy",
     "termsOfServiceURL": "https://memova.ai/terms",
     "defaultPrompt": [
-      "Create my Memova Personal Manual.",
+      "@memova 个人说明书",
       "Search and use my Memova Knowledge V5.",
       "Create or update a reviewed Knowledge Entry in Memova."
     ],

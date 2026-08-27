@@ -1,6 +1,6 @@
 ---
 name: memova-menu
-description: Show the current Memova workflow menu when the user invokes @memova without a specific request, asks to open the Memova menu, chooses a Memova starter prompt, or replies with a numbered Memova menu option. Route to Personal Manual, Knowledge V5, explicit import, automation, or legacy vault tools without starting a write-heavy workflow.
+description: Show the Memova workflow menu for bare @memova requests and route specific requests such as @memova Personal Manual, Knowledge V5, explicit import, automation, or legacy vault tools. A specific Personal Manual generation request starts that workflow automatically; a bare or ambiguous request does not start a write-heavy workflow.
 ---
 
 # Memova Menu
@@ -63,8 +63,9 @@ one of the option names, treat it as a Memova menu selection even if the new use
 repeat `@memova`.
 
 - `1` or "Personal Manual": Follow
-  `plugins/memova/skills/memova-personal-manual/SKILL.md`. Ask once for source-scope confirmation;
-  generation, upload, and link publication then continue automatically.
+  `plugins/memova/skills/memova-personal-manual/SKILL.md`. Treat an explicit selection such as
+  `@memova Personal Manual`, `@memova 个人说明书`, or menu option `1` as authorization to
+  execute the disclosed generation workflow without another confirmation.
 - `2`, "search", "knowledge", or "Knowledge V5": Follow the read-only workflow in
   `plugins/memova/skills/memova-knowledge/SKILL.md`.
 - `3`, "propose", "Knowledge Entry", or "knowledge update": Follow the proposal workflow in
