@@ -16,13 +16,15 @@ This plugin bundles:
   Restricted Data filtering,
 - Memova starter prompts and plugin presentation metadata.
 
-Version `1.8.2` loads the immutable `personal_manual_generation_v1` contract from Memova MCP before
-reading history, so the Codex Plugin and direct-MCP clients share one scoring, writing, privacy, and
-upload contract. It preserves the `1.8.1` bounded `-15` calibration after sparse-evidence shrink and
-the 0–100 score contract. Version `1.8.0` added the
+Version `1.8.3` treats an explicit Personal Manual generation request as authorization to run the
+bounded workflow disclosed on Memova's product surface, so it no longer repeats a source-scope or
+publication confirmation. It loads the `personal_manual_generation_v1` contract from Memova MCP
+before reading history, so the Codex Plugin and direct-MCP clients share one scoring, writing,
+privacy, authorization, and upload contract. It preserves the `1.8.1` bounded `-15` calibration
+after sparse-evidence shrink and the 0–100 score contract. Version `1.8.0` added the
 Personal Manual Skill on top of the reviewed first-class V5 Knowledge Entry
-contract from `1.7.0`. Personal Manual history access is foreground-only, bounded by one confirmed
-source scope, and locally filtered to user/assistant text. The Skill uploads only the final Markdown,
+contract from `1.7.0`. Personal Manual history access is foreground-only, bounded by one explicit
+generation request, and locally filtered to user/assistant text. The Skill uploads only the final Markdown,
 validated public document data, and private aggregate metadata; it never uploads source history.
 The 1.8.0 preparer accepts exactly the 16 canonical Work Archetype names from the generation
 contract and rejects Markdown/CSV Archetype mismatches before any MCP upload.
@@ -34,7 +36,7 @@ canonical Knowledge V5 Codex Session; search rollout and semantic enrichment rem
 
 Independent complete-history collection is maintained separately under top-level `collector/`; it
 is not part of the marketplace plugin path, public Plugin menu, starter prompts, or installation.
-Collector remains independently versioned at `1.6.0` because this `1.8.2` public Plugin/MCP release
+Collector remains independently versioned at `1.6.0` because this `1.8.3` public Plugin release
 does not change Collector code, consent, transport, or installer bytes.
 
 ## Should This Repo Be Public?
@@ -175,7 +177,7 @@ Codex should open a short Memova menu:
 Reply with a number, or select one of the plugin starter prompts:
 
 ```text
-Create my Memova Personal Manual.
+Create and publish my Memova Personal Manual.
 Search and use my Memova Knowledge V5.
 Create or update a reviewed Knowledge Entry in Memova.
 ```
@@ -196,18 +198,18 @@ latest-note automation task execution, or explicit legacy vault tools.
 
 ## Create A Personal Manual
 
-Start with `Create my Memova Personal Manual.` The Skill asks once before reading a bounded source
-set of up to 50 accessible Codex/ChatGPT conversations, then proceeds automatically. It keeps the
+Start with `@memova 个人说明书`. The explicit request starts the disclosed bounded workflow
+without another confirmation. It reads up to 50 accessible Codex/ChatGPT conversations and keeps the
 Markdown, scores CSV, and source-count CSV locally; only the validated Markdown, public document,
 four dimensions, Archetype, overall confidence, and aggregate source statistics are sent through
 MCP. Memova renders the script-free HTML and returns the stable public URL. Raw conversation text
 and facet scores are never uploaded.
 
-Before reading history, Plugin 1.8.2 calls `get_personal_manual_generation_contract` and requires
+Before reading history, Plugin 1.8.3 calls `get_personal_manual_generation_contract` and requires
 `personal_manual_generation_v1`. The MCP contract is authoritative; an absent or unsupported
-contract stops the workflow instead of silently using stale local scoring rules. A user prompt that
-already explicitly confirms the exact bounded source scope and automatic unlisted publication is
-the one confirmation, so the Skill does not ask again.
+contract stops the workflow instead of silently using stale local scoring rules. Bare `@memova`,
+setup/login-only requests, and informational or ambiguous Personal Manual mentions do not start
+history access or publication.
 
 The menu itself does not fetch Memova data. MCP-backed selections require the Memova MCP login above.
 If Codex says setup or automation MCP tools are unavailable, check `codex mcp list`; `Not logged in`

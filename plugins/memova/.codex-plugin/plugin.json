@@ -1,6 +1,6 @@
 {
   "name": "memova",
-  "version": "1.8.2",
+  "version": "1.8.3",
   "description": "Create a Personal Manual, use Knowledge V5, and manage reviewed Knowledge Entries.",
   "author": {
     "name": "Memova",
@@ -38,7 +38,7 @@
     "privacyPolicyURL": "https://memova.ai/privacy",
     "termsOfServiceURL": "https://memova.ai/terms",
     "defaultPrompt": [
-      "Create my Memova Personal Manual.",
+      "Create and publish my Memova Personal Manual.",
       "Search and use my Memova Knowledge V5.",
       "Create or update a reviewed Knowledge Entry in Memova."
     ],

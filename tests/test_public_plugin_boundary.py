@@ -47,7 +47,7 @@ class PublicPluginBoundaryTests(unittest.TestCase):
             (PLUGIN / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
         )
         self.assertNotIn("hooks", manifest)
-        self.assertEqual(manifest["version"], "1.8.2")
+        self.assertEqual(manifest["version"], "1.8.3")
 
     def test_public_mcp_login_cannot_request_collector_pairing_scope(self) -> None:
         helper = (PLUGIN / "scripts" / "ensure_mcp_login.py").read_text(encoding="utf-8")
@@ -71,7 +71,10 @@ class PublicPluginBoundaryTests(unittest.TestCase):
         self.assertIn("personal_manual_generation_v1", manual)
         self.assertIn("Produce these three UTF-8 files", manual)
         self.assertIn("Do not create HTML locally", manual)
-        self.assertIn("workflow's only confirmation", manual)
+        self.assertIn("Explicit request authorizes execution", manual)
+        self.assertIn("Do not repeat the disclosure", manual)
+        self.assertIn("A bare `@memova`", manual)
+        self.assertNotIn("Ask the user to confirm this source scope", manual)
 
     def test_exact_codex_task_url_is_single_task_authorization(self) -> None:
         explicit_import = (
@@ -132,7 +135,7 @@ class PublicPluginBoundaryTests(unittest.TestCase):
 
         prompts = manifest["interface"]["defaultPrompt"]
         self.assertLessEqual(len(prompts), 3)
-        self.assertIn("Create my Memova Personal Manual.", prompts)
+        self.assertIn("Create and publish my Memova Personal Manual.", prompts)
 
     def test_user_facing_skills_hide_internal_audit_fields_by_default(self) -> None:
         explicit_import = (
