@@ -10,13 +10,15 @@ Memova Knowledge Base V2/V3 managed root or a meeting-to-vault sync failure.
 
 ## Operating Rules
 
-- Run the low-frequency plugin version check from the plugin root before diagnosis:
+- On every invocation, run the plugin version check from the plugin root before diagnosis:
 
   ```bash
   python3 plugins/memova/scripts/version_check.py
   ```
 
-  If it returns `should_remind: true`, show the message and continue diagnosis.
+  If it returns `should_remind: true`, show the message and continue diagnosis. If the check fails
+  or returns no reminder, continue silently. Never run the upgrade command without explicit user
+  confirmation.
 - Prefer deterministic helper scripts first. Use Codex judgment to explain ambiguous selected
   folders, likely iOS binding mistakes, and safe repair choices.
 - Do not read full private notes or recurse through an entire existing vault unless the user asks.

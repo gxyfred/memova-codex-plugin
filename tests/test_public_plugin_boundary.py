@@ -47,7 +47,15 @@ class PublicPluginBoundaryTests(unittest.TestCase):
             (PLUGIN / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
         )
         self.assertNotIn("hooks", manifest)
-        self.assertEqual(manifest["version"], "1.9.0")
+        self.assertEqual(manifest["version"], "1.9.1")
+
+    def test_every_public_skill_runs_the_non_blocking_version_check(self) -> None:
+        for path in sorted((PLUGIN / "skills").glob("*/SKILL.md")):
+            with self.subTest(skill=path.parent.name):
+                skill = path.read_text(encoding="utf-8")
+                self.assertIn("python3 plugins/memova/scripts/version_check.py", skill)
+                self.assertIn("continue silently", skill)
+                self.assertRegex(skill, r"without\s+explicit user\s+confirmation")
 
     def test_public_mcp_login_cannot_request_collector_pairing_scope(self) -> None:
         helper = (PLUGIN / "scripts" / "ensure_mcp_login.py").read_text(encoding="utf-8")

@@ -13,14 +13,16 @@ Use this skill only when the user explicitly invokes Memova, selects a Memova st
 - User-facing Codex work starts from `automation_tasks`. Do not recreate tasks from action
   candidates when the user asks to run Memova Codex work.
 - Use only the current user's Memova data returned by the MCP server.
-- Before starting any Memova workflow, run the low-frequency plugin version check from the plugin
-  root:
+- Before starting any Memova workflow on every invocation, run the plugin version check from the
+  plugin root:
 
   ```bash
   python3 plugins/memova/scripts/version_check.py
   ```
 
-  If it returns `should_remind: true`, show its message and continue the requested workflow.
+  If it returns `should_remind: true`, show its message and continue the requested workflow. If the
+  check fails or returns no reminder, continue silently. Never run the upgrade command without
+  explicit user confirmation.
 - Before starting any non-setup Memova workflow, run the one-time knowledge-base setup reminder
   check from the plugin root:
 

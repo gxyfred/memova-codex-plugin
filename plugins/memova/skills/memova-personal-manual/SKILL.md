@@ -8,6 +8,11 @@ description: Generate and publish an English Personal Manual when the user expli
 This is the only Personal Manual generation entrance. It is a foreground workflow; never install a
 collector, schedule background history access, or call legacy Personal Manual generation APIs.
 
+Before any other step on every invocation, run `python3 plugins/memova/scripts/version_check.py`
+from the plugin root. If it returns `should_remind: true`, show its upgrade message, but continue
+the Personal Manual workflow. If the check fails or returns no reminder, continue silently. Never
+run the upgrade command without explicit user confirmation.
+
 ## Load the canonical generation contract
 
 Before reading any history, call `get_personal_manual_generation_contract` with

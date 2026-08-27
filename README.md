@@ -16,6 +16,13 @@ This plugin bundles:
   Restricted Data filtering,
 - Memova starter prompts and plugin presentation metadata.
 
+Version `1.9.1` runs the same non-blocking version check at the start of every public Memova Skill.
+The check reads backend-owned compatibility metadata from
+`https://api.memova.ai/.well-known/memova-plugin-compatibility`, refreshes it at most once per 24
+hours, and reminds the user about the same newer version at most once per 24 hours. It never updates
+the Plugin automatically; the user must approve and run the marketplace upgrade. Network and cache
+failures never block the requested Memova workflow.
+
 Version `1.9.0` treats an explicit Personal Manual generation request as authorization to run the
 bounded workflow disclosed on Memova's product surface, so it no longer repeats a source-scope or
 publication confirmation. It loads the `personal_manual_generation_v2` contract from Memova MCP
@@ -37,7 +44,7 @@ canonical Knowledge V5 Codex Session; search rollout and semantic enrichment rem
 
 Independent complete-history collection is maintained separately under top-level `collector/`; it
 is not part of the marketplace plugin path, public Plugin menu, starter prompts, or installation.
-Collector remains independently versioned at `1.6.0` because this `1.9.0` public Plugin release
+Collector remains independently versioned at `1.6.0` because this `1.9.1` public Plugin release
 does not change Collector code, consent, transport, or installer bytes.
 
 ## Should This Repo Be Public?
@@ -482,7 +489,7 @@ URL import, Codex internal JSONL/SQLite, filesystem scans, or UI scraping as a f
 
 When triggered, the bundled `memova-menu` skill tells Codex to:
 
-1. Run the low-frequency plugin version check.
+1. Run the non-blocking plugin version check used by every public Memova Skill.
 2. Show a numbered menu for Personal Manual generation, selected-content import, automation task
    review, latest-note automation task execution, and explicit legacy vault compatibility.
 3. Run the one-time knowledge-base setup reminder only after a legacy vault option is selected.
@@ -514,9 +521,11 @@ codex plugin marketplace upgrade memova-codex-plugin
 
 Then restart Codex or start a new thread if the plugin UI does not refresh.
 
-Installed third-party plugins should not be treated as automatically updated. Memova workflows
-include a low-frequency version check and may show this upgrade command when the installed plugin is
-behind.
+Installed third-party plugins should not be treated as automatically updated. Every public Memova
+Skill checks backend-owned compatibility metadata, using a 24-hour network cache, and may show this
+upgrade command when the installed Plugin is behind. The same latest-version reminder appears at
+most once per 24 hours. The workflow continues if the check cannot reach the backend or update its
+local cache.
 
 ## Troubleshooting
 

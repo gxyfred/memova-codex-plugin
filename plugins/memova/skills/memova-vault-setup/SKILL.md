@@ -20,13 +20,15 @@ because a prompt mentions Obsidian, iCloud, or notes.
 - Never report knowledge-base setup as complete unless `complete_knowledge_base_setup` succeeded in
   the same workflow. Local directory validation alone is only "local validation OK"; it is not a
   completed Memova setup and may not be enough for iOS to bind the current setup session.
-- Before starting setup, run the low-frequency plugin version check from the plugin root:
+- Before starting setup on every invocation, run the plugin version check from the plugin root:
 
   ```bash
   python3 plugins/memova/scripts/version_check.py
   ```
 
   If it returns `should_remind: true`, show its message and continue the requested setup workflow.
+  If the check fails or returns no reminder, continue silently. Never run the upgrade command
+  without explicit user confirmation.
 - Use the helper scripts in this skill for path discovery, vault inspection, file creation, and
   validation instead of hand-writing large file trees. Resolve `scripts/...` paths relative to this
   skill directory.
