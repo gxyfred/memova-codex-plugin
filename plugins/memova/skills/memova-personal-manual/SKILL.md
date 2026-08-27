@@ -8,6 +8,21 @@ description: Generate an English Personal Manual from one confirmed, bounded set
 This is the only Personal Manual generation entrance. It is a foreground workflow; never install a
 collector, schedule background history access, or call legacy Personal Manual generation APIs.
 
+## Load the canonical generation contract
+
+Before reading any history, call `get_personal_manual_generation_contract`. Require
+`contract_version=personal_manual_generation_v1` and
+`document_schema_version=personal_manual_v1`; follow its returned `instructions_markdown` as the
+canonical analysis, scoring, writing, privacy, and upload contract. If either version is different,
+stop and ask the user to update the Plugin instead of guessing or using stale bundled rules.
+
+If authentication or the `personal_manual.write` scope is missing, run
+`python3 plugins/memova/scripts/ensure_mcp_login.py --reauthorize --workflow personal-manual`, let
+the user complete OAuth in
+the browser, and retry in a new task if Codex has not refreshed its tool set. Authentication is not
+an additional workflow confirmation. If the contract tool is absent, do not fall back to a local
+copy: the backend public MCP contract must be promoted before this Plugin version is released.
+
 ## One source-scope confirmation
 
 Before reading any task or chat history, explain once that the run will inspect up to 50 accessible
@@ -16,6 +31,8 @@ visible user and assistant text is evidence. Memova receives the final Markdown,
 scores, Work Archetype, overall confidence, and aggregate source counts; raw history and Big Five
 facet scores are never uploaded. Also state that successful generation is automatically saved and
 published to an unlisted public link. Ask the user to confirm this source scope.
+If the current request already explicitly confirms that exact scope and publication behavior,
+treat it as the confirmation and do not ask again.
 
 That is the workflow's only confirmation. After confirmation, proceed automatically through history
 reading, generation, validation, upload, and publication. Do not ask for a separate account,
@@ -50,8 +67,9 @@ Do not scan JSONL, SQLite, browser state, local history files, or the filesystem
 
 ## Generate fixed artifacts
 
-Read and follow [references/generation-prompt.md](references/generation-prompt.md) for the complete
-content rubric and fixed English output contract. Produce these three UTF-8 files in a user-visible
+Follow the MCP generation contract for the complete content rubric and fixed English output.
+Read [references/local-artifacts.md](references/local-artifacts.md) for the Plugin-only CSV format.
+Produce these three UTF-8 files in a user-visible
 `personal-manual-output/<UTC run id>/` directory:
 
 1. `personal-manual.md` — the complete fixed-heading Manual text.
@@ -59,17 +77,13 @@ content rubric and fixed English output contract. Produce these three UTF-8 file
 3. `personal-manual-sources.csv` — local Codex/ChatGPT conversation and turn counts/status.
 
 The Markdown `Work Archetype` line and the scores CSV must use the same canonical name from the
-16-Archetype table in the generation prompt. The preparer rejects unknown names or a mismatch; do
-not repair either value by guessing a different Archetype.
+16-Archetype table in the MCP generation contract. The preparer rejects unknown names or a
+mismatch; do not repair either value by guessing a different Archetype.
 
 Do not create HTML locally. Memova's backend owns the versioned archetype catalog, assets, HTML
 template, renderer, and stable public URL.
 
-Call `get_personal_manual_status` immediately before preparing the upload. If authentication or the
-`personal_manual.write` scope is missing, run
-`python3 plugins/memova/scripts/ensure_mcp_login.py --reauthorize`, let the user complete OAuth in
-the browser, and retry in a new task if Codex has not refreshed its tool set. Authentication is not
-an additional workflow confirmation.
+Call `get_personal_manual_status` immediately before preparing the upload.
 
 From the skill directory, run:
 

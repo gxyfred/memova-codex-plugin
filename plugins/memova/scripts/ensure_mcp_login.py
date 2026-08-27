@@ -22,6 +22,10 @@ BASE_SCOPES = (
     "knowledge.read",
     "knowledge.write",
 )
+PERSONAL_MANUAL_SCOPES = (
+    "notes.read",
+    "personal_manual.write",
+)
 AUTHORIZE_URL_RE = re.compile(r"https://\S+")
 SCOPE_RE = re.compile(r"^[a-z][a-z0-9_.:-]*$")
 
@@ -48,11 +52,19 @@ def main() -> int:
         default=300,
         help="Maximum seconds to wait for browser OAuth approval.",
     )
+    parser.add_argument(
+        "--workflow",
+        choices=("all", "personal-manual"),
+        default="all",
+        help="Request only the scopes needed by one supported workflow.",
+    )
     args = parser.parse_args()
     if args.check_only and args.reauthorize:
         parser.error("--check-only and --reauthorize cannot be combined")
 
-    requested_scopes = list(BASE_SCOPES)
+    requested_scopes = list(
+        PERSONAL_MANUAL_SCOPES if args.workflow == "personal-manual" else BASE_SCOPES
+    )
     login_command = build_login_command(requested_scopes)
 
     before = _mcp_status(login_command)

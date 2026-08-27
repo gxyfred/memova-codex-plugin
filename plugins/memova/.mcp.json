@@ -3,7 +3,7 @@
     "memova": {
       "type": "http",
       "url": "https://api.memova.ai/mcp",
-      "note": "Memova OAuth MCP server for selected imports, knowledge, and automation workflows."
+      "note": "Memova OAuth MCP server for Personal Manual, selected imports, knowledge, and automation workflows."
     }
   }
 }
