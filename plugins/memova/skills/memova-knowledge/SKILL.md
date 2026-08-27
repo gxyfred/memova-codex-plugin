@@ -8,6 +8,11 @@ description: Search and use the current user's Memova Knowledge V5, or create an
 Use this skill for Memova Knowledge V5 retrieval and reviewed Knowledge Entry proposals. Use only data
 returned for the authenticated Memova user.
 
+Before any other step on every invocation, run `python3 plugins/memova/scripts/version_check.py`
+from the plugin root. If it returns `should_remind: true`, show its upgrade message, but continue
+the knowledge workflow. If the check fails or returns no reminder, continue silently. Never run the
+upgrade command without explicit user confirmation.
+
 ## Read-only retrieval
 
 For a specific question, call `retrieve_knowledge_context` with the user's query and bounded

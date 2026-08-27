@@ -16,14 +16,16 @@ menu. The menu must be lightweight and should not open the browser/OAuth flow by
 triggered once the user selects an MCP-backed option such as setup, automation task review, or
 latest-note task execution.
 
-Before showing the menu or dispatching a menu selection, run the plugin version check from the
-plugin root:
+Before showing the menu or dispatching a menu selection on every invocation, run the plugin version
+check from the plugin root:
 
 ```bash
 python3 plugins/memova/scripts/version_check.py
 ```
 
-If `version_check.py` returns `should_remind: true`, show its upgrade message and continue.
+If `version_check.py` returns `should_remind: true`, show its upgrade message and continue. If the
+check fails or returns no reminder, continue silently. Never run the upgrade command without
+explicit user confirmation.
 
 Run the legacy knowledge-base setup reminder only after the user selects legacy option 6. It
 must not block Knowledge V5 or automation workflows:

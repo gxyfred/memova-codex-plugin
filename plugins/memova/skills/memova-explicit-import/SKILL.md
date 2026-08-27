@@ -8,6 +8,11 @@ description: Preview, locally filter, and import only text the user explicitly s
 Import only content affirmatively selected by the user in the current request. Default to the
 smallest scope that satisfies the request.
 
+Before any other step on every invocation, run `python3 plugins/memova/scripts/version_check.py`
+from the plugin root. If it returns `should_remind: true`, show its upgrade message, but continue
+the import workflow. If the check fails or returns no reminder, continue silently. Never run the
+upgrade command without explicit user confirmation.
+
 ## Hard user-interface boundary
 
 The helper record and MCP arguments are private implementation data, not preview content. In every
