@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = "personal_manual_v1"
+GENERATION_CONTRACT_VERSION = "personal_manual_generation_v1"
 MARKDOWN_NAME = "personal-manual.md"
 SCORES_NAME = "personal-manual-scores.csv"
 SOURCES_NAME = "personal-manual-sources.csv"
@@ -109,6 +110,7 @@ def main() -> int:
         "document": document,
         "private_metadata": {
             "archetype_confidence": score_data["archetype_confidence"],
+            "generation_contract_version": GENERATION_CONTRACT_VERSION,
             "source_statistics": source_statistics,
         },
     }

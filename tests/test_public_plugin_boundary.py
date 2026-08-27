@@ -47,7 +47,7 @@ class PublicPluginBoundaryTests(unittest.TestCase):
             (PLUGIN / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
         )
         self.assertNotIn("hooks", manifest)
-        self.assertEqual(manifest["version"], "1.8.1")
+        self.assertEqual(manifest["version"], "1.8.2")
 
     def test_public_mcp_login_cannot_request_collector_pairing_scope(self) -> None:
         helper = (PLUGIN / "scripts" / "ensure_mcp_login.py").read_text(encoding="utf-8")
@@ -56,6 +56,8 @@ class PublicPluginBoundaryTests(unittest.TestCase):
         self.assertNotIn('"actions.read"', helper)
         self.assertNotIn('"actions.write"', helper)
         self.assertIn('"personal_manual.write"', helper)
+        self.assertIn('PERSONAL_MANUAL_SCOPES = (\n    "notes.read",\n    "personal_manual.write",\n)', helper)
+        self.assertIn('choices=("all", "personal-manual")', helper)
 
     def test_personal_manual_skill_keeps_raw_history_out_of_mcp(self) -> None:
         manual = (
@@ -65,6 +67,8 @@ class PublicPluginBoundaryTests(unittest.TestCase):
         self.assertIn("`agentMessage.text`", manual)
         self.assertIn("Never send history or per-conversation records to Memova MCP", manual)
         self.assertIn("upsert_personal_manual", manual)
+        self.assertIn("get_personal_manual_generation_contract", manual)
+        self.assertIn("personal_manual_generation_v1", manual)
         self.assertIn("Produce these three UTF-8 files", manual)
         self.assertIn("Do not create HTML locally", manual)
         self.assertIn("workflow's only confirmation", manual)

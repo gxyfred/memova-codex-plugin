@@ -19,15 +19,15 @@ PREPARER = (
     / "scripts"
     / "prepare_personal_manual.py"
 )
-GENERATION_PROMPT = (
+PERSONAL_MANUAL_SKILL = (
     ROOT
     / "plugins"
     / "memova"
     / "skills"
     / "memova-personal-manual"
-    / "references"
-    / "generation-prompt.md"
+    / "SKILL.md"
 )
+LOCAL_ARTIFACTS = PERSONAL_MANUAL_SKILL.parent / "references" / "local-artifacts.md"
 WORK_ARCHETYPES = (
     "The Refiner",
     "The Maker",
@@ -94,15 +94,17 @@ Advice from Memova
 
 
 class PersonalManualPreparerTests(unittest.TestCase):
-    def test_generation_prompt_applies_fixed_offset_after_sparse_evidence_shrink(self) -> None:
-        prompt = GENERATION_PROMPT.read_text(encoding="utf-8")
+    def test_skill_loads_the_versioned_mcp_contract_before_history(self) -> None:
+        skill = PERSONAL_MANUAL_SKILL.read_text(encoding="utf-8")
 
-        shrink = prompt.index("produce `shrunk_score`")
-        offset = prompt.index("score = max(0, min(100, shrunk_score - 15))")
-        rounding = prompt.index("Round to the nearest whole number")
+        contract = skill.index("call `get_personal_manual_generation_contract`")
+        history = skill.index("## Read the bounded history locally")
 
-        self.assertLess(shrink, offset)
-        self.assertLess(offset, rounding)
+        self.assertLess(contract, history)
+        self.assertIn("contract_version=personal_manual_generation_v1", skill)
+        self.assertIn("do not fall back to a local copy", " ".join(skill.split()))
+        self.assertTrue(LOCAL_ARTIFACTS.exists())
+        self.assertFalse((LOCAL_ARTIFACTS.parent / "generation-prompt.md").exists())
 
     def test_preparer_emits_markdown_local_csvs_and_minimal_upload_json(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -176,6 +178,10 @@ class PersonalManualPreparerTests(unittest.TestCase):
             self.assertNotIn("Gregariousness", json.dumps(payload))
             self.assertNotIn("html_content", payload)
             self.assertNotIn("upload_confirmed", payload)
+            self.assertEqual(
+                payload["private_metadata"]["generation_contract_version"],
+                "personal_manual_generation_v1",
+            )
             self.assertEqual(payload["private_metadata"]["source_statistics"]["chatgpt_status"], "unavailable")
             self.assertEqual(Path(metadata["upload_json_path"]), (output / "personal-manual-upload.json").resolve())
 
