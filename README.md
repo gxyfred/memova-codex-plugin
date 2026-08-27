@@ -207,14 +207,15 @@ latest-note automation task execution, or explicit legacy vault tools.
 ## Create A Personal Manual
 
 Start with `@memova 个人说明书`. The explicit request starts the disclosed bounded workflow
-without another confirmation. It reads up to 50 accessible Codex/ChatGPT conversations locally;
+without another confirmation. It reads up to 20 accessible Codex/ChatGPT conversations locally;
 the validated Markdown, public document, derived scoring CSV, and aggregate source-statistics CSV
 are sent through MCP. Memova stores the CSV text privately, renders the script-free HTML, and
 returns the stable public URL. Raw conversation text is never uploaded, temporary artifacts are
 deleted, and Codex shows only the URL.
 
-Before reading history, Plugin 1.9.0 calls `get_personal_manual_generation_contract` and requires
-`personal_manual_generation_v2`. The MCP contract is authoritative; an absent or unsupported
+Before reading history, the Personal Manual Skill calls `get_personal_manual_generation_contract`
+and requires
+`personal_manual_generation_v3`. The MCP contract is authoritative; an absent or unsupported
 contract stops the workflow instead of silently using stale local scoring rules. Bare `@memova`,
 setup/login-only requests, and informational or ambiguous Personal Manual mentions do not start
 history access or publication.

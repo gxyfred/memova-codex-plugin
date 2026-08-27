@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = "personal_manual_v1"
-GENERATION_CONTRACT_VERSION = "personal_manual_generation_v2"
+GENERATION_CONTRACT_VERSION = "personal_manual_generation_v3"
 AUDIT_FORMAT_VERSION = "personal_manual_audit_csv_v1"
 MARKDOWN_NAME = "personal-manual.md"
 SCORES_NAME = "personal-manual-scores.csv"
@@ -280,15 +280,15 @@ def parse_sources(path: Path) -> dict[str, Any]:
         raise ValueError("sources CSV must contain exactly one codex and one chatgpt row")
     codex = by_source["codex"]
     chatgpt = by_source["chatgpt"]
-    codex_count = _count(codex["conversation_count"], "codex conversation_count", maximum=50)
+    codex_count = _count(codex["conversation_count"], "codex conversation_count", maximum=20)
     codex_turns = _count(codex["turn_count"], "codex turn_count", maximum=50_000)
-    chatgpt_count = _count(chatgpt["conversation_count"], "chatgpt conversation_count", maximum=50)
+    chatgpt_count = _count(chatgpt["conversation_count"], "chatgpt conversation_count", maximum=20)
     chatgpt_turns = _count(chatgpt["turn_count"], "chatgpt turn_count", maximum=50_000)
     status = chatgpt["status"].strip().casefold()
     if status not in {"available", "unavailable"}:
         raise ValueError("chatgpt status must be available or unavailable")
-    if not 1 <= codex_count + chatgpt_count <= 50:
-        raise ValueError("total inspected conversations must be between 1 and 50")
+    if not 1 <= codex_count + chatgpt_count <= 20:
+        raise ValueError("total inspected conversations must be between 1 and 20")
     if (codex_count == 0) != (codex_turns == 0):
         raise ValueError("Codex conversation and turn counts are inconsistent")
     if (chatgpt_count == 0) != (chatgpt_turns == 0):

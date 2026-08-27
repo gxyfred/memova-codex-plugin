@@ -101,7 +101,8 @@ class PersonalManualPreparerTests(unittest.TestCase):
         history = skill.index("## Read the bounded history locally")
 
         self.assertLess(contract, history)
-        self.assertIn("contract_version=personal_manual_generation_v2", skill)
+        self.assertIn("contract_version=personal_manual_generation_v3", skill)
+        self.assertIn("at most 20 accessible conversations", skill)
         self.assertIn("do not fall back to a local copy", " ".join(skill.split()))
         self.assertTrue(LOCAL_ARTIFACTS.exists())
         self.assertFalse((LOCAL_ARTIFACTS.parent / "generation-prompt.md").exists())
@@ -130,7 +131,7 @@ class PersonalManualPreparerTests(unittest.TestCase):
             _write_csv(
                 sources,
                 ["source_type", "conversation_count", "turn_count", "status"],
-                [["codex", "31", "286", "available"], ["chatgpt", "0", "0", "unavailable"]],
+                [["codex", "20", "180", "available"], ["chatgpt", "0", "0", "unavailable"]],
             )
             result = subprocess.run(
                 [
@@ -184,7 +185,7 @@ class PersonalManualPreparerTests(unittest.TestCase):
             self.assertNotIn("upload_confirmed", payload)
             self.assertEqual(
                 payload["private_metadata"]["generation_contract_version"],
-                "personal_manual_generation_v2",
+                "personal_manual_generation_v3",
             )
             self.assertEqual(payload["private_metadata"]["source_statistics"]["chatgpt_status"], "unavailable")
 
@@ -229,6 +230,25 @@ class PersonalManualPreparerTests(unittest.TestCase):
             )
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("unavailable ChatGPT history must have zero counts", result.stderr)
+
+    def test_preparer_rejects_more_than_twenty_conversations(self) -> None:
+        module = _load_preparer_module()
+        with tempfile.TemporaryDirectory() as temporary:
+            sources = Path(temporary) / "sources.csv"
+            _write_csv(
+                sources,
+                ["source_type", "conversation_count", "turn_count", "status"],
+                [
+                    ["codex", "20", "160", "available"],
+                    ["chatgpt", "1", "8", "available"],
+                ],
+            )
+
+            with self.assertRaisesRegex(
+                ValueError,
+                "total inspected conversations must be between 1 and 20",
+            ):
+                module.parse_sources(sources)
 
     def test_preparer_accepts_the_exact_sixteen_archetype_names(self) -> None:
         module = _load_preparer_module()

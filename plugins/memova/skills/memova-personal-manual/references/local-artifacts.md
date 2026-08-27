@@ -29,4 +29,4 @@ codex,<exact count>,<exact count>,available
 chatgpt,<exact count>,<exact count>,<available or unavailable>
 ```
 
-Never fabricate availability or counts. Total inspected conversations must be between 1 and 50.
+Never fabricate availability or counts. Total inspected conversations must be between 1 and 20.

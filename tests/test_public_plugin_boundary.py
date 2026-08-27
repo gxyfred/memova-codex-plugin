@@ -48,6 +48,9 @@ class PublicPluginBoundaryTests(unittest.TestCase):
         )
         self.assertNotIn("hooks", manifest)
         self.assertEqual(manifest["version"], "1.9.1")
+        description = manifest["interface"]["longDescription"]
+        self.assertIn("up to 20 locally accessible conversations", description)
+        self.assertNotIn("up to 50 locally accessible conversations", description)
 
     def test_every_public_skill_runs_the_non_blocking_version_check(self) -> None:
         for path in sorted((PLUGIN / "skills").glob("*/SKILL.md")):
@@ -76,7 +79,8 @@ class PublicPluginBoundaryTests(unittest.TestCase):
         self.assertIn("Never send history or per-conversation records to Memova MCP", manual)
         self.assertIn("upsert_personal_manual", manual)
         self.assertIn("get_personal_manual_generation_contract", manual)
-        self.assertIn("personal_manual_generation_v2", manual)
+        self.assertIn("personal_manual_generation_v3", manual)
+        self.assertIn("at most 20 accessible conversations", manual)
         self.assertIn("Produce these three UTF-8 files", manual)
         self.assertIn("private temporary run directory", manual)
         self.assertIn("Return\nonly the stable `public_url`", manual)
