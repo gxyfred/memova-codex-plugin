@@ -47,7 +47,7 @@ class PublicPluginBoundaryTests(unittest.TestCase):
             (PLUGIN / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
         )
         self.assertNotIn("hooks", manifest)
-        self.assertEqual(manifest["version"], "1.8.3")
+        self.assertEqual(manifest["version"], "1.9.0")
 
     def test_public_mcp_login_cannot_request_collector_pairing_scope(self) -> None:
         helper = (PLUGIN / "scripts" / "ensure_mcp_login.py").read_text(encoding="utf-8")
@@ -68,8 +68,11 @@ class PublicPluginBoundaryTests(unittest.TestCase):
         self.assertIn("Never send history or per-conversation records to Memova MCP", manual)
         self.assertIn("upsert_personal_manual", manual)
         self.assertIn("get_personal_manual_generation_contract", manual)
-        self.assertIn("personal_manual_generation_v1", manual)
+        self.assertIn("personal_manual_generation_v2", manual)
         self.assertIn("Produce these three UTF-8 files", manual)
+        self.assertIn("private temporary run directory", manual)
+        self.assertIn("Return\nonly the stable `public_url`", manual)
+        self.assertNotIn("personal-manual-output", manual)
         self.assertIn("Do not create HTML locally", manual)
         self.assertIn("Explicit request authorizes execution", manual)
         self.assertIn("Do not repeat the disclosure", manual)
@@ -135,7 +138,7 @@ class PublicPluginBoundaryTests(unittest.TestCase):
 
         prompts = manifest["interface"]["defaultPrompt"]
         self.assertLessEqual(len(prompts), 3)
-        self.assertIn("Create and publish my Memova Personal Manual.", prompts)
+        self.assertIn("@memova 个人说明书", prompts)
 
     def test_user_facing_skills_hide_internal_audit_fields_by_default(self) -> None:
         explicit_import = (

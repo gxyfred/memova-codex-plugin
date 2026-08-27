@@ -1,7 +1,7 @@
 interface:
   display_name: "Memova Personal Manual"
   short_description: "Create and publish your Memova Personal Manual."
-  default_prompt: "Use $memova-personal-manual to generate and publish my Personal Manual."
+  default_prompt: "Use $memova-personal-manual."
 
 policy:
   allow_implicit_invocation: true

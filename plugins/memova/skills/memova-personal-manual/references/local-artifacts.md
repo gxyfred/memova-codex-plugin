@@ -1,8 +1,9 @@
 # Personal Manual Plugin local artifact contract
 
 The Memova MCP `get_personal_manual_generation_contract` result is authoritative for analysis,
-scoring, writing, privacy, and upload behavior. This file defines only the Codex Plugin's local
-audit artifacts.
+scoring, writing, privacy, and upload behavior. This file defines the Codex Plugin's temporary
+audit CSV format. The exact UTF-8 CSV text is uploaded as private version metadata and then the
+temporary files are deleted; conversation content is never uploaded.
 
 Write `personal-manual-scores.csv` with exactly these columns:
 
@@ -16,8 +17,9 @@ Required rows:
 - `dimension,dimension_1,<0-100>,<0-1>` through `dimension_4`
 - `overall,archetype_confidence,<1-100>,`
 
-Add one `facet,<facet name>,<0-100>,<0-1>` row for each internally scored facet. Facet rows stay
-local and must never enter the Manual, upload JSON, or MCP call.
+Add one `facet,<facet name>,<0-100>,<0-1>` row for each internally scored facet. Use only facet names
+listed in the canonical generation contract. Facet rows must never enter the Manual or public
+document; they travel only inside the validated private scores CSV string.
 
 Write `personal-manual-sources.csv` with exactly these columns and exactly two rows:
 
