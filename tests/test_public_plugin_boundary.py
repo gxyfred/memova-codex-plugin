@@ -47,7 +47,7 @@ class PublicPluginBoundaryTests(unittest.TestCase):
             (PLUGIN / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
         )
         self.assertNotIn("hooks", manifest)
-        self.assertEqual(manifest["version"], "1.9.1")
+        self.assertEqual(manifest["version"], "1.9.2")
         description = manifest["interface"]["longDescription"]
         self.assertIn("up to 20 locally accessible conversations", description)
         self.assertNotIn("up to 50 locally accessible conversations", description)

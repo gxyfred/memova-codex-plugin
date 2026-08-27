@@ -16,7 +16,10 @@ This plugin bundles:
   Restricted Data filtering,
 - Memova starter prompts and plugin presentation metadata.
 
-Version `1.9.1` runs the same non-blocking version check at the start of every public Memova Skill.
+Version `1.9.2` updates Personal Manual generation to the MCP
+`personal_manual_generation_v3` contract: it analyzes at most 20 accessible conversations and
+keeps derived scoring/source-statistics CSV text private while the backend renders the v7 page.
+Version `1.9.1` introduced the same non-blocking version check at the start of every public Memova Skill.
 The check reads backend-owned compatibility metadata from
 `https://api.memova.ai/.well-known/memova-plugin-compatibility`, refreshes it at most once per 24
 hours, and reminds the user about the same newer version at most once per 24 hours. It never updates
@@ -44,7 +47,7 @@ canonical Knowledge V5 Codex Session; search rollout and semantic enrichment rem
 
 Independent complete-history collection is maintained separately under top-level `collector/`; it
 is not part of the marketplace plugin path, public Plugin menu, starter prompts, or installation.
-Collector remains independently versioned at `1.6.0` because this `1.9.1` public Plugin release
+Collector remains independently versioned at `1.6.0` because this `1.9.2` public Plugin release
 does not change Collector code, consent, transport, or installer bytes.
 
 ## Should This Repo Be Public?
