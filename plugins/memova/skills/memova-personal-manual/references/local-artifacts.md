@@ -21,12 +21,18 @@ Add one `facet,<facet name>,<0-100>,<0-1>` row for each internally scored facet.
 listed in the canonical generation contract. Facet rows must never enter the Manual or public
 document; they travel only inside the validated private scores CSV string.
 
-Write `personal-manual-sources.csv` with exactly these columns and exactly two rows:
+Write `personal-manual-sources.csv` with exactly these columns and one row per aggregate evidence
+source:
 
 ```csv
-source_type,conversation_count,turn_count,status
-codex,<exact count>,<exact count>,available
-chatgpt,<exact count>,<exact count>,<available or unavailable>
+source_name,source_kind,item_count,visible_text_unit_count,status
+Codex,conversation_history,<exact task count>,<exact visible message count>,available
 ```
 
-Never fabricate availability or counts. Total inspected conversations must be between 1 and 20.
+Use `source_kind=conversation_history` only for the invoking Codex agent's native task history. Add
+an `explicit_user_content` row only when the user actually included or selected content for this
+run. Never add ChatGPT chats, Memova notes, meeting content, source ids, or evidence text. Source
+names must be distinct visible labels of at most 64 characters. There may be at most eight rows;
+total inspected available items must be between 1 and 20. An unavailable row must have zero counts,
+and every positive item count must have a positive visible-text-unit count. Never fabricate
+availability or counts. The rows must exactly match the upload payload's `evidence_sources`.

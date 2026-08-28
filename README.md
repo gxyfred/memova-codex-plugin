@@ -16,13 +16,15 @@ This plugin bundles:
   Restricted Data filtering,
 - Memova starter prompts and plugin presentation metadata.
 
-Version `1.9.3` adds capability-driven Personal Manual OAuth recovery. An existing OAuth login is
-not treated as proof that `personal_manual.write` was granted: a missing contract tool or an
+Version `1.9.3` adds capability-driven Personal Manual OAuth recovery and upgrades generation to
+the client-neutral MCP `personal_manual_generation_v4` contract. An existing OAuth login is not
+treated as proof that `personal_manual.write` was granted: a missing contract tool or an
 insufficient-scope response starts one cooldown-guarded, minimum-scope reauthorization and then
 requires a Codex restart or fresh task. Missing tools alone never trigger an inaccurate Plugin
-upgrade diagnosis. Version `1.9.2` updates Personal Manual generation to the MCP
-`personal_manual_generation_v3` contract: it analyzes at most 20 accessible conversations and
-keeps derived scoring/source-statistics CSV text private while the backend renders the v7 page.
+upgrade diagnosis. V4 analyzes at most 20 evidence items from the invoking Codex agent's native
+tasks and explicitly supplied user content, excludes ChatGPT and implicit Memova content, and keeps
+derived scoring/client-neutral source-audit CSV text private while the backend renders the v7 page.
+Version `1.9.2` used the legacy `personal_manual_generation_v3` Codex/ChatGPT source schema.
 Version `1.9.1` introduced the same non-blocking version check at the start of every public Memova Skill.
 The check reads backend-owned compatibility metadata from
 `https://api.memova.ai/.well-known/memova-plugin-compatibility`, refreshes it at most once per 24
@@ -39,7 +41,7 @@ after sparse-evidence shrink and the 0–100 score contract. Version `1.8.0` add
 Personal Manual Skill on top of the reviewed first-class V5 Knowledge Entry
 contract from `1.7.0`. Personal Manual history access is foreground-only, bounded by one explicit
 generation request, and locally filtered to user/assistant text. The Skill uploads the final Markdown,
-validated public document data, and the exact validated scoring/source-statistics CSV text as
+validated public document data, and the exact validated scoring/client-neutral source-audit CSV text as
 private version metadata; it never uploads conversation content.
 The 1.8.0 preparer accepts exactly the 16 canonical Work Archetype names from the generation
 contract and rejects Markdown/CSV Archetype mismatches before any MCP upload.
@@ -51,7 +53,7 @@ canonical Knowledge V5 Codex Session; search rollout and semantic enrichment rem
 
 Independent complete-history collection is maintained separately under top-level `collector/`; it
 is not part of the marketplace plugin path, public Plugin menu, starter prompts, or installation.
-Collector remains independently versioned at `1.6.0` because this `1.9.2` public Plugin release
+Collector remains independently versioned at `1.6.0` because this `1.9.3` public Plugin release
 does not change Collector code, consent, transport, or installer bytes.
 
 ## Should This Repo Be Public?
@@ -224,15 +226,17 @@ latest-note automation task execution, or explicit legacy vault tools.
 ## Create A Personal Manual
 
 Start with `@memova 个人说明书`. The explicit request starts the disclosed bounded workflow
-without another confirmation. It reads up to 20 accessible Codex/ChatGPT conversations locally;
-the validated Markdown, public document, derived scoring CSV, and aggregate source-statistics CSV
-are sent through MCP. Memova stores the CSV text privately, renders the script-free HTML, and
-returns the stable public URL. Raw conversation text is never uploaded, temporary artifacts are
-deleted, and Codex shows only the URL.
+without another confirmation. It reads at most 20 total evidence items from the invoking Codex
+agent's native tasks and any content the user explicitly supplied for this run. ChatGPT chats and
+implicit Memova notes, meetings, transcripts, knowledge objects, or automations are excluded. The
+validated Markdown, public document, derived scoring CSV, and client-neutral aggregate source-audit
+CSV are sent through MCP. Memova stores the CSV text privately, renders the script-free HTML, and
+returns the stable public URL. Raw evidence text is never uploaded, temporary artifacts are deleted,
+and Codex shows only the URL.
 
 Before reading history, the Personal Manual Skill calls `get_personal_manual_generation_contract`
 and requires
-`personal_manual_generation_v3`. The MCP contract is authoritative; an absent or unsupported
+`personal_manual_generation_v4`. The MCP contract is authoritative; an absent or unsupported
 contract stops the workflow instead of silently using stale local scoring rules. Bare `@memova`,
 setup/login-only requests, and informational or ambiguous Personal Manual mentions do not start
 history access or publication.

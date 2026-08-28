@@ -26,7 +26,7 @@
   "interface": {
     "displayName": "Memova",
     "shortDescription": "Create a Personal Manual and use private Memova workflows.",
-    "longDescription": "Connect Codex to Memova through OAuth MCP for Personal Manual generation, bounded Knowledge V5 retrieval, reviewed first-class Knowledge Entry creation and revision, automation workflows, and selected-content import. An explicit Personal Manual request analyzes up to 20 locally accessible conversations, sends derived scoring and aggregate source statistics but no conversation content, and automatically publishes the final manual as a Memova Note.",
+    "longDescription": "Connect Codex to Memova through OAuth MCP for Personal Manual generation, bounded Knowledge V5 retrieval, reviewed first-class Knowledge Entry creation and revision, automation workflows, and selected-content import. An explicit Personal Manual request analyzes up to 20 evidence items from the invoking Codex agent's native tasks and explicitly supplied user content, sends derived scoring and client-neutral aggregate evidence counts but no conversation content, and automatically publishes the final manual as a Memova Note.",
     "developerName": "Memova",
     "category": "Productivity",
     "capabilities": [

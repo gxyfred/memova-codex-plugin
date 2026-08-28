@@ -13,8 +13,8 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = "personal_manual_v1"
-GENERATION_CONTRACT_VERSION = "personal_manual_generation_v3"
-AUDIT_FORMAT_VERSION = "personal_manual_audit_csv_v1"
+GENERATION_CONTRACT_VERSION = "personal_manual_generation_v4"
+AUDIT_FORMAT_VERSION = "personal_manual_audit_csv_v2"
 MARKDOWN_NAME = "personal-manual.md"
 SCORES_NAME = "personal-manual-scores.csv"
 SOURCES_NAME = "personal-manual-sources.csv"
@@ -125,7 +125,7 @@ def main() -> int:
         raise ValueError(f"manual Markdown exceeds {MAX_MARKDOWN_BYTES} UTF-8 bytes")
     document = parse_manual(markdown)
     score_data = parse_scores(scores_path)
-    source_statistics = parse_sources(sources_path)
+    evidence_sources = parse_sources(sources_path)
     if document["work_archetype"] != score_data["work_archetype"]:
         raise ValueError("Markdown and scores CSV Work Archetype values must match")
     document["work_archetype"] = score_data["work_archetype"]
@@ -142,7 +142,7 @@ def main() -> int:
         "private_metadata": {
             "archetype_confidence": score_data["archetype_confidence"],
             "generation_contract_version": GENERATION_CONTRACT_VERSION,
-            "source_statistics": source_statistics,
+            "evidence_sources": evidence_sources,
             "personal_manual_audit": {
                 "format_version": AUDIT_FORMAT_VERSION,
                 "scores_csv": scores_csv,
@@ -273,35 +273,71 @@ def parse_scores(path: Path) -> dict[str, Any]:
     }
 
 
-def parse_sources(path: Path) -> dict[str, Any]:
-    rows = _csv_rows(path, ("source_type", "conversation_count", "turn_count", "status"))
-    by_source = {row["source_type"].strip().casefold(): row for row in rows}
-    if set(by_source) != {"codex", "chatgpt"}:
-        raise ValueError("sources CSV must contain exactly one codex and one chatgpt row")
-    codex = by_source["codex"]
-    chatgpt = by_source["chatgpt"]
-    codex_count = _count(codex["conversation_count"], "codex conversation_count", maximum=20)
-    codex_turns = _count(codex["turn_count"], "codex turn_count", maximum=50_000)
-    chatgpt_count = _count(chatgpt["conversation_count"], "chatgpt conversation_count", maximum=20)
-    chatgpt_turns = _count(chatgpt["turn_count"], "chatgpt turn_count", maximum=50_000)
-    status = chatgpt["status"].strip().casefold()
-    if status not in {"available", "unavailable"}:
-        raise ValueError("chatgpt status must be available or unavailable")
-    if not 1 <= codex_count + chatgpt_count <= 20:
-        raise ValueError("total inspected conversations must be between 1 and 20")
-    if (codex_count == 0) != (codex_turns == 0):
-        raise ValueError("Codex conversation and turn counts are inconsistent")
-    if (chatgpt_count == 0) != (chatgpt_turns == 0):
-        raise ValueError("ChatGPT conversation and turn counts are inconsistent")
-    if status == "unavailable" and (chatgpt_count or chatgpt_turns):
-        raise ValueError("unavailable ChatGPT history must have zero counts")
-    return {
-        "codex_task_count": codex_count,
-        "codex_turn_count": codex_turns,
-        "chatgpt_chat_count": chatgpt_count,
-        "chatgpt_turn_count": chatgpt_turns,
-        "chatgpt_status": status,
-    }
+def parse_sources(path: Path) -> list[dict[str, Any]]:
+    rows = _csv_rows(
+        path,
+        (
+            "source_name",
+            "source_kind",
+            "item_count",
+            "visible_text_unit_count",
+            "status",
+        ),
+    )
+    if len(rows) > 8:
+        raise ValueError("sources CSV must contain at most eight evidence-source rows")
+
+    evidence_sources: list[dict[str, Any]] = []
+    seen_names: set[str] = set()
+    inspected_items = 0
+    for row in rows:
+        source_name = row["source_name"].strip()
+        if (
+            not source_name
+            or len(source_name) > 64
+            or any(ord(character) < 32 for character in source_name)
+        ):
+            raise ValueError("source_name must be 1-64 characters of visible text")
+        normalized_name = source_name.casefold()
+        if normalized_name in seen_names:
+            raise ValueError("evidence source names must be distinct")
+        seen_names.add(normalized_name)
+
+        source_kind = row["source_kind"].strip().casefold()
+        if source_kind not in {"conversation_history", "explicit_user_content"}:
+            raise ValueError(
+                "source_kind must be conversation_history or explicit_user_content"
+            )
+        item_count = _count(row["item_count"], f"{source_name} item_count", maximum=50)
+        visible_text_unit_count = _count(
+            row["visible_text_unit_count"],
+            f"{source_name} visible_text_unit_count",
+            maximum=50_000,
+        )
+        status = row["status"].strip().casefold()
+        if status not in {"available", "unavailable"}:
+            raise ValueError("evidence source status must be available or unavailable")
+        if status == "unavailable" and (item_count or visible_text_unit_count):
+            raise ValueError("unavailable evidence sources must have zero counts")
+        if item_count == 0 and visible_text_unit_count != 0:
+            raise ValueError("visible_text_unit_count must be zero when item_count is zero")
+        if item_count > 0 and visible_text_unit_count == 0:
+            raise ValueError("visible_text_unit_count must be positive when items were inspected")
+        if status == "available":
+            inspected_items += item_count
+        evidence_sources.append(
+            {
+                "source_name": source_name,
+                "source_kind": source_kind,
+                "item_count": item_count,
+                "visible_text_unit_count": visible_text_unit_count,
+                "status": status,
+            }
+        )
+
+    if not 1 <= inspected_items <= 20:
+        raise ValueError("total inspected evidence items must be between 1 and 20")
+    return evidence_sources
 
 
 def _extract_archetype(lines: list[str]) -> str:
