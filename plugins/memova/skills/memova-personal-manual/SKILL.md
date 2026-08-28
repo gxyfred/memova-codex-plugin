@@ -21,12 +21,26 @@ Before reading any history, call `get_personal_manual_generation_contract` with
 canonical analysis, scoring, writing, privacy, and upload contract. If either version is different,
 stop and ask the user to update the Plugin instead of guessing or using stale bundled rules.
 
-If authentication or the `personal_manual.write` scope is missing, run
-`python3 plugins/memova/scripts/ensure_mcp_login.py --reauthorize --workflow personal-manual`, let
-the user complete OAuth in
-the browser, and retry in a new task if Codex has not refreshed its tool set. Authentication is not
-an additional workflow confirmation. If the contract tool is absent, do not fall back to a local
-copy: the backend public MCP contract must be promoted before this Plugin version is released.
+If the contract tool is absent from the current task, or it returns an authentication,
+`insufficient_scope`, 401, or 403 error, treat that as a recoverable OAuth/tool-refresh state before
+diagnosing a Plugin or backend version problem. Run exactly once in the current task:
+
+```bash
+python3 plugins/memova/scripts/ensure_mcp_login.py --recover-scopes --workflow personal-manual
+```
+
+Let the user complete OAuth in the browser. This requests only `notes.read` and
+`personal_manual.write`; authentication is not an additional workflow confirmation. When the
+helper returns `login_completed` or `recent_scope_recovery_requires_client_refresh`, stop this task
+before reading history and ask the user to restart Codex and begin a new task with the same explicit
+Personal Manual request. Codex cannot add newly authorized MCP tools to the current task.
+
+Never start a second automatic OAuth attempt in the same task. If the helper fails, show its
+`manual_login_command` and stop. If a fresh task still lacks the contract tool after a recent
+successful recovery, report the exact authentication/tool state for diagnosis; do not loop, use a
+local contract copy, or claim the Plugin is outdated merely because a tool is absent. Mention an
+upgrade only when `version_check.py` reports `should_remind: true` from backend compatibility
+metadata.
 
 ## Explicit request authorizes execution
 

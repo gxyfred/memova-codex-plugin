@@ -11,6 +11,8 @@ import sys
 import threading
 import time
 import webbrowser
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 
 SERVER_NAME = "memova"
@@ -28,6 +30,10 @@ PERSONAL_MANUAL_SCOPES = (
 )
 AUTHORIZE_URL_RE = re.compile(r"https://\S+")
 SCOPE_RE = re.compile(r"^[a-z][a-z0-9_.:-]*$")
+DEFAULT_SCOPE_RECOVERY_STATE_PATH = (
+    Path.home() / ".cache" / "memova-codex-plugin" / "oauth-scope-recovery-v1.json"
+)
+SCOPE_RECOVERY_COOLDOWN = timedelta(minutes=15)
 
 
 def main() -> int:
@@ -47,6 +53,14 @@ def main() -> int:
         ),
     )
     parser.add_argument(
+        "--recover-scopes",
+        action="store_true",
+        help=(
+            "Run one cooldown-guarded OAuth recovery when the requested workflow reports "
+            "missing scopes or tools."
+        ),
+    )
+    parser.add_argument(
         "--timeout-seconds",
         type=int,
         default=300,
@@ -59,8 +73,10 @@ def main() -> int:
         help="Request only the scopes needed by one supported workflow.",
     )
     args = parser.parse_args()
-    if args.check_only and args.reauthorize:
-        parser.error("--check-only and --reauthorize cannot be combined")
+    if args.check_only and (args.reauthorize or args.recover_scopes):
+        parser.error("--check-only cannot be combined with OAuth recovery")
+    if args.reauthorize and args.recover_scopes:
+        parser.error("--reauthorize and --recover-scopes cannot be combined")
 
     requested_scopes = list(
         PERSONAL_MANUAL_SCOPES if args.workflow == "personal-manual" else BASE_SCOPES
@@ -68,22 +84,48 @@ def main() -> int:
     login_command = build_login_command(requested_scopes)
 
     before = _mcp_status(login_command)
-    if before.get("auth") == "OAuth" and not args.reauthorize:
+    if not before.get("listed"):
+        _write_json({"status": "missing_mcp_server", "before": before})
+        return 2
+
+    recovery_state_path = scope_recovery_state_path()
+    recovery_state = read_scope_recovery_state(recovery_state_path)
+    if (
+        args.recover_scopes
+        and before.get("auth") == "OAuth"
+        and recently_recovered_scopes(
+            recovery_state,
+            requested_scopes=requested_scopes,
+            now=datetime.now(timezone.utc),
+        )
+    ):
+        _write_json(
+            {
+                "status": "recent_scope_recovery_requires_client_refresh",
+                "before": before,
+                "after": before,
+                "requested_scopes": requested_scopes,
+                "scope_verification": "oauth_recently_completed_for_requested_scopes",
+                "oauth_attempted": False,
+                "restart_or_new_task_required": True,
+                "manual_login_command": " ".join(login_command),
+            }
+        )
+        return 0
+
+    if before.get("auth") == "OAuth" and not (args.reauthorize or args.recover_scopes):
         _write_json(
             {
                 "status": "already_logged_in",
                 "before": before,
                 "after": before,
                 "requested_scopes": requested_scopes,
-                "scope_verification": "not_required_for_base_login_check",
-                "reauthorization_required_to_guarantee_scopes": False,
+                "scope_verification": "unavailable_from_codex_mcp_list",
+                "reauthorization_required_to_guarantee_scopes": True,
                 "manual_login_command": " ".join(login_command),
             }
         )
         return 0
-    if not before.get("listed"):
-        _write_json({"status": "missing_mcp_server", "before": before})
-        return 2
     if args.check_only:
         _write_json({"status": "not_logged_in", "before": before})
         return 1
@@ -95,13 +137,28 @@ def main() -> int:
     after = _mcp_status(login_command)
     login_completed = after.get("auth") == "OAuth" and login.get("login_returncode") == 0
     status = "login_completed" if login_completed else "login_incomplete"
+    recovery_state_error = None
+    if login_completed:
+        try:
+            write_scope_recovery_state(
+                recovery_state_path,
+                requested_scopes=requested_scopes,
+                completed_at=datetime.now(timezone.utc),
+            )
+        except OSError as exc:
+            recovery_state_error = f"{type(exc).__name__}: {exc}"
     _write_json(
         {
             "status": status,
             "before": before,
             "after": after,
             "requested_scopes": requested_scopes,
-            "scope_verification": "base_login_completed" if login_completed else "not_verified",
+            "scope_verification": (
+                "oauth_completed_for_requested_scopes" if login_completed else "not_verified"
+            ),
+            "oauth_attempted": True,
+            "restart_or_new_task_required": login_completed,
+            "scope_recovery_state_error": recovery_state_error,
             **login,
         }
     )
@@ -124,6 +181,67 @@ def build_login_command(scopes: list[str]) -> list[str]:
         "--scopes",
         ",".join(normalized),
     ]
+
+
+def scope_recovery_state_path() -> Path:
+    configured = os.getenv("MEMOVA_MCP_SCOPE_RECOVERY_STATE_PATH")
+    return Path(configured).expanduser() if configured else DEFAULT_SCOPE_RECOVERY_STATE_PATH
+
+
+def read_scope_recovery_state(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def recently_recovered_scopes(
+    state: dict[str, Any],
+    *,
+    requested_scopes: list[str],
+    now: datetime,
+) -> bool:
+    if set(state.get("requested_scopes") or ()) != set(requested_scopes):
+        return False
+    completed_at = _parse_timestamp(state.get("completed_at"))
+    if completed_at is None:
+        return False
+    age = now.astimezone(timezone.utc) - completed_at
+    return timedelta(0) <= age < SCOPE_RECOVERY_COOLDOWN
+
+
+def write_scope_recovery_state(
+    path: Path,
+    *,
+    requested_scopes: list[str],
+    completed_at: datetime,
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": "memova_oauth_scope_recovery_v1",
+        "completed_at": _format_timestamp(completed_at),
+        "requested_scopes": sorted(set(requested_scopes)),
+    }
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _parse_timestamp(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return None
+    return parsed.astimezone(timezone.utc)
+
+
+def _format_timestamp(value: datetime) -> str:
+    return value.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def _mcp_status(login_command: list[str]) -> dict[str, Any]:

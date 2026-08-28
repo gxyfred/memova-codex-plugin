@@ -47,7 +47,7 @@ class PublicPluginBoundaryTests(unittest.TestCase):
             (PLUGIN / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
         )
         self.assertNotIn("hooks", manifest)
-        self.assertEqual(manifest["version"], "1.9.2")
+        self.assertEqual(manifest["version"], "1.9.3")
         description = manifest["interface"]["longDescription"]
         self.assertIn("up to 20 locally accessible conversations", description)
         self.assertNotIn("up to 50 locally accessible conversations", description)
@@ -69,6 +69,7 @@ class PublicPluginBoundaryTests(unittest.TestCase):
         self.assertIn('"personal_manual.write"', helper)
         self.assertIn('PERSONAL_MANUAL_SCOPES = (\n    "notes.read",\n    "personal_manual.write",\n)', helper)
         self.assertIn('choices=("all", "personal-manual")', helper)
+        self.assertIn('"--recover-scopes"', helper)
 
     def test_personal_manual_skill_keeps_raw_history_out_of_mcp(self) -> None:
         manual = (
@@ -89,6 +90,10 @@ class PublicPluginBoundaryTests(unittest.TestCase):
         self.assertIn("Explicit request authorizes execution", manual)
         self.assertIn("Do not repeat the disclosure", manual)
         self.assertIn("A bare `@memova`", manual)
+        self.assertIn("--recover-scopes --workflow personal-manual", manual)
+        self.assertIn("Never start a second automatic OAuth attempt", manual)
+        self.assertIn("do not loop, use a\nlocal contract copy", manual)
+        self.assertIn("version_check.py` reports `should_remind: true`", manual)
         self.assertNotIn("Ask the user to confirm this source scope", manual)
 
     def test_exact_codex_task_url_is_single_task_authorization(self) -> None:

@@ -16,7 +16,11 @@ This plugin bundles:
   Restricted Data filtering,
 - Memova starter prompts and plugin presentation metadata.
 
-Version `1.9.2` updates Personal Manual generation to the MCP
+Version `1.9.3` adds capability-driven Personal Manual OAuth recovery. An existing OAuth login is
+not treated as proof that `personal_manual.write` was granted: a missing contract tool or an
+insufficient-scope response starts one cooldown-guarded, minimum-scope reauthorization and then
+requires a Codex restart or fresh task. Missing tools alone never trigger an inaccurate Plugin
+upgrade diagnosis. Version `1.9.2` updates Personal Manual generation to the MCP
 `personal_manual_generation_v3` contract: it analyzes at most 20 accessible conversations and
 keeps derived scoring/source-statistics CSV text private while the backend renders the v7 page.
 Version `1.9.1` introduced the same non-blocking version check at the start of every public Memova Skill.
@@ -147,6 +151,16 @@ You can also run the bundled helper directly from the plugin root:
 ```bash
 python3 plugins/memova/scripts/ensure_mcp_login.py
 ```
+
+For Personal Manual scope recovery, the Skill automatically runs this at most once per task:
+
+```bash
+python3 plugins/memova/scripts/ensure_mcp_login.py --recover-scopes --workflow personal-manual
+```
+
+The helper requests only `notes.read` and `personal_manual.write`. A successful recovery is cached
+for 15 minutes so a stale task cannot repeatedly open OAuth; restart Codex and use a new task to
+load the refreshed tools.
 
 If the helper cannot start `codex` because of WindowsApps or sandbox permissions, run the same MCP
 login command directly in Windows Terminal or PowerShell:

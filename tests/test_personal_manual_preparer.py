@@ -103,7 +103,7 @@ class PersonalManualPreparerTests(unittest.TestCase):
         self.assertLess(contract, history)
         self.assertIn("contract_version=personal_manual_generation_v3", skill)
         self.assertIn("at most 20 accessible conversations", skill)
-        self.assertIn("do not fall back to a local copy", " ".join(skill.split()))
+        self.assertIn("do not loop, use a local contract copy", " ".join(skill.split()))
         self.assertTrue(LOCAL_ARTIFACTS.exists())
         self.assertFalse((LOCAL_ARTIFACTS.parent / "generation-prompt.md").exists())
 
