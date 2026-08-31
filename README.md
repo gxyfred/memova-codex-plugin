@@ -16,6 +16,16 @@ This plugin bundles:
   Restricted Data filtering,
 - Memova starter prompts and plugin presentation metadata.
 
+Version `1.9.4` hardens Plugin-only OAuth recovery without changing the MCP contract. A coarse
+`OAuth` row from `codex mcp list` is now reported as credential-present but scope-unverified, never
+as proof that a requested workflow is ready. Local `EPERM`, `EACCES`, `Operation not permitted`,
+and `Permission denied` failures while starting the nested Codex CLI are normalized to
+`manual_terminal_login_required`, with the exact login command and an instruction to run it in a
+normal system terminal outside the Codex task. The Skills stop instead of clearing credentials,
+changing sandbox settings, or retrying the same blocked helper. If OAuth itself completed before a
+post-login status check was denied, the helper instead returns
+`login_completed_client_refresh_required` and explicitly prevents a second login attempt.
+
 Version `1.9.3` adds capability-driven Personal Manual OAuth recovery and upgrades generation to
 the client-neutral MCP `personal_manual_generation_v4` contract. An existing OAuth login is not
 treated as proof that `personal_manual.write` was granted: a missing contract tool or an
@@ -53,7 +63,7 @@ canonical Knowledge V5 Codex Session; search rollout and semantic enrichment rem
 
 Independent complete-history collection is maintained separately under top-level `collector/`; it
 is not part of the marketplace plugin path, public Plugin menu, starter prompts, or installation.
-Collector remains independently versioned at `1.6.0` because this `1.9.3` public Plugin release
+Collector remains independently versioned at `1.6.0` because this `1.9.4` public Plugin release
 does not change Collector code, consent, transport, or installer bytes.
 
 ## Should This Repo Be Public?
@@ -143,6 +153,12 @@ copyable `authorization_url`; paste that URL into a browser to finish OAuth. Aft
 restart Codex or start a new thread if the current thread still does not expose the Memova MCP
 tools; Codex does not refresh MCP tool availability mid-thread.
 
+An `OAuth` row proves only that a Memova credential exists; `codex mcp list` does not verify that
+the credential contains the scopes required by a specific workflow. The helper therefore returns
+`oauth_present_scopes_unverified` rather than claiming the workflow is ready. Personal Manual uses
+its contract capability or an `insufficient_scope` response to decide whether bounded scope
+recovery is required.
+
 The plugin cannot currently open a new Codex Desktop thread and inject the next prompt by itself.
 It can run the OAuth helper automatically, then show the exact next `@memova` prompt for a fresh
 thread. Codex CLI has `codex fork` and `codex exec` for terminal workflows, but knowledge-base setup
@@ -164,8 +180,13 @@ The helper requests only `notes.read` and `personal_manual.write`. A successful 
 for 15 minutes so a stale task cannot repeatedly open OAuth; restart Codex and use a new task to
 load the refreshed tools.
 
-If the helper cannot start `codex` because of WindowsApps or sandbox permissions, run the same MCP
-login command directly in Windows Terminal or PowerShell:
+If it returns `login_completed_client_refresh_required`, OAuth already succeeded but the local
+Codex environment blocked the follow-up status check. Do not log in again; fully restart Codex and
+use a new task.
+
+If the helper returns `manual_terminal_login_required`, run its exact `manual_login_command` in a
+normal system Terminal/PowerShell outside the Codex task. Do not clear OAuth/browser state, change
+Codex sandbox settings, or retry the helper first. For a complete all-workflow login, the command is:
 
 ```powershell
 codex mcp login memova --scopes notes.read,personal_manual.write,automation.read,automation.write,knowledge.read,knowledge.write

@@ -47,7 +47,7 @@ class PublicPluginBoundaryTests(unittest.TestCase):
             (PLUGIN / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
         )
         self.assertNotIn("hooks", manifest)
-        self.assertEqual(manifest["version"], "1.9.3")
+        self.assertEqual(manifest["version"], "1.9.4")
         description = manifest["interface"]["longDescription"]
         self.assertIn("up to 20 evidence items", description)
         self.assertIn("invoking Codex agent's native tasks", description)
@@ -60,6 +60,26 @@ class PublicPluginBoundaryTests(unittest.TestCase):
                 self.assertIn("python3 plugins/memova/scripts/version_check.py", skill)
                 self.assertIn("continue silently", skill)
                 self.assertRegex(skill, r"without\s+explicit user\s+confirmation")
+
+    def test_mcp_login_callers_share_terminal_and_refresh_recovery_guidance(self) -> None:
+        for skill_name in (
+            "memova-menu",
+            "memova-personal-manual",
+            "memova-vault-setup",
+            "memova-workflow",
+        ):
+            with self.subTest(skill=skill_name):
+                skill = (
+                    PLUGIN / "skills" / skill_name / "SKILL.md"
+                ).read_text(encoding="utf-8")
+                normalized = " ".join(skill.casefold().split())
+                self.assertIn("`manual_terminal_login_required`", skill)
+                self.assertIn("`login_completed_client_refresh_required`", skill)
+                self.assertIn("outside the Codex task", skill)
+                self.assertRegex(
+                    normalized,
+                    r"(?:do not ask the user to|must not) log in again",
+                )
 
     def test_public_mcp_login_cannot_request_collector_pairing_scope(self) -> None:
         helper = (PLUGIN / "scripts" / "ensure_mcp_login.py").read_text(encoding="utf-8")
@@ -97,7 +117,13 @@ class PublicPluginBoundaryTests(unittest.TestCase):
         self.assertIn("A bare `@memova`", manual)
         self.assertIn("--recover-scopes --workflow personal-manual", manual)
         self.assertIn("Never start a second automatic OAuth attempt", manual)
-        self.assertIn("do not loop, use a\nlocal contract copy", manual)
+        self.assertIn("`oauth_present_scopes_unverified`", manual)
+        self.assertIn("`manual_terminal_login_required`", manual)
+        self.assertIn("`login_completed_client_refresh_required`", manual)
+        self.assertIn("must\nnot log in again", manual)
+        self.assertIn("outside the Codex task", manual)
+        self.assertIn("Do not ask\nthe user to clear OAuth credentials", manual)
+        self.assertIn("do not loop, use a local contract copy", " ".join(manual.split()))
         self.assertIn("version_check.py` reports `should_remind: true`", manual)
         self.assertNotIn("Ask the user to confirm this source scope", manual)
 

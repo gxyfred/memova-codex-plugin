@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import errno
 import json
 import os
 import queue
@@ -34,6 +35,14 @@ DEFAULT_SCOPE_RECOVERY_STATE_PATH = (
     Path.home() / ".cache" / "memova-codex-plugin" / "oauth-scope-recovery-v1.json"
 )
 SCOPE_RECOVERY_COOLDOWN = timedelta(minutes=15)
+MANUAL_LOGIN_RECOVERY_HINT = (
+    "Run the manual_login_command in a normal system terminal outside the Codex task, "
+    "finish OAuth in the browser, fully restart Codex, and start a new task."
+)
+POST_LOGIN_REFRESH_HINT = (
+    "The OAuth login command completed successfully. Do not log in again. Fully restart Codex "
+    "and start a new task so the client can reload the authorized MCP tools."
+)
 
 
 def main() -> int:
@@ -82,8 +91,19 @@ def main() -> int:
         PERSONAL_MANUAL_SCOPES if args.workflow == "personal-manual" else BASE_SCOPES
     )
     login_command = build_login_command(requested_scopes)
+    manual_login_command = " ".join(login_command)
 
     before = _mcp_status(login_command)
+    if before.get("execution_denied"):
+        _write_json(
+            _manual_terminal_login_payload(
+                before=before,
+                failure_stage="mcp_status_check",
+                manual_login_command=manual_login_command,
+                requested_scopes=requested_scopes,
+            )
+        )
+        return 3
     if not before.get("listed"):
         _write_json({"status": "missing_mcp_server", "before": before})
         return 2
@@ -108,7 +128,7 @@ def main() -> int:
                 "scope_verification": "oauth_recently_completed_for_requested_scopes",
                 "oauth_attempted": False,
                 "restart_or_new_task_required": True,
-                "manual_login_command": " ".join(login_command),
+                "manual_login_command": manual_login_command,
             }
         )
         return 0
@@ -116,13 +136,18 @@ def main() -> int:
     if before.get("auth") == "OAuth" and not (args.reauthorize or args.recover_scopes):
         _write_json(
             {
-                "status": "already_logged_in",
+                "status": "oauth_present_scopes_unverified",
                 "before": before,
                 "after": before,
                 "requested_scopes": requested_scopes,
                 "scope_verification": "unavailable_from_codex_mcp_list",
                 "reauthorization_required_to_guarantee_scopes": True,
-                "manual_login_command": " ".join(login_command),
+                "ready_for_requested_workflow": None,
+                "user_message": (
+                    "Memova OAuth credentials exist, but the requested workflow scopes have not "
+                    "been verified. Do not describe this state as workflow-ready."
+                ),
+                "manual_login_command": manual_login_command,
             }
         )
         return 0
@@ -134,19 +159,62 @@ def main() -> int:
         login_command=login_command,
         timeout_seconds=max(1, args.timeout_seconds),
     )
+    if login.get("execution_denied"):
+        _write_json(
+            _manual_terminal_login_payload(
+                before=before,
+                failure_stage=str(login.get("failure_stage") or "login_start"),
+                manual_login_command=manual_login_command,
+                requested_scopes=requested_scopes,
+                login=login,
+            )
+        )
+        return 3
     after = _mcp_status(login_command)
+    if after.get("execution_denied"):
+        if login.get("login_returncode") == 0:
+            recovery_state_error = _record_scope_recovery(
+                recovery_state_path,
+                requested_scopes=requested_scopes,
+            )
+            _write_json(
+                {
+                    **login,
+                    "status": "login_completed_client_refresh_required",
+                    "reason": "post_login_status_check_denied",
+                    "failure_stage": "post_login_status_check",
+                    "execution_denied": True,
+                    "before": before,
+                    "after": after,
+                    "requested_scopes": requested_scopes,
+                    "scope_verification": "oauth_completed_for_requested_scopes",
+                    "oauth_attempted": True,
+                    "manual_login_required": False,
+                    "restart_or_new_task_required": True,
+                    "recovery_hint": POST_LOGIN_REFRESH_HINT,
+                    "scope_recovery_state_error": recovery_state_error,
+                }
+            )
+            return 0
+        _write_json(
+            _manual_terminal_login_payload(
+                before=before,
+                after=after,
+                failure_stage="post_login_status_check",
+                manual_login_command=manual_login_command,
+                requested_scopes=requested_scopes,
+                login=login,
+            )
+        )
+        return 3
     login_completed = after.get("auth") == "OAuth" and login.get("login_returncode") == 0
     status = "login_completed" if login_completed else "login_incomplete"
     recovery_state_error = None
     if login_completed:
-        try:
-            write_scope_recovery_state(
-                recovery_state_path,
-                requested_scopes=requested_scopes,
-                completed_at=datetime.now(timezone.utc),
-            )
-        except OSError as exc:
-            recovery_state_error = f"{type(exc).__name__}: {exc}"
+        recovery_state_error = _record_scope_recovery(
+            recovery_state_path,
+            requested_scopes=requested_scopes,
+        )
     _write_json(
         {
             "status": status,
@@ -181,6 +249,51 @@ def build_login_command(scopes: list[str]) -> list[str]:
         "--scopes",
         ",".join(normalized),
     ]
+
+
+def _manual_terminal_login_payload(
+    *,
+    before: dict[str, Any],
+    failure_stage: str,
+    manual_login_command: str,
+    requested_scopes: list[str],
+    after: dict[str, Any] | None = None,
+    login: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "status": "manual_terminal_login_required",
+        "reason": "local_codex_execution_denied",
+        "failure_stage": failure_stage,
+        "before": before,
+        "after": after,
+        "requested_scopes": requested_scopes,
+        "scope_verification": "not_verified",
+        "oauth_attempted": bool(login),
+        "browser_authorization_started": bool(
+            login and login.get("opened_authorization_url")
+        ),
+        "manual_login_command": manual_login_command,
+        "recovery_hint": MANUAL_LOGIN_RECOVERY_HINT,
+    }
+    if login is not None:
+        payload["login"] = login
+    return payload
+
+
+def _record_scope_recovery(
+    state_path: Path,
+    *,
+    requested_scopes: list[str],
+) -> str | None:
+    try:
+        write_scope_recovery_state(
+            state_path,
+            requested_scopes=requested_scopes,
+            completed_at=datetime.now(timezone.utc),
+        )
+    except OSError as exc:
+        return f"{type(exc).__name__}: {exc}"
+    return None
 
 
 def scope_recovery_state_path() -> Path:
@@ -261,6 +374,7 @@ def _mcp_status(login_command: list[str]) -> dict[str, Any]:
             "raw": "",
             "error": f"{type(exc).__name__}: {exc}",
             "manual_login_command": " ".join(login_command),
+            "execution_denied": _is_execution_denied(exc),
         }
     output = result.stdout or ""
     status: dict[str, Any] = {
@@ -268,6 +382,7 @@ def _mcp_status(login_command: list[str]) -> dict[str, Any]:
         "auth": None,
         "returncode": result.returncode,
         "raw": output,
+        "execution_denied": _is_execution_denied_text(output),
     }
     for line in output.splitlines():
         fields = line.split()
@@ -299,10 +414,9 @@ def _run_login(*, login_command: list[str], timeout_seconds: int) -> dict[str, A
             "timed_out": False,
             "login_error": f"{type(exc).__name__}: {exc}",
             "manual_login_command": " ".join(login_command),
-            "recovery_hint": (
-                "Run the manual_login_command in Windows Terminal/PowerShell or a normal shell, "
-                "finish OAuth in the browser, then restart Codex or open a new thread."
-            ),
+            "execution_denied": _is_execution_denied(exc),
+            "failure_stage": "login_start",
+            "recovery_hint": MANUAL_LOGIN_RECOVERY_HINT,
         }
     assert process.stdout is not None
     output_queue: queue.Queue[str | None] = queue.Queue()
@@ -344,13 +458,17 @@ def _run_login(*, login_command: list[str], timeout_seconds: int) -> dict[str, A
                 process.kill()
             reader.join(timeout=1)
             output_lines.extend(_drain_output_queue(output_queue))
+            login_output_tail = _tail(output_lines)
+            execution_denied = _is_execution_denied_text(login_output_tail)
             return {
                 "login_returncode": process.returncode,
                 "opened_authorization_url": opened_url is not None,
                 "authorization_url": opened_url,
                 "browser_open": open_result if opened_url is not None else None,
                 "timed_out": True,
-                "login_output_tail": _tail(output_lines),
+                "login_output_tail": login_output_tail,
+                "execution_denied": execution_denied,
+                "failure_stage": "login_command" if execution_denied else None,
             }
 
     reader.join(timeout=1)
@@ -362,14 +480,34 @@ def _run_login(*, login_command: list[str], timeout_seconds: int) -> dict[str, A
                 _show_copyable_url(opened_url)
                 open_result = _open_url(opened_url)
 
+    login_output_tail = _tail(output_lines)
+    execution_denied = _is_execution_denied_text(login_output_tail)
     return {
         "login_returncode": process.returncode,
         "opened_authorization_url": opened_url is not None,
         "authorization_url": opened_url,
         "browser_open": open_result if opened_url is not None else None,
         "timed_out": False,
-        "login_output_tail": _tail(output_lines),
+        "login_output_tail": login_output_tail,
+        "execution_denied": execution_denied,
+        "failure_stage": "login_command" if execution_denied else None,
     }
+
+
+def _is_execution_denied(error: BaseException) -> bool:
+    return isinstance(error, PermissionError) or getattr(error, "errno", None) in {
+        errno.EACCES,
+        errno.EPERM,
+    }
+
+
+def _is_execution_denied_text(value: str) -> bool:
+    normalized = value.casefold()
+    return (
+        "operation not permitted" in normalized
+        or "permission denied" in normalized
+        or re.search(r"\bos error (?:1|13)\b", normalized) is not None
+    )
 
 
 def _drain_output_queue(output_queue: queue.Queue[str | None]) -> list[str]:
