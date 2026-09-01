@@ -60,10 +60,13 @@ the latest Memova note:
    `Not logged in`, run `python3 plugins/memova/scripts/ensure_mcp_login.py` from the plugin root.
    The helper starts MCP OAuth login and attempts to open one browser authorization URL; the user
    still approves in the browser. If automatic browser opening fails, tell the user to copy the
-   printed `authorization_url` into a browser. If the helper reports a `login_error` or
-   `manual_login_command`, tell the user to run that command in Windows Terminal/PowerShell or a
-   normal shell. After successful login, tell the user to start a new Codex thread if this thread
-   still does not expose the Memova MCP tools. If `memova` is not listed, tell the user to
+   printed `authorization_url` into a browser. If the helper returns
+   `manual_terminal_login_required`, show its exact top-level `manual_login_command` and tell the
+   user to run it in a normal system Terminal/PowerShell outside the Codex task. Do not retry the
+   helper or ask the user to clear OAuth/browser state or change sandbox settings. If it returns
+   `login_completed_client_refresh_required`, say OAuth succeeded and do not ask the user to log in
+   again. After successful login, require a full Codex restart and a new task if this task still
+   does not expose the Memova MCP tools. If `memova` is not listed, tell the user to
    upgrade/reinstall the Memova plugin and restart Codex.
 4. If no latest ready note exists, say so and stop. Do not call `extract_action_items`.
 5. If a latest note exists but has no claimable automation tasks, summarize the latest note/meeting
@@ -96,10 +99,13 @@ When the user asks to review Memova automation tasks without immediately executi
    `Not logged in`, run `python3 plugins/memova/scripts/ensure_mcp_login.py` from the plugin root.
    The helper starts MCP OAuth login and attempts to open one browser authorization URL; the user
    still approves in the browser. If automatic browser opening fails, tell the user to copy the
-   printed `authorization_url` into a browser. If the helper reports a `login_error` or
-   `manual_login_command`, tell the user to run that command in Windows Terminal/PowerShell or a
-   normal shell. After successful login, tell the user to start a new Codex thread if this thread
-   still does not expose the Memova MCP tools. If `memova` is not listed, tell the user to
+   printed `authorization_url` into a browser. If the helper returns
+   `manual_terminal_login_required`, show its exact top-level `manual_login_command` and tell the
+   user to run it in a normal system Terminal/PowerShell outside the Codex task. Do not retry the
+   helper or ask the user to clear OAuth/browser state or change sandbox settings. If it returns
+   `login_completed_client_refresh_required`, say OAuth succeeded and do not ask the user to log in
+   again. After successful login, require a full Codex restart and a new task if this task still
+   does not expose the Memova MCP tools. If `memova` is not listed, tell the user to
    upgrade/reinstall the Memova plugin and restart Codex.
 4. Summarize user-visible task titles/objectives, source note or meeting titles, status, owner,
    practical lease availability, and approval policy. Do not show internal task, note, action,

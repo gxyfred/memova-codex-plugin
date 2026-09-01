@@ -79,10 +79,13 @@ When the user asks to set up their Memova knowledge base:
      This helper starts `codex mcp login memova --scopes ...` and attempts to open exactly one
      browser authorization URL. The user still has to approve Memova OAuth in the browser. If
      automatic browser opening fails, tell the user to copy the printed `authorization_url` into a
-     browser. If the helper reports a `login_error` or `manual_login_command`, tell the user to run
-     that command in Windows Terminal/PowerShell or a normal shell. After it reports
-     `login_completed`, tell the user to start a new Codex thread if the current thread still does
-     not expose the Memova setup tools; Codex does not refresh MCP tool availability mid-thread.
+     browser. If the helper returns `manual_terminal_login_required`, show its exact top-level
+     `manual_login_command` and tell the user to run it in a normal system Terminal/PowerShell
+     outside the Codex task. Do not retry the helper or ask the user to clear OAuth/browser state or
+     change sandbox settings. If it reports `login_completed_client_refresh_required`, say OAuth
+     succeeded and do not ask the user to log in again. After either successful-login status,
+     require a full Codex restart and a new task if the current task still does not expose the
+     Memova setup tools; Codex does not refresh MCP tool availability mid-task.
    - If `memova` is not listed, stop and tell the user to upgrade/reinstall the Memova plugin, then
      restart Codex or start a new thread.
    Do not use the filesystem helper scripts without the MCP package. In the final answer for this
