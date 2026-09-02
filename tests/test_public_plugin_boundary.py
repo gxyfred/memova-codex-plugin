@@ -47,7 +47,7 @@ class PublicPluginBoundaryTests(unittest.TestCase):
             (PLUGIN / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
         )
         self.assertNotIn("hooks", manifest)
-        self.assertEqual(manifest["version"], "1.9.4")
+        self.assertEqual(manifest["version"], "1.9.5")
         description = manifest["interface"]["longDescription"]
         self.assertIn("up to 20 evidence items", description)
         self.assertIn("invoking Codex agent's native tasks", description)
@@ -101,7 +101,7 @@ class PublicPluginBoundaryTests(unittest.TestCase):
         self.assertIn("Never send history or per-conversation records to Memova MCP", manual)
         self.assertIn("upsert_personal_manual", manual)
         self.assertIn("get_personal_manual_generation_contract", manual)
-        self.assertIn("personal_manual_generation_v4", manual)
+        self.assertIn("personal_manual_generation_v5", manual)
         self.assertIn("at most 20 total evidence items", manual)
         self.assertIn("`source_kind=conversation_history`", manual)
         self.assertIn("`explicit_user_content`", manual)

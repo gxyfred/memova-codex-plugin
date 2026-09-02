@@ -16,6 +16,15 @@ This plugin bundles:
   Restricted Data filtering,
 - Memova starter prompts and plugin presentation metadata.
 
+Version `1.9.5` upgrades Personal Manual generation to the MCP
+`personal_manual_generation_v5` contract with exactly two complete output variants: `en` and
+`zh-CN`. An explicit English or Chinese request wins; otherwise the Plugin selects Chinese for a
+Chinese plurality of retained user messages and English for every other plurality, excluding code,
+quoted/copied material, proper nouns, and assistant-message language. Generated profile content
+and the backend's complete fixed HTML presentation use the same variant. Fixed parser headings and
+canonical Work Archetype values remain English. The preparer accepts Unicode lexical keywords and
+rejects Chinese-tagged uploads whose generated content is not predominantly Chinese.
+
 Version `1.9.4` hardens Plugin-only OAuth recovery without changing the MCP contract. A coarse
 `OAuth` row from `codex mcp list` is now reported as credential-present but scope-unverified, never
 as proof that a requested workflow is ready. Local `EPERM`, `EACCES`, `Operation not permitted`,
@@ -63,7 +72,7 @@ canonical Knowledge V5 Codex Session; search rollout and semantic enrichment rem
 
 Independent complete-history collection is maintained separately under top-level `collector/`; it
 is not part of the marketplace plugin path, public Plugin menu, starter prompts, or installation.
-Collector remains independently versioned at `1.6.0` because this `1.9.4` public Plugin release
+Collector remains independently versioned at `1.6.0` because this `1.9.5` public Plugin release
 does not change Collector code, consent, transport, or installer bytes.
 
 ## Should This Repo Be Public?
@@ -257,7 +266,7 @@ and Codex shows only the URL.
 
 Before reading history, the Personal Manual Skill calls `get_personal_manual_generation_contract`
 and requires
-`personal_manual_generation_v4`. The MCP contract is authoritative; an absent or unsupported
+`personal_manual_generation_v5`. The MCP contract is authoritative; an absent or unsupported
 contract stops the workflow instead of silently using stale local scoring rules. Bare `@memova`,
 setup/login-only requests, and informational or ambiguous Personal Manual mentions do not start
 history access or publication.

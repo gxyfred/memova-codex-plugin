@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = "personal_manual_v1"
-GENERATION_CONTRACT_VERSION = "personal_manual_generation_v4"
+GENERATION_CONTRACT_VERSION = "personal_manual_generation_v5"
 AUDIT_FORMAT_VERSION = "personal_manual_audit_csv_v2"
 MARKDOWN_NAME = "personal-manual.md"
 SCORES_NAME = "personal-manual-scores.csv"
@@ -189,6 +189,7 @@ def main() -> int:
 def parse_manual(markdown: str) -> dict[str, Any]:
     lines = markdown.splitlines()
     archetype_from_text = _extract_archetype(lines)
+    language_code = _extract_language_code(lines)
     positions: list[int] = []
     normalized = [_heading_text(line) for line in lines]
     for _, marker, _ in FIELD_MARKERS:
@@ -220,7 +221,12 @@ def parse_manual(markdown: str) -> dict[str, Any]:
         raise ValueError("collaboration and conflict sections support at most three items")
     if not 2 <= len(manual["advice_from_memova"]) <= 3:
         raise ValueError("Advice from Memova must contain two or three items")
-    return {"work_archetype": archetype_from_text, "manual": manual}
+    _validate_manual_language(manual, language_code)
+    return {
+        "work_archetype": archetype_from_text,
+        "language_code": language_code,
+        "manual": manual,
+    }
 
 
 def parse_scores(path: Path) -> dict[str, Any]:
@@ -351,6 +357,20 @@ def _extract_archetype(lines: list[str]) -> str:
     return _canonical_archetype(matches[0])
 
 
+def _extract_language_code(lines: list[str]) -> str:
+    matches = []
+    for line in lines:
+        match = re.fullmatch(r"\s*(?:#+\s*)?Output Language:\s*(.+?)\s*", line, re.I)
+        if match:
+            matches.append(match.group(1).strip())
+    if len(matches) != 1:
+        raise ValueError("manual must contain exactly one Output Language line")
+    language_code = matches[0]
+    if language_code not in {"en", "zh-CN"}:
+        raise ValueError("Output Language must be exactly en or zh-CN")
+    return language_code
+
+
 def _canonical_archetype(value: str) -> str:
     normalized = value.strip().casefold()
     for archetype in WORK_ARCHETYPES:
@@ -393,14 +413,34 @@ def _parse_keyword_prose(lines: list[str], marker: str) -> tuple[list[str], str]
 
 
 def _parse_keywords(value: str, marker: str) -> list[str]:
-    parts = [item.strip() for item in re.split(r"[,·]", value) if item.strip()]
+    parts = [item.strip() for item in re.split(r"[,，、·]", value) if item.strip()]
     if len(parts) != 5:
         raise ValueError(f"{marker} must contain exactly five keywords")
-    if not all(re.fullmatch(r"[A-Za-z]+(?:[-'][A-Za-z]+)*", item) for item in parts):
-        raise ValueError(f"{marker} keywords must be single English words")
+    if not all(
+        re.fullmatch(r"[^\s,，、·;；]+", item)
+        and any(character.isalnum() for character in item)
+        and len(item) <= 64
+        for item in parts
+    ):
+        raise ValueError(f"{marker} keywords must be single lexical units")
     if len({item.casefold() for item in parts}) != 5:
         raise ValueError(f"{marker} keywords must be distinct")
     return parts
+
+
+def _validate_manual_language(manual: dict[str, Any], language_code: str) -> None:
+    if language_code != "zh-CN":
+        return
+    values: list[str] = []
+    for value in manual.values():
+        values.extend(value if isinstance(value, list) else [value])
+    combined = "".join(values)
+    cjk_count = len(re.findall(r"[\u3400-\u4dbf\u4e00-\u9fff]", combined))
+    latin_count = len(re.findall(r"[A-Za-z]", combined))
+    if cjk_count < 8 or cjk_count <= latin_count:
+        raise ValueError(
+            "generated Personal Manual content does not predominantly match Output Language zh"
+        )
 
 
 def _parse_list(lines: list[str], marker: str) -> list[str]:
