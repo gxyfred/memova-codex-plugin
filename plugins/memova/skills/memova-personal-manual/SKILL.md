@@ -1,6 +1,6 @@
 ---
 name: memova-personal-manual
-description: Generate and publish a Personal Manual in English or Simplified Chinese when the user explicitly asks to create, generate, update, regenerate, or publish it. Analyze up to 20 evidence items from the invoking Codex agent's tasks and explicitly supplied user content locally, upload only derived scoring and client-neutral aggregate evidence counts, and return a stable unlisted URL. Bare @memova or informational questions do not start generation.
+description: Generate and publish a Personal Manual in English or Simplified Chinese when the user explicitly asks Memova to do so and accepts Memova's disclosed privacy practices. Analyze up to 20 evidence items from the invoking Codex agent's tasks and explicitly supplied user content locally, privately upload derived Markdown and audit CSV contents without raw history, and return a stable unlisted URL. Setup, bare @memova, and informational requests do not start generation.
 ---
 
 # Memova Personal Manual
@@ -13,15 +13,21 @@ from the plugin root. If it returns `should_remind: true`, show its upgrade mess
 the Personal Manual workflow. If the check fails or returns no reminder, continue silently. Never
 run the upgrade command without explicit user confirmation.
 
-## Load the canonical generation contract
+## Prove readiness and load the current contract
 
-Before reading any history, call `get_personal_manual_generation_contract` with
-`contract_version=personal_manual_generation_v5`. Require that returned version and
+Before reading any history, call `get_personal_manual_preflight`. Continue only when it returns
+`ready=true`, `required_scopes_granted=true`, and
+`contract_version=personal_manual_generation_v6`. Retain its exact
+`latest_note_version_id` as the revision guard for upload.
+
+Then call `get_current_personal_manual_generation_contract`. Require
+`contract_version=personal_manual_generation_v6` and
 `document_schema_version=personal_manual_v1`; follow its returned `instructions_markdown` as the
-canonical analysis, scoring, writing, privacy, and upload contract. If either version is different,
-stop and ask the user to update the Plugin instead of guessing or using stale bundled rules.
+canonical analysis, scoring, writing, privacy, artifact, and upload contract. Require
+`upload_tool=upsert_personal_manual`. Do not select a contract version or fall back to bundled
+contract text.
 
-If the contract tool is absent from the current task, or it returns an authentication,
+If either readiness or contract tool is absent from the current task, or returns an authentication,
 `insufficient_scope`, 401, or 403 error, treat that as a recoverable OAuth/tool-refresh state before
 diagnosing a Plugin or backend version problem. Run exactly once in the current task:
 
@@ -49,23 +55,22 @@ authentication/tool state for diagnosis; do not loop, use a local contract copy,
 Plugin is outdated merely because a tool is absent. Mention an upgrade only when
 `version_check.py` reports `should_remind: true` from backend compatibility metadata.
 
-## Explicit request authorizes execution
+## Require the disclosed generation request
 
-Memova's product surface already discloses that this workflow reads no more than 20 locally
-accessible conversations, uploads derived scores and aggregate source statistics but no
-conversation content, and automatically publishes the
-validated result at an unlisted stable public URL. Treat any explicit, unambiguous request to
-create, generate, update, regenerate, or publish the user's Personal Manual as authorization to
-execute that disclosed workflow. This includes `$memova-personal-manual`, `@memova Personal Manual`,
-`@memova 个人说明书`, the Personal Manual starter prompt, and menu option `1` when it directly
-follows the Memova menu.
+Memova's product surface discloses that this workflow reads no more than 20 locally accessible
+conversations, privately uploads derived Markdown, scores, and aggregate source counts but no
+conversation content, and automatically publishes the result at an unlisted stable public URL.
+Proceed when the current request both asks Memova to generate and publish the user's Personal
+Manual and accepts Memova's disclosed privacy practices. The standard request is:
 
-Do not repeat the disclosure or ask for source-scope, account, content, upload, overwrite, sharing,
-or publication confirmation. Proceed automatically through history reading, generation,
-validation, upload, and publication.
+> 请让 Memova 生成并发布我的个人说明书；我同意按照 Memova 已说明的隐私规则处理。
 
-A bare `@memova`, installation or login request, informational question, or ambiguous Personal
-Manual mention is not an execution request. Route bare or ambiguous requests through
+Do not add a Memova-specific confirmation after that request. The host application's own security
+or permission policy remains authoritative.
+
+A bare `@memova`, installation or login request, a request that omits publication/privacy consent,
+an informational question, or an ambiguous Personal Manual mention is not an execution request.
+Route bare or ambiguous requests through
 `plugins/memova/skills/memova-menu/SKILL.md` without reading history or publishing anything.
 
 ## Read the bounded history locally
@@ -104,7 +109,7 @@ the user supplied no explicit content, stop.
 
 Do not scan JSONL, SQLite, browser state, local history files, or the filesystem as a fallback.
 
-Choose exactly one of the v5 contract's two complete variants: `en` or `zh-CN`. An explicit English
+Choose exactly one of the v6 contract's two complete variants: `en` or `zh-CN`. An explicit English
 or Chinese request wins. Otherwise, count the predominant natural language of retained user
 messages, excluding code, quoted material, copied documents, and proper nouns; never use
 assistant-message language to break a tie. Select `zh-CN` for a Chinese plurality and `en` for every
@@ -137,8 +142,6 @@ mismatch; do not repair either value by guessing a different Archetype.
 Do not create HTML locally. Memova's backend owns the versioned archetype catalog, assets, HTML
 template, renderer, and stable public URL.
 
-Call `get_personal_manual_status` immediately before preparing the upload.
-
 From the skill directory, run:
 
 ```bash
@@ -150,7 +153,7 @@ python3 scripts/prepare_personal_manual.py \
   --expected-note-version-id "<latest_note_version_id>"
 ```
 
-Omit `--expected-note-version-id` when status reports no existing Manual. The preparer parses the
+Omit `--expected-note-version-id` when preflight reports no existing Manual. The preparer parses the
 fixed headings and both five-keyword rows deterministically, validates the two CSVs, embeds their
 exact UTF-8 text in private version metadata, and creates `personal-manual-upload.json`. If it fails because the
 generated format is invalid, repair the format once without changing supported meaning, then rerun

@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = "personal_manual_v1"
-GENERATION_CONTRACT_VERSION = "personal_manual_generation_v5"
+GENERATION_CONTRACT_VERSION = "personal_manual_generation_v6"
 AUDIT_FORMAT_VERSION = "personal_manual_audit_csv_v2"
 MARKDOWN_NAME = "personal-manual.md"
 SCORES_NAME = "personal-manual-scores.csv"

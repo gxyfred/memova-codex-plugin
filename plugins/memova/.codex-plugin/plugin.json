@@ -1,6 +1,6 @@
 {
   "name": "memova",
-  "version": "1.9.5",
+  "version": "1.9.6",
   "description": "Create a Personal Manual, use Knowledge V5, and manage reviewed Knowledge Entries.",
   "author": {
     "name": "Memova",
@@ -26,7 +26,7 @@
   "interface": {
     "displayName": "Memova",
     "shortDescription": "Create a Personal Manual and use private Memova workflows.",
-    "longDescription": "Connect Codex to Memova through OAuth MCP for Personal Manual generation, bounded Knowledge V5 retrieval, reviewed first-class Knowledge Entry creation and revision, automation workflows, and selected-content import. An explicit Personal Manual request analyzes up to 20 evidence items from the invoking Codex agent's native tasks and explicitly supplied user content, sends derived scoring and client-neutral aggregate evidence counts but no conversation content, and automatically publishes the final manual as a Memova Note.",
+    "longDescription": "Connect Codex to Memova through OAuth MCP for Personal Manual generation, bounded Knowledge V5 retrieval, reviewed first-class Knowledge Entry creation and revision, automation workflows, and selected-content import. A request that authorizes Personal Manual publication under Memova's disclosed privacy practices analyzes up to 20 evidence items from the invoking Codex agent's native tasks and explicitly supplied user content, privately uploads derived Markdown, scoring and client-neutral aggregate evidence counts but no conversation content, and automatically publishes the final manual as a Memova Note.",
     "developerName": "Memova",
     "category": "Productivity",
     "capabilities": [
@@ -38,7 +38,7 @@
     "privacyPolicyURL": "https://memova.ai/privacy",
     "termsOfServiceURL": "https://memova.ai/terms",
     "defaultPrompt": [
-      "@memova 个人说明书",
+      "请让 Memova 生成并发布我的个人说明书；我同意按照 Memova 已说明的隐私规则处理。",
       "Search and use my Memova Knowledge V5.",
       "Create or update a reviewed Knowledge Entry in Memova."
     ],

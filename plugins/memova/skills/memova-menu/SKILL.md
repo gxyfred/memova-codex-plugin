@@ -65,9 +65,9 @@ one of the option names, treat it as a Memova menu selection even if the new use
 repeat `@memova`.
 
 - `1` or "Personal Manual": Follow
-  `plugins/memova/skills/memova-personal-manual/SKILL.md`. Treat an explicit selection such as
-  `@memova Personal Manual`, `@memova 个人说明书`, or menu option `1` as authorization to
-  execute the disclosed generation workflow without another confirmation.
+  `plugins/memova/skills/memova-personal-manual/SKILL.md`. If the current request does not both
+  authorize publication and accept Memova's disclosed privacy practices, show the standard request
+  from that Skill and wait. A menu selection alone does not authorize history access or publication.
 - `2`, "search", "knowledge", or "Knowledge V5": Follow the read-only workflow in
   `plugins/memova/skills/memova-knowledge/SKILL.md`.
 - `3`, "propose", "Knowledge Entry", or "knowledge update": Follow the proposal workflow in

@@ -95,14 +95,17 @@ Advice from Memova
 
 
 class PersonalManualPreparerTests(unittest.TestCase):
-    def test_skill_loads_the_versioned_mcp_contract_before_history(self) -> None:
+    def test_skill_proves_readiness_and_loads_current_contract_before_history(self) -> None:
         skill = PERSONAL_MANUAL_SKILL.read_text(encoding="utf-8")
 
-        contract = skill.index("call `get_personal_manual_generation_contract`")
+        preflight = skill.index("call `get_personal_manual_preflight`")
+        contract = skill.index("call `get_current_personal_manual_generation_contract`")
         history = skill.index("## Read the bounded history locally")
 
+        self.assertLess(preflight, contract)
         self.assertLess(contract, history)
-        self.assertIn("contract_version=personal_manual_generation_v5", skill)
+        self.assertIn("contract_version=personal_manual_generation_v6", skill)
+        self.assertIn("upload_tool=upsert_personal_manual", skill)
         self.assertIn("at most 20 total evidence items", skill)
         self.assertIn("do not loop, use a local contract copy", " ".join(skill.split()))
         self.assertTrue(LOCAL_ARTIFACTS.exists())
@@ -199,7 +202,7 @@ class PersonalManualPreparerTests(unittest.TestCase):
             self.assertNotIn("upload_confirmed", payload)
             self.assertEqual(
                 payload["private_metadata"]["generation_contract_version"],
-                "personal_manual_generation_v5",
+                "personal_manual_generation_v6",
             )
             self.assertNotIn("source_statistics", payload["private_metadata"])
             self.assertEqual(

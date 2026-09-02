@@ -16,6 +16,15 @@ This plugin bundles:
   Restricted Data filtering,
 - Memova starter prompts and plugin presentation metadata.
 
+Version `1.9.6` makes the two-prompt Personal Manual path capability-driven while preserving
+private client-generated artifact upload. The Skill proves authenticated scope and revision
+readiness with `get_personal_manual_preflight`, loads the one current
+`personal_manual_generation_v6` contract without selecting a version, privately creates and
+validates Markdown plus scoring/source CSV files, uploads their exact contents through
+`upsert_personal_manual`, and deletes the temporary directory on every exit path. Setup/login alone
+never starts history access; generation requires a request that also authorizes publication and
+accepts Memova's disclosed privacy practices. Host security policy remains authoritative.
+
 Version `1.9.5` upgrades Personal Manual generation to the MCP
 `personal_manual_generation_v5` contract with exactly two complete output variants: `en` and
 `zh-CN`. An explicit English or Chinese request wins; otherwise the Plugin selects Chinese for a
@@ -72,7 +81,7 @@ canonical Knowledge V5 Codex Session; search rollout and semantic enrichment rem
 
 Independent complete-history collection is maintained separately under top-level `collector/`; it
 is not part of the marketplace plugin path, public Plugin menu, starter prompts, or installation.
-Collector remains independently versioned at `1.6.0` because this `1.9.5` public Plugin release
+Collector remains independently versioned at `1.6.0` because this `1.9.6` public Plugin release
 does not change Collector code, consent, transport, or installer bytes.
 
 ## Should This Repo Be Public?
@@ -234,7 +243,7 @@ Codex should open a short Memova menu:
 Reply with a number, or select one of the plugin starter prompts:
 
 ```text
-@memova 个人说明书
+请让 Memova 生成并发布我的个人说明书；我同意按照 Memova 已说明的隐私规则处理。
 Search and use my Memova Knowledge V5.
 Create or update a reviewed Knowledge Entry in Memova.
 ```
@@ -255,21 +264,27 @@ latest-note automation task execution, or explicit legacy vault tools.
 
 ## Create A Personal Manual
 
-Start with `@memova 个人说明书`. The explicit request starts the disclosed bounded workflow
-without another confirmation. It reads at most 20 total evidence items from the invoking Codex
-agent's native tasks and any content the user explicitly supplied for this run. ChatGPT chats and
-implicit Memova notes, meetings, transcripts, knowledge objects, or automations are excluded. The
-validated Markdown, public document, derived scoring CSV, and client-neutral aggregate source-audit
-CSV are sent through MCP. Memova stores the CSV text privately, renders the script-free HTML, and
-returns the stable public URL. Raw evidence text is never uploaded, temporary artifacts are deleted,
-and Codex shows only the URL.
+Start with the standard generation request:
 
-Before reading history, the Personal Manual Skill calls `get_personal_manual_generation_contract`
-and requires
-`personal_manual_generation_v5`. The MCP contract is authoritative; an absent or unsupported
-contract stops the workflow instead of silently using stale local scoring rules. Bare `@memova`,
-setup/login-only requests, and informational or ambiguous Personal Manual mentions do not start
-history access or publication.
+```text
+请让 Memova 生成并发布我的个人说明书；我同意按照 Memova 已说明的隐私规则处理。
+```
+
+It starts the disclosed bounded workflow without another Memova-specific confirmation. The Skill
+reads at most 20 total evidence items from the invoking Codex agent's native tasks and any content
+the user explicitly supplied for this run. ChatGPT chats and implicit Memova notes, meetings,
+transcripts, knowledge objects, or automations are excluded. It privately creates mode-`0600`
+Markdown and two audit CSV files inside a mode-`0700` temporary directory, validates them, uploads
+their exact contents through MCP, and removes the directory on success or failure. Memova stores
+the CSV text privately, renders the script-free HTML, and returns the stable public URL. Raw
+evidence text is never uploaded, and Codex shows only the URL.
+
+Before reading history, the Skill requires `get_personal_manual_preflight` to prove authenticated
+scope and revision readiness, then calls `get_current_personal_manual_generation_contract` and
+requires `personal_manual_generation_v6` with `upload_tool=upsert_personal_manual`. An absent or
+unsupported capability stops the workflow instead of silently using stale local rules. Bare
+`@memova`, setup/login-only requests, and requests that omit publication/privacy authorization do
+not start history access or publication.
 
 The menu itself does not fetch Memova data. MCP-backed selections require the Memova MCP login above.
 If Codex says setup or automation MCP tools are unavailable, check `codex mcp list`; `Not logged in`
