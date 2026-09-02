@@ -53,6 +53,7 @@ DISCLAIMER = (
 )
 
 MANUAL = f"""Work Archetype: The Conductor
+Output Language: en
 1. How I Operate
 How I think
 I test the frame before I settle it.
@@ -101,7 +102,7 @@ class PersonalManualPreparerTests(unittest.TestCase):
         history = skill.index("## Read the bounded history locally")
 
         self.assertLess(contract, history)
-        self.assertIn("contract_version=personal_manual_generation_v4", skill)
+        self.assertIn("contract_version=personal_manual_generation_v5", skill)
         self.assertIn("at most 20 total evidence items", skill)
         self.assertIn("do not loop, use a local contract copy", " ".join(skill.split()))
         self.assertTrue(LOCAL_ARTIFACTS.exists())
@@ -175,6 +176,7 @@ class PersonalManualPreparerTests(unittest.TestCase):
             )
             payload = json.loads((output / "personal-manual-upload.json").read_text())
             self.assertEqual(payload["schema_version"], "personal_manual_v1")
+            self.assertEqual(payload["document"]["language_code"], "en")
             self.assertEqual(payload["document"]["dimension_scores"]["dimension_4"], 74)
             self.assertEqual(
                 payload["document"]["manual"]["people_that_help_me_thrive"],
@@ -197,7 +199,7 @@ class PersonalManualPreparerTests(unittest.TestCase):
             self.assertNotIn("upload_confirmed", payload)
             self.assertEqual(
                 payload["private_metadata"]["generation_contract_version"],
-                "personal_manual_generation_v4",
+                "personal_manual_generation_v5",
             )
             self.assertNotIn("source_statistics", payload["private_metadata"])
             self.assertEqual(
@@ -346,23 +348,41 @@ class PersonalManualPreparerTests(unittest.TestCase):
             self.assertEqual(module._canonical_archetype(archetype), archetype)
             self.assertEqual(module._canonical_archetype(archetype.upper()), archetype)
 
-    def test_preparer_requires_five_distinct_single_word_keywords(self) -> None:
+    def test_preparer_requires_five_distinct_single_lexical_unit_keywords(self) -> None:
         module = _load_preparer_module()
         with self.assertRaisesRegex(ValueError, "exactly five keywords"):
             module._parse_keyword_prose(
                 ["Calm, Candid, Steady, Curious", "Supporting prose."],
                 "People that help me thrive",
             )
-        with self.assertRaisesRegex(ValueError, "single English words"):
+        with self.assertRaisesRegex(ValueError, "single lexical units"):
             module._parse_keyword_prose(
                 ["Calm, Open minded, Steady, Curious, Direct", "Supporting prose."],
                 "People that help me thrive",
             )
+        self.assertEqual(
+            module._parse_keywords("坦诚，稳健，敏锐，独立，可靠", "People that help me thrive"),
+            ["坦诚", "稳健", "敏锐", "独立", "可靠"],
+        )
         with self.assertRaisesRegex(ValueError, "must be distinct"):
             module._parse_keyword_prose(
                 ["Calm, Candid, calm, Curious, Direct", "Supporting prose."],
                 "People that help me thrive",
             )
+
+    def test_preparer_rejects_chinese_tag_when_generated_content_is_not_chinese(self) -> None:
+        module = _load_preparer_module()
+        chinese_tagged = MANUAL.replace("Output Language: en", "Output Language: zh-CN")
+
+        with self.assertRaisesRegex(ValueError, "does not predominantly match"):
+            module.parse_manual(chinese_tagged)
+        module._validate_manual_language(
+            {"prose": "我会先理解问题，再根据证据做出清晰判断，并记录下一步行动。"},
+            "zh-CN",
+        )
+
+        with self.assertRaisesRegex(ValueError, "exactly en or zh-CN"):
+            module.parse_manual(MANUAL.replace("Output Language: en", "Output Language: ja"))
 
     def test_preparer_rejects_unknown_or_mismatched_archetypes(self) -> None:
         module = _load_preparer_module()

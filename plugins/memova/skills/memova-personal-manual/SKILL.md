@@ -1,6 +1,6 @@
 ---
 name: memova-personal-manual
-description: Generate and publish an English Personal Manual when the user explicitly asks to create, generate, update, regenerate, or publish it. Analyze up to 20 evidence items from the invoking Codex agent's tasks and explicitly supplied user content locally, upload only derived scoring and client-neutral aggregate evidence counts, and return a stable unlisted URL. Bare @memova or informational questions do not start generation.
+description: Generate and publish a Personal Manual in English or Simplified Chinese when the user explicitly asks to create, generate, update, regenerate, or publish it. Analyze up to 20 evidence items from the invoking Codex agent's tasks and explicitly supplied user content locally, upload only derived scoring and client-neutral aggregate evidence counts, and return a stable unlisted URL. Bare @memova or informational questions do not start generation.
 ---
 
 # Memova Personal Manual
@@ -16,7 +16,7 @@ run the upgrade command without explicit user confirmation.
 ## Load the canonical generation contract
 
 Before reading any history, call `get_personal_manual_generation_contract` with
-`contract_version=personal_manual_generation_v4`. Require that returned version and
+`contract_version=personal_manual_generation_v5`. Require that returned version and
 `document_schema_version=personal_manual_v1`; follow its returned `instructions_markdown` as the
 canonical analysis, scoring, writing, privacy, and upload contract. If either version is different,
 stop and ask the user to update the Plugin instead of guessing or using stale bundled rules.
@@ -104,9 +104,19 @@ the user supplied no explicit content, stop.
 
 Do not scan JSONL, SQLite, browser state, local history files, or the filesystem as a fallback.
 
+Choose exactly one of the v5 contract's two complete variants: `en` or `zh-CN`. An explicit English
+or Chinese request wins. Otherwise, count the predominant natural language of retained user
+messages, excluding code, quoted material, copied documents, and proper nouns; never use
+assistant-message language to break a tie. Select `zh-CN` for a Chinese plurality and `en` for every
+other plurality. Write in the first person in that selected language. Keep the contract's fixed
+Markdown headings and canonical Work Archetype name in English, and write the generated prose,
+bullets, keyword rows, and advice in the selected language. Record the exact selected value on the
+required `Output Language:` line. The backend uses it to select the matching complete English or
+Simplified Chinese HTML presentation catalog.
+
 ## Generate private temporary artifacts
 
-Follow the MCP generation contract for the complete content rubric and fixed English output.
+Follow the MCP generation contract for the complete content rubric and evidence-led output language.
 Read [references/local-artifacts.md](references/local-artifacts.md) for the Plugin-only CSV format.
 Create a fresh private temporary run directory with mode `0700`. Produce these three UTF-8 files
 only inside that directory:
