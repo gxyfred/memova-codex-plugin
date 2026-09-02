@@ -18,7 +18,7 @@ from memova_vault_lib import (
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Diagnose and optionally repair a Memova Knowledge Base V2 or V3 managed root.")
+    parser = argparse.ArgumentParser(description="Diagnose and optionally repair a Memova Knowledge Base V2/V3/V4 managed root.")
     parser.add_argument("--path", required=True)
     parser.add_argument("--setup-json")
     parser.add_argument("--repair-plan", action="store_true")
@@ -56,21 +56,26 @@ def main() -> int:
 
     if args.repair_plan or args.apply_repair:
         if (
-            validation.get("vault_template_version") == "memova_knowledge_base_v3"
+            validation.get("vault_template_version")
+            in {"memova_knowledge_base_v3", "memova_knowledge_base_v4"}
             and not setup
             and validation.get("status") != "ok"
         ):
             report["status"] = "fail"
             report["repair_error"] = (
-                "V3 repair requires the current backend setup or repair package. "
-                "The plugin will not reconstruct V3 files from hardcoded templates."
+                "V3/V4 repair requires the current backend setup or repair package. "
+                "The plugin will not reconstruct backend-owned files from hardcoded templates."
             )
             write_json(report)
             return 1
-        if validation.get("vault_template_version") == "memova_knowledge_base_v3" and not setup:
+        if (
+            validation.get("vault_template_version")
+            in {"memova_knowledge_base_v3", "memova_knowledge_base_v4"}
+            and not setup
+        ):
             report["repair_plan"] = {
                 "status": "not_required",
-                "vault_template_version": "memova_knowledge_base_v3",
+                "vault_template_version": validation.get("vault_template_version"),
                 "operations": [],
             }
             write_json(report)

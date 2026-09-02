@@ -24,6 +24,7 @@ class PublicPluginBoundaryTests(unittest.TestCase):
                 "memova-workflow",
                 "memova-vault-setup",
                 "memova-vault-diagnose",
+                "memova-agent-archive",
             },
         )
 
@@ -35,7 +36,8 @@ class PublicPluginBoundaryTests(unittest.TestCase):
             "4. Import selected content",
             "5. Review my automation tasks",
             "6. Run latest note automation tasks",
-            "7. Legacy V2/V3 vault setup or diagnosis",
+            "7. Archive Codex outputs to Memova",
+            "8. Legacy V2/V3/V4 vault setup or diagnosis",
         ):
             self.assertIn(option, menu)
 
@@ -47,7 +49,7 @@ class PublicPluginBoundaryTests(unittest.TestCase):
             (PLUGIN / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
         )
         self.assertNotIn("hooks", manifest)
-        self.assertEqual(manifest["version"], "1.9.6")
+        self.assertEqual(manifest["version"], "1.10.0")
         description = manifest["interface"]["longDescription"]
         self.assertIn("up to 20 evidence items", description)
         self.assertIn("invoking Codex agent's native tasks", description)
@@ -67,6 +69,7 @@ class PublicPluginBoundaryTests(unittest.TestCase):
             "memova-personal-manual",
             "memova-vault-setup",
             "memova-workflow",
+            "memova-agent-archive",
         ):
             with self.subTest(skill=skill_name):
                 skill = (

@@ -1,12 +1,12 @@
 ---
 name: memova-vault-diagnose
-description: Use when the user explicitly asks Memova/Codex to diagnose, validate, repair, or troubleshoot a Memova Knowledge Base V2 or V3 managed root, iCloud folder binding, or meeting-to-vault sync write problem.
+description: Use when the user explicitly asks Memova/Codex to diagnose, validate, repair, or troubleshoot a Memova Knowledge Base V2, V3, or V4 managed root, iCloud folder binding, or meeting-to-vault sync write problem.
 ---
 
 # Memova Vault Diagnose
 
 Use this skill only when the user explicitly asks to diagnose, validate, repair, or troubleshoot a
-Memova Knowledge Base V2/V3 managed root or a meeting-to-vault sync failure.
+Memova Knowledge Base V2/V3/V4 managed root or a meeting-to-vault sync failure.
 
 ## Operating Rules
 
@@ -43,8 +43,8 @@ Memova Knowledge Base V2/V3 managed root or a meeting-to-vault sync failure.
    ```
 
    Add `--allow-non-icloud` only when the user knowingly chose a local folder instead of iCloud.
-   For V3 repair, retrieve the current backend setup or repair package and add
-   `--setup-json "/tmp/memova-setup.json" --repair-plan`; do not generate V3 repair files from
+   For V3/V4 repair, retrieve the current backend setup or repair package and add
+   `--setup-json "/tmp/memova-setup.json" --repair-plan`; do not generate V3/V4 repair files from
    local plugin templates. V2 may use `--repair-plan` without a setup package for compatibility.
 3. Summarize:
    - whether the folder validates,

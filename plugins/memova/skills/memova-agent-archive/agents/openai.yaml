@@ -1,0 +1,15 @@
+interface:
+  display_name: "Memova Agent Archive"
+  short_description: "Archive authorized Codex outputs into Memova."
+  default_prompt: "Use $memova-agent-archive to save my Codex output in Memova."
+
+policy:
+  allow_implicit_invocation: true
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "memova"
+      description: "Memova OAuth MCP server for Agent archive and LLM Wiki sync."
+      transport: "streamable_http"
+      url: "https://api.memova.ai/mcp"

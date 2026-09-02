@@ -11,10 +11,19 @@ This plugin bundles:
 - the `memova-knowledge` skill for bounded Knowledge V5 retrieval and reviewed Knowledge Entries,
 - the `memova-workflow` skill for reviewing and running existing Codex automation tasks,
 - the `memova-vault-setup` skill for iCloud-first Memova knowledge-base setup,
-- the `memova-vault-diagnose` skill for validating and repairing a Memova V2/V3 managed root,
+- the `memova-vault-diagnose` skill for validating and repairing a Memova V2/V3/V4 managed root,
 - the `memova-explicit-import` skill for bounded user-selected text with preview and local
   Restricted Data filtering,
+- the `memova-agent-archive` skill for consent-aware Codex output archiving, manifest-only
+  scheduled scans, stable-ID Project moves, and Blob/iCloud/Knowledge V5 status,
 - Memova starter prompts and plugin presentation metadata.
+
+Version `1.10.0` adds P9 Agent archiving. Eligible current-task final Markdown, HTML, and text
+outputs are copied to `projects/Uncategorized/`, submitted through the versioned MCP archive
+contract, and represented by one stable file/Knowledge Object identity. Preferences support
+explicit-only, ask-each-time, and always-auto-save modes. Scheduled tasks inspect only exact paths
+in the Plugin-owned authorized manifest; they never scan repositories or Codex history. V4 setup
+and repair consume the backend-provided setup operations and do not duplicate the LLM Wiki tree.
 
 Version `1.9.6` makes the two-prompt Personal Manual path capability-driven while preserving
 private client-generated artifact upload. The Skill proves authenticated scope and revision
@@ -81,7 +90,7 @@ canonical Knowledge V5 Codex Session; search rollout and semantic enrichment rem
 
 Independent complete-history collection is maintained separately under top-level `collector/`; it
 is not part of the marketplace plugin path, public Plugin menu, starter prompts, or installation.
-Collector remains independently versioned at `1.6.0` because this `1.9.6` public Plugin release
+Collector remains independently versioned at `1.6.0` because this `1.10.0` public Plugin release
 does not change Collector code, consent, transport, or installer bytes.
 
 ## Should This Repo Be Public?
@@ -237,7 +246,8 @@ Codex should open a short Memova menu:
 4. Import selected content
 5. Review my automation tasks
 6. Run latest note automation tasks
-7. Legacy V2/V3 vault setup or diagnosis
+7. Archive Codex outputs to Memova
+8. Legacy V2/V3/V4 vault setup or diagnosis
 ```
 
 Reply with a number, or select one of the plugin starter prompts:
@@ -245,7 +255,7 @@ Reply with a number, or select one of the plugin starter prompts:
 ```text
 请让 Memova 生成并发布我的个人说明书；我同意按照 Memova 已说明的隐私规则处理。
 Search and use my Memova Knowledge V5.
-Create or update a reviewed Knowledge Entry in Memova.
+Archive my Codex output in Memova.
 ```
 
 You can still ask directly:
@@ -254,7 +264,8 @@ You can still ask directly:
 @memova Run latest note automation tasks.
 @memova Review my automation tasks.
 @memova Import this selected content.
-@memova Set up legacy V2/V3 vault.
+@memova Archive this final output in Memova.
+@memova Set up legacy V2/V3/V4 vault.
 ```
 
 The menu is the safe default entrypoint. It does not run a write-heavy workflow just because the
@@ -296,14 +307,14 @@ existing `automation_tasks` that the user already sent to Codex from Memova/iOS,
 task at a time, asks before approval-required work, executes safe tasks when the current workspace
 is appropriate, and writes progress/results back to Memova.
 
-The legacy V2/V3 options retain the one-time local vault reminder under
+The legacy V2/V3/V4 options retain the one-time local vault reminder under
 `~/.cache/memova-codex-plugin/`. It no longer blocks Knowledge V5 or automation workflows.
 
 The plugin also checks for newer Memova plugin releases at most once per day. If a newer version is
 available, it reminds the user to upgrade, then repeats that reminder at most once every 7 days for
 the same latest version.
 
-## Legacy V2/V3 Vault Compatibility
+## Legacy V2/V3/V4 Vault Compatibility
 
 The knowledge-base setup flow is designed for users who already completed the Memova iOS setup step and marked setup ready for Codex.
 

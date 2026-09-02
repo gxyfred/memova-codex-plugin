@@ -11,13 +11,17 @@ from typing import Any
 
 V2_TEMPLATE_VERSION = "memova_knowledge_base_v2"
 V3_TEMPLATE_VERSION = "memova_knowledge_base_v3"
-SUPPORTED_TEMPLATE_VERSIONS = {V2_TEMPLATE_VERSION, V3_TEMPLATE_VERSION}
+V4_TEMPLATE_VERSION = "memova_knowledge_base_v4"
+BACKEND_TEMPLATE_VERSIONS = {V3_TEMPLATE_VERSION, V4_TEMPLATE_VERSION}
+SUPPORTED_TEMPLATE_VERSIONS = {V2_TEMPLATE_VERSION, *BACKEND_TEMPLATE_VERSIONS}
 TEMPLATE_VERSION = V2_TEMPLATE_VERSION
 SETUP_SCHEMA_VERSION = "knowledge_base_setup_v1"
 VALIDATION_RESULT_SCHEMA_VERSION = "memova_kb_v2_validation_result_v1"
 REPAIR_PACKAGE_SCHEMA_VERSION = "memova_kb_v2_repair_package_v1"
 V3_VALIDATION_RESULT_SCHEMA_VERSION = "memova_kb_v3_validation_result_v1"
 V3_REPAIR_PACKAGE_SCHEMA_VERSION = "memova_kb_v3_repair_package_v1"
+V4_VALIDATION_RESULT_SCHEMA_VERSION = "memova_kb_v4_validation_result_v1"
+V4_REPAIR_PACKAGE_SCHEMA_VERSION = "memova_kb_v4_repair_package_v1"
 INPUT_ROOT_RELATIVE_PATH = "."
 INPUT_ROOT_FOLDER_NAME = "Memova"
 DEFAULT_NEW_VAULT_FOLDER_NAME = "Memova Vault"
@@ -259,8 +263,8 @@ def setup_package_errors(setup: dict[str, Any]) -> list[str]:
     template_version = setup_template_version(setup)
     if template_version not in SUPPORTED_TEMPLATE_VERSIONS:
         errors.append(
-            "vault_template_version must be memova_knowledge_base_v2 or "
-            "memova_knowledge_base_v3"
+            "vault_template_version must be memova_knowledge_base_v2, "
+            "memova_knowledge_base_v3, or memova_knowledge_base_v4"
         )
         return errors
     contract = setup.get("vault_contract")
@@ -268,8 +272,8 @@ def setup_package_errors(setup: dict[str, Any]) -> list[str]:
         contract_template = contract.get("template")
         if contract_template and contract_template != template_version:
             errors.append("vault_contract.template must match vault_template_version")
-    if template_version == V3_TEMPLATE_VERSION:
-        errors.extend(v3_setup_operation_errors(setup))
+    if template_version in BACKEND_TEMPLATE_VERSIONS:
+        errors.extend(backend_setup_operation_errors(setup))
     return errors
 
 
@@ -306,27 +310,30 @@ def strict_relative_path(value: Any) -> str | None:
     return "/".join(parts)
 
 
-def v3_setup_operation_errors(setup: dict[str, Any]) -> list[str]:
+def backend_setup_operation_errors(setup: dict[str, Any]) -> list[str]:
     operations = setup_operations(setup)
     if operations is None:
-        return ["V3 setup package must include vault_contract.memova_managed_root.setup_operations"]
+        return [
+            "Backend-owned setup package must include "
+            "vault_contract.memova_managed_root.setup_operations"
+        ]
     directories = operations.get("directories")
     files = operations.get("files")
     errors: list[str] = []
     if not isinstance(directories, list):
-        errors.append("V3 setup_operations.directories must be an array")
+        errors.append("Backend setup_operations.directories must be an array")
         directories = []
     if not isinstance(files, list):
-        errors.append("V3 setup_operations.files must be an array")
+        errors.append("Backend setup_operations.files must be an array")
         files = []
     if not directories:
-        errors.append("V3 setup_operations.directories must not be empty")
+        errors.append("Backend setup_operations.directories must not be empty")
     if not files:
-        errors.append("V3 setup_operations.files must not be empty")
+        errors.append("Backend setup_operations.files must not be empty")
 
     seen_paths: set[str] = set()
     for index, item in enumerate(directories):
-        prefix = f"V3 directory operation {index}"
+        prefix = f"Backend directory operation {index}"
         if not isinstance(item, dict):
             errors.append(f"{prefix} must be an object")
             continue
@@ -334,14 +341,14 @@ def v3_setup_operation_errors(setup: dict[str, Any]) -> list[str]:
         if relative_path is None:
             errors.append(f"{prefix} has an unsafe relative_path")
         elif relative_path in seen_paths:
-            errors.append(f"duplicate V3 operation path: {relative_path}")
+            errors.append(f"duplicate backend operation path: {relative_path}")
         else:
             seen_paths.add(relative_path)
         if item.get("write_mode", "create") != "create":
             errors.append(f"{prefix} write_mode must be create")
 
     for index, item in enumerate(files):
-        prefix = f"V3 file operation {index}"
+        prefix = f"Backend file operation {index}"
         if not isinstance(item, dict):
             errors.append(f"{prefix} must be an object")
             continue
@@ -349,7 +356,7 @@ def v3_setup_operation_errors(setup: dict[str, Any]) -> list[str]:
         if relative_path is None:
             errors.append(f"{prefix} has an unsafe relative_path")
         elif relative_path in seen_paths:
-            errors.append(f"duplicate V3 operation path: {relative_path}")
+            errors.append(f"duplicate backend operation path: {relative_path}")
         else:
             seen_paths.add(relative_path)
         if str(item.get("encoding", "utf-8")).lower() != "utf-8":
@@ -499,7 +506,7 @@ def is_setup_identity_file(relative_path: str) -> bool:
 
 
 def backend_manifest_content(setup: dict[str, Any]) -> dict[str, Any] | None:
-    if setup_template_version(setup) != V3_TEMPLATE_VERSION:
+    if setup_template_version(setup) not in BACKEND_TEMPLATE_VERSIONS:
         return None
     operations = setup_operations(setup) or {}
     for item in operations.get("files") or []:
@@ -1261,7 +1268,7 @@ this file without rewriting the full `packet.json`.
 
 
 def build_dirs(setup: dict[str, Any]) -> list[str]:
-    if setup_template_version(setup) == V3_TEMPLATE_VERSION:
+    if setup_template_version(setup) in BACKEND_TEMPLATE_VERSIONS:
         operations = setup_operations(setup) or {}
         return [
             str(item["relative_path"])
@@ -1272,7 +1279,7 @@ def build_dirs(setup: dict[str, Any]) -> list[str]:
 
 
 def build_file_specs(setup: dict[str, Any], *, target_root: Path, now: str | None = None) -> list[FileSpec]:
-    if setup_template_version(setup) == V3_TEMPLATE_VERSION:
+    if setup_template_version(setup) in BACKEND_TEMPLATE_VERSIONS:
         operations = setup_operations(setup) or {}
         specs: list[FileSpec] = []
         for item in operations.get("files") or []:
@@ -1654,15 +1661,25 @@ def validate_vault(path: Path, setup: dict[str, Any] | None = None) -> dict[str,
     detected_template = (manifest or {}).get("vault_template_version")
     requested_template = setup_template_version(setup) if setup else None
     template_version = requested_template or detected_template or V2_TEMPLATE_VERSION
-    if template_version == V3_TEMPLATE_VERSION:
-        return validate_v3_vault(root, setup=setup)
+    if template_version in BACKEND_TEMPLATE_VERSIONS:
+        return validate_v3_vault(root, setup=setup, template_version=template_version)
     return validate_v2_vault(root)
 
 
-def validate_v3_vault(path: Path, setup: dict[str, Any] | None = None) -> dict[str, Any]:
+def validate_v3_vault(
+    path: Path,
+    setup: dict[str, Any] | None = None,
+    template_version: str | None = None,
+) -> dict[str, Any]:
     root = expand_path(str(path))
     manifest_path = safe_join(root, "_memova/manifest.json")
     manifest, manifest_error = read_json_file(manifest_path)
+    template_version = (
+        template_version
+        or (setup_template_version(setup) if setup else None)
+        or (manifest or {}).get("vault_template_version")
+        or V3_TEMPLATE_VERSION
+    )
     tree_manifest, tree_manifest_error = read_json_file(safe_join(root, "_memova/tree_manifest.json"))
     issues: list[dict[str, Any]] = []
     missing_directories: list[str] = []
@@ -1693,13 +1710,13 @@ def validate_v3_vault(path: Path, setup: dict[str, Any] | None = None) -> dict[s
                 "blocked",
             )
         )
-    elif (manifest or {}).get("vault_template_version") != V3_TEMPLATE_VERSION:
+    elif (manifest or {}).get("vault_template_version") != template_version:
         issues.append(
             validation_issue(
                 "root_manifest_template_mismatch",
                 "error",
                 "_memova/manifest.json",
-                "Root manifest does not declare memova_knowledge_base_v3.",
+                f"Root manifest does not declare {template_version}.",
                 "blocked",
             )
         )
@@ -1772,7 +1789,10 @@ def validate_v3_vault(path: Path, setup: dict[str, Any] | None = None) -> dict[s
                 )
             )
             continue
-    for relative_path, expected_schema_version in V3_MACHINE_JSON_SCHEMA_VERSIONS.items():
+    machine_schemas = (
+        V3_MACHINE_JSON_SCHEMA_VERSIONS if template_version == V3_TEMPLATE_VERSION else {}
+    )
+    for relative_path, expected_schema_version in machine_schemas.items():
         target = safe_join(root, relative_path)
         if not target.is_file():
             continue
@@ -1816,6 +1836,7 @@ def validate_v3_vault(path: Path, setup: dict[str, Any] | None = None) -> dict[s
     status = "blocked" if blocked_reasons else "repair_required" if error_count else "ok"
     health = "blocked" if blocked_reasons else "repairable" if error_count else "healthy"
     repair_package = v3_validation_repair_package(
+        template_version=template_version,
         setup=setup,
         expected_specs=expected_specs,
         missing_directories=missing_directories,
@@ -1824,7 +1845,11 @@ def validate_v3_vault(path: Path, setup: dict[str, Any] | None = None) -> dict[s
         blocked_reasons=blocked_reasons,
     )
     return {
-        "schema_version": V3_VALIDATION_RESULT_SCHEMA_VERSION,
+        "schema_version": (
+            V4_VALIDATION_RESULT_SCHEMA_VERSION
+            if template_version == V4_TEMPLATE_VERSION
+            else V3_VALIDATION_RESULT_SCHEMA_VERSION
+        ),
         "status": status,
         "health": health,
         "path": str(resolved(root)),
@@ -1833,7 +1858,7 @@ def validate_v3_vault(path: Path, setup: dict[str, Any] | None = None) -> dict[s
             if (manifest or {}).get("setup_mode") == "connect_existing_vault"
             else "memova_vault"
         ),
-        "vault_template_version": V3_TEMPLATE_VERSION,
+        "vault_template_version": template_version,
         "memova_input_root_path": str(resolved(root)),
         "memova_input_root_relative_path": (manifest or {}).get(
             "memova_input_root_relative_path",
@@ -1885,6 +1910,7 @@ def v3_validation_expectations(
 
 def v3_validation_repair_package(
     *,
+    template_version: str,
     setup: dict[str, Any] | None,
     expected_specs: dict[str, FileSpec],
     missing_directories: list[str],
@@ -1904,7 +1930,7 @@ def v3_validation_repair_package(
         status = "not_available"
         package_blocked_reasons = [
             *blocked_reasons,
-            "Current V3 setup or repair operations are required; the plugin will not reconstruct V3 files locally.",
+            "Current backend setup or repair operations are required; the plugin will not reconstruct V3/V4 files locally.",
         ]
     else:
         status = "not_available" if blocked_reasons else "available"
@@ -1918,7 +1944,11 @@ def v3_validation_repair_package(
         if relative_path in expected_specs
     ]
     return {
-        "schema_version": V3_REPAIR_PACKAGE_SCHEMA_VERSION,
+        "schema_version": (
+            V4_REPAIR_PACKAGE_SCHEMA_VERSION
+            if template_version == V4_TEMPLATE_VERSION
+            else V3_REPAIR_PACKAGE_SCHEMA_VERSION
+        ),
         "status": status,
         "generated_at": utc_now_iso(),
         "target_kind": "memova_managed_root",
@@ -1926,7 +1956,7 @@ def v3_validation_repair_package(
         "directories": [
             {
                 "relative_path": relative_path,
-                "role": "memova_root_structure_v3",
+                "role": f"memova_root_structure_{template_version.rsplit('_', 1)[-1]}",
                 "write_mode": "create",
             }
             for relative_path in missing_directories
@@ -1934,7 +1964,7 @@ def v3_validation_repair_package(
         "files": files if setup else [],
         "blocked_reasons": package_blocked_reasons,
         "safety_policy": {
-            "scope": "backend_supplied_memova_managed_root_v3_operations_only",
+            "scope": "backend_supplied_memova_managed_root_operations_only",
             "never_repairs": [
                 "user_modified_non_machine_files",
                 "files_not_present_in_backend_setup_operations",

@@ -12,8 +12,8 @@ because a prompt mentions Obsidian, iCloud, or notes.
 ## Operating Rules
 
 - Treat the Memova MCP setup package as the source of truth for template version, setup mode,
-  storage target, path hints, and V3 filesystem operations. V2 remains supported for existing
-  setup sessions; V3 is never reconstructed from plugin-hardcoded templates.
+  storage target, path hints, and V3/V4 filesystem operations. V2 remains supported for existing
+  setup sessions; V3/V4 are never reconstructed from plugin-hardcoded templates.
 - Do not plan or create local setup files if the Memova MCP setup package cannot be retrieved. A
   missing MCP tool, failed OAuth flow, empty pending setup list, or invalid setup package is a hard
   stop, not permission to fall back to local defaults.
@@ -38,22 +38,23 @@ because a prompt mentions Obsidian, iCloud, or notes.
   The exception is Memova setup identity manifests (`_memova/manifest.json`): when a user reuses a
   Memova directory for a new setup session, this file must be refreshed to the current MCP setup
   package before reporting success.
-- For `create_new_vault`, create the exact V2 or V3 root requested by the current setup package. The
+- For `create_new_vault`, create the exact V2, V3, or V4 root requested by the current setup package. The
   target folder itself is the Memova managed root.
 - For `connect_existing_vault`, preserve the user's existing vault root and create only a root-level
   Memova managed sub-knowledge-base at `<existing vault>/Memova`. Do not write into or reorganize the
   user's other vault folders.
-- The setup output must be self-describing. V2 uses the plugin's compatibility templates. V3 uses
+- The setup output must be self-describing. V2 uses the plugin's compatibility templates. V3/V4 use
   only the backend-provided `vault_contract.memova_managed_root.setup_operations`, including file
   contents, hashes, byte sizes, write modes, and preservation rules. Do not replace these with empty
-  placeholders or locally invented V3 files.
+  placeholders or locally invented V3/V4 files. In particular, never duplicate the V4 tree or
+  `projects/Uncategorized/` as Plugin constants; create exactly the backend package operations.
 - These setup docs and schemas are Memova-managed setup files. Existing files are skipped by
   default; overwrite them only with explicit user approval and `--overwrite-machine-files`, for
   example when repairing docs created by an older plugin version.
 - Local validation dispatches by the setup/manifest template version. V2 reports
-  `memova_kb_v2_validation_result_v1`; V3 reports `memova_kb_v3_validation_result_v1`. Both use
-  `ok`, `repair_required`, or `blocked`. V3 repair requires current backend-supplied setup/repair
-  operations; never synthesize V3 repair contents locally.
+  `memova_kb_v2_validation_result_v1`; V3/V4 report their matching versioned validation result.
+  All use `ok`, `repair_required`, or `blocked`. V3/V4 repair requires current backend-supplied
+  setup/repair operations; never synthesize their repair contents locally.
 - Setup should create `inbox/meetings/` but must not pre-create concrete meeting packet folders; iOS
   writes those later after each meeting.
 - Ask for explicit user approval before creating files, writing into an existing vault, or using a
@@ -137,7 +138,7 @@ When the user asks to set up their Memova knowledge base:
      --target-root "<approved-target-path>"
    ```
 
-9. Confirm `vault_template_version` is V2 or V3. For V3, stop if the package lacks valid
+9. Confirm `vault_template_version` is V2, V3, or V4. For V3/V4, stop if the package lacks valid
    `setup_operations` or if any content hash/byte count fails validation. Then summarize the plan:
    target path, setup mode, target kind, non-iCloud warning if any,
    directories to create, files to create, files to skip, the self-describing setup docs/schemas to

@@ -144,6 +144,46 @@ def v3_setup_package(*, session_id: str = "v3-fixture") -> dict[str, Any]:
     }
 
 
+def v4_setup_package(*, session_id: str = "v4-fixture") -> dict[str, Any]:
+    """Build a backend-owned V4 fixture without adding V4 tree constants to runtime code."""
+    setup = v3_setup_package(session_id=session_id)
+    setup["vault_template_version"] = "memova_knowledge_base_v4"
+    setup["vault_contract"]["template"] = "memova_knowledge_base_v4"
+    operations = setup["vault_contract"]["memova_managed_root"]["setup_operations"]
+    operations["directories"].append(
+        {
+            "relative_path": "projects/Uncategorized",
+            "role": "agent_uncategorized",
+            "write_mode": "create",
+        }
+    )
+    for item in operations["files"]:
+        if item["relative_path"] not in {
+            "_memova/manifest.json",
+            "_memova/tree_manifest.json",
+        }:
+            continue
+        payload = json.loads(item["content"])
+        if item["relative_path"] == "_memova/manifest.json":
+            payload["vault_template_version"] = "memova_knowledge_base_v4"
+            payload["ownership_scope"] = "memova_managed_root_v4"
+        else:
+            payload["template_version"] = "memova_knowledge_base_v4"
+            payload["required_directories"].append(
+                {
+                    "relative_path": "projects/Uncategorized",
+                    "ownership": "memova",
+                    "write_policy": "create",
+                }
+            )
+        content = json.dumps(payload, indent=2, ensure_ascii=False) + "\n"
+        content_bytes = content.encode("utf-8")
+        item["content"] = content
+        item["sha256"] = hashlib.sha256(content_bytes).hexdigest()
+        item["byte_size"] = len(content_bytes)
+    return setup
+
+
 def _v3_file_operation(
     relative_path: str,
     content: str,
@@ -174,6 +214,7 @@ def run_harness(output_root: Path | None = None, *, keep_artifacts: bool = False
         output_root.mkdir(parents=True, exist_ok=True)
 
     results = [
+        case_create_v4_from_backend_operations(output_root),
         case_create_v3_from_backend_operations(output_root),
         case_v3_contract_rejects_tampering(output_root),
         case_create_new_vault(output_root),
@@ -209,6 +250,56 @@ def run_harness(output_root: Path | None = None, *, keep_artifacts: bool = False
     if not keep_artifacts and output_root.name.startswith("memova-plugin-setup-fixtures-"):
         shutil.rmtree(output_root, ignore_errors=True)
     return report
+
+
+def case_create_v4_from_backend_operations(root: Path) -> HarnessCaseResult:
+    target = root / "v4-icloud" / "Memova Vault"
+    setup = v4_setup_package()
+    plan = create_plan(
+        target_root=target,
+        setup=setup,
+        allow_non_icloud=True,
+        allow_existing_nonempty=False,
+    )
+    result = apply_plan(plan, setup)
+    validation = validate_vault(target, setup=setup)
+    issues = _issues_for_ok_plan(plan, result, validation)
+    if plan.get("vault_template_version") != "memova_knowledge_base_v4":
+        issues.append(
+            HarnessIssue(
+                "error",
+                "v4_template_not_selected",
+                "The V4 setup package did not select the backend-operation path.",
+            )
+        )
+    if not (target / "projects" / "Uncategorized").is_dir():
+        issues.append(
+            HarnessIssue(
+                "error",
+                "v4_agent_directory_missing",
+                "The backend-provided Agent Uncategorized directory was not created.",
+            )
+        )
+    if validation.get("schema_version") != "memova_kb_v4_validation_result_v1":
+        issues.append(
+            HarnessIssue(
+                "error",
+                "v4_validation_schema_missing",
+                "The V4 package was not validated with the V4 result contract.",
+                {"validation": validation},
+            )
+        )
+    return HarnessCaseResult(
+        case_id="create_v4_from_backend_operations",
+        status="ok" if not _has_error(issues) else "fail",
+        target_root=str(target),
+        issues=issues,
+        details={
+            "plan_summary": plan.get("summary"),
+            "validation": validation,
+            "written_files": result.get("written_files"),
+        },
+    )
 
 
 def case_create_v3_from_backend_operations(root: Path) -> HarnessCaseResult:

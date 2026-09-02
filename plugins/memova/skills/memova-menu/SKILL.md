@@ -27,7 +27,7 @@ If `version_check.py` returns `should_remind: true`, show its upgrade message an
 check fails or returns no reminder, continue silently. Never run the upgrade command without
 explicit user confirmation.
 
-Run the legacy knowledge-base setup reminder only after the user selects legacy option 6. It
+Run the legacy knowledge-base setup reminder only after the user selects legacy option 8. It
 must not block Knowledge V5 or automation workflows:
 
 ```bash
@@ -51,7 +51,8 @@ Memova
 4. Import selected content
 5. Review my automation tasks
 6. Run latest note automation tasks
-7. Legacy V2/V3 vault setup or diagnosis
+7. Archive Codex outputs to Memova
+8. Legacy V2/V3/V4 vault setup or diagnosis
 
 Reply with a number, or tell me what you want to do.
 ```
@@ -87,7 +88,10 @@ repeat `@memova`.
   `plugins/memova/skills/memova-workflow/SKILL.md`. This workflow must only use existing
   automation tasks linked to the latest ready note's meeting. It must not call
   `extract_action_items`, `accept_action_candidate`, or `ensure_task_from_action`.
-- `7` or "legacy vault": Ask whether the user wants setup or diagnosis. Run the one-time legacy
+- `7`, "archive", "save Codex output", or "Agent archive": Follow
+  `plugins/memova/skills/memova-agent-archive/SKILL.md`. This includes archive preferences,
+  current-task Markdown export, manifest-only scheduled tasks, status/retry, and Project moves.
+- `8` or "legacy vault": Ask whether the user wants setup or diagnosis. Run the one-time legacy
   reminder, then follow `plugins/memova/skills/memova-vault-setup/SKILL.md` for setup or
   `plugins/memova/skills/memova-vault-diagnose/SKILL.md` for diagnosis.
 - Do not run Memova MCP login merely to show the menu.

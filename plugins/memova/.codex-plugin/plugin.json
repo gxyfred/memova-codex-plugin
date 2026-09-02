@@ -1,7 +1,7 @@
 {
   "name": "memova",
-  "version": "1.9.6",
-  "description": "Create a Personal Manual, use Knowledge V5, and manage reviewed Knowledge Entries.",
+  "version": "1.10.0",
+  "description": "Create a Personal Manual, use Knowledge V5, manage reviewed Knowledge Entries, and archive authorized Codex outputs.",
   "author": {
     "name": "Memova",
     "url": "https://memova.ai"
@@ -19,14 +19,15 @@
     "productivity",
     "selected-import",
     "personal-manual",
-    "privacy"
+    "privacy",
+    "agent-archive"
   ],
   "skills": "./skills/",
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Memova",
-    "shortDescription": "Create a Personal Manual and use private Memova workflows.",
-    "longDescription": "Connect Codex to Memova through OAuth MCP for Personal Manual generation, bounded Knowledge V5 retrieval, reviewed first-class Knowledge Entry creation and revision, automation workflows, and selected-content import. A request that authorizes Personal Manual publication under Memova's disclosed privacy practices analyzes up to 20 evidence items from the invoking Codex agent's native tasks and explicitly supplied user content, privately uploads derived Markdown, scoring and client-neutral aggregate evidence counts but no conversation content, and automatically publishes the final manual as a Memova Note.",
+    "shortDescription": "Create a Personal Manual, use private knowledge, and archive Codex outputs.",
+    "longDescription": "Connect Codex to Memova through OAuth MCP for Personal Manual generation, bounded Knowledge V5 retrieval, reviewed first-class Knowledge Entry creation and revision, automation workflows, selected-content import, and consent-aware archiving of final Codex outputs into projects/Uncategorized. A request that authorizes Personal Manual publication under Memova's disclosed privacy practices analyzes up to 20 evidence items from the invoking Codex agent's native tasks and explicitly supplied user content, privately uploads derived Markdown, scoring and client-neutral aggregate evidence counts but no conversation content, and automatically publishes the final manual as a Memova Note.",
     "developerName": "Memova",
     "category": "Productivity",
     "capabilities": [
@@ -40,7 +41,7 @@
     "defaultPrompt": [
       "请让 Memova 生成并发布我的个人说明书；我同意按照 Memova 已说明的隐私规则处理。",
       "Search and use my Memova Knowledge V5.",
-      "Create or update a reviewed Knowledge Entry in Memova."
+      "Archive my Codex output in Memova."
     ],
     "brandColor": "#3366FF",
     "composerIcon": "./assets/icon.svg",

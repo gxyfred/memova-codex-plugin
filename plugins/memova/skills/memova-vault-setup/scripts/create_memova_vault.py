@@ -16,7 +16,7 @@ from memova_vault_lib import (
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Plan or create a Memova Knowledge Base V2 or V3 managed root.")
+    parser = argparse.ArgumentParser(description="Plan or create a Memova Knowledge Base V2/V3/V4 managed root.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     discover_parser = subparsers.add_parser("discover", help="Print detected iCloud roots.")
