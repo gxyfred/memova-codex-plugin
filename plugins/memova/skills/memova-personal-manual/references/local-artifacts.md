@@ -1,6 +1,6 @@
 # Personal Manual Plugin local artifact contract
 
-The Memova MCP `get_personal_manual_generation_contract` result is authoritative for analysis,
+The Memova MCP `get_current_personal_manual_generation_contract` result is authoritative for analysis,
 scoring, writing, privacy, and upload behavior. This file defines the Codex Plugin's temporary
 audit CSV format. The exact UTF-8 CSV text is uploaded as private version metadata and then the
 temporary files are deleted; conversation content is never uploaded.

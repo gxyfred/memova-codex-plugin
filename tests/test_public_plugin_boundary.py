@@ -47,7 +47,7 @@ class PublicPluginBoundaryTests(unittest.TestCase):
             (PLUGIN / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
         )
         self.assertNotIn("hooks", manifest)
-        self.assertEqual(manifest["version"], "1.9.5")
+        self.assertEqual(manifest["version"], "1.9.6")
         description = manifest["interface"]["longDescription"]
         self.assertIn("up to 20 evidence items", description)
         self.assertIn("invoking Codex agent's native tasks", description)
@@ -100,8 +100,9 @@ class PublicPluginBoundaryTests(unittest.TestCase):
         self.assertIn("`agentMessage.text`", manual)
         self.assertIn("Never send history or per-conversation records to Memova MCP", manual)
         self.assertIn("upsert_personal_manual", manual)
-        self.assertIn("get_personal_manual_generation_contract", manual)
-        self.assertIn("personal_manual_generation_v5", manual)
+        self.assertIn("get_personal_manual_preflight", manual)
+        self.assertIn("get_current_personal_manual_generation_contract", manual)
+        self.assertIn("personal_manual_generation_v6", manual)
         self.assertIn("at most 20 total evidence items", manual)
         self.assertIn("`source_kind=conversation_history`", manual)
         self.assertIn("`explicit_user_content`", manual)
@@ -112,8 +113,8 @@ class PublicPluginBoundaryTests(unittest.TestCase):
         self.assertIn("Return\nonly the stable `public_url`", manual)
         self.assertNotIn("personal-manual-output", manual)
         self.assertIn("Do not create HTML locally", manual)
-        self.assertIn("Explicit request authorizes execution", manual)
-        self.assertIn("Do not repeat the disclosure", manual)
+        self.assertIn("Require the disclosed generation request", manual)
+        self.assertIn("host application's own security", manual)
         self.assertIn("A bare `@memova`", manual)
         self.assertIn("--recover-scopes --workflow personal-manual", manual)
         self.assertIn("Never start a second automatic OAuth attempt", manual)
@@ -125,7 +126,8 @@ class PublicPluginBoundaryTests(unittest.TestCase):
         self.assertIn("Do not ask\nthe user to clear OAuth credentials", manual)
         self.assertIn("do not loop, use a local contract copy", " ".join(manual.split()))
         self.assertIn("version_check.py` reports `should_remind: true`", manual)
-        self.assertNotIn("Ask the user to confirm this source scope", manual)
+        self.assertIn("accepts Memova's disclosed privacy practices", manual)
+        self.assertNotIn("publish_personal_manual", manual)
 
     def test_exact_codex_task_url_is_single_task_authorization(self) -> None:
         explicit_import = (
@@ -186,7 +188,10 @@ class PublicPluginBoundaryTests(unittest.TestCase):
 
         prompts = manifest["interface"]["defaultPrompt"]
         self.assertLessEqual(len(prompts), 3)
-        self.assertIn("@memova 个人说明书", prompts)
+        self.assertIn(
+            "请让 Memova 生成并发布我的个人说明书；我同意按照 Memova 已说明的隐私规则处理。",
+            prompts,
+        )
 
     def test_user_facing_skills_hide_internal_audit_fields_by_default(self) -> None:
         explicit_import = (
