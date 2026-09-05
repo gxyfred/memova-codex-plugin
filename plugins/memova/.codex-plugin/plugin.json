@@ -1,13 +1,13 @@
 {
   "name": "memova",
-  "version": "1.9.6",
+  "version": "1.9.7",
   "description": "Create a Personal Manual, use Knowledge V5, and manage reviewed Knowledge Entries.",
   "author": {
     "name": "Memova",
     "url": "https://memova.ai"
   },
   "homepage": "https://memova.ai",
-  "repository": "https://github.com/gxyfred/memova-codex-plugin",
+  "repository": "https://github.com/Memova-ai/memova-codex-plugin",
   "license": "UNLICENSED",
   "keywords": [
     "memova",

@@ -10,6 +10,29 @@ PLUGIN = ROOT / "plugins" / "memova"
 
 
 class PublicPluginBoundaryTests(unittest.TestCase):
+    def test_public_install_sources_use_canonical_company_repository(self) -> None:
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        manifest = json.loads(
+            (PLUGIN / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
+        )
+        canonical_repository = "Memova-ai/memova-codex-plugin"
+        legacy_repository = "/".join(("gxyfred", "memova-codex-plugin"))
+
+        self.assertNotIn(legacy_repository, readme)
+        self.assertIn(
+            f"codex plugin marketplace add {canonical_repository}",
+            readme,
+        )
+        self.assertIn(
+            "Please install or update the Memova Plugin to the latest version "
+            f"from {canonical_repository}",
+            readme,
+        )
+        self.assertEqual(
+            manifest["repository"],
+            f"https://github.com/{canonical_repository}",
+        )
+
     def test_public_plugin_skill_catalog_matches_current_menu(self) -> None:
         skill_names = {
             path.parent.name for path in (PLUGIN / "skills").glob("*/SKILL.md")
@@ -47,7 +70,7 @@ class PublicPluginBoundaryTests(unittest.TestCase):
             (PLUGIN / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
         )
         self.assertNotIn("hooks", manifest)
-        self.assertEqual(manifest["version"], "1.9.6")
+        self.assertEqual(manifest["version"], "1.9.7")
         description = manifest["interface"]["longDescription"]
         self.assertIn("up to 20 evidence items", description)
         self.assertIn("invoking Codex agent's native tasks", description)
